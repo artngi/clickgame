@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>連打ゲーム - わら人形</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>わら人形連打ゲーム - スマホ最適化版</title>
     <style>
-        /* スタイルはほぼ維持 */
         body {
             font-family: 'Hiragino Kaku Gothic ProN', sans-serif;
             background-color: #2c3e50;
@@ -13,7 +13,10 @@
             flex-direction: column;
             align-items: center;
             padding: 20px;
+            /* 文字選択やデフォルトのタッチ動作を禁止 */
             user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation; 
             overflow: hidden;
         }
 
@@ -41,6 +44,8 @@
             position: relative;
             display: inline-block;
             margin: 30px 0;
+            /* スマホでの長押しメニューを禁止 */
+            -webkit-touch-callout: none;
         }
 
         #straw-doll {
@@ -48,15 +53,13 @@
             cursor: pointer;
             display: inline-block;
             filter: drop-shadow(0 5px 15px rgba(0,0,0,0.3));
-            /* transitionを消して即時性を高める */
         }
 
-        /* 振動用のアニメーション */
+        /* 振動アニメーション */
         @keyframes random-shake {
             0% { transform: translate(0, 0) rotate(0deg); }
             25% { transform: translate(var(--sx), var(--sy)) rotate(var(--sr)); }
             50% { transform: translate(calc(var(--sx) * -0.8), calc(var(--sy) * -0.8)) rotate(calc(var(--sr) * -0.8)); }
-            75% { transform: translate(calc(var(--sx) * 0.5), calc(var(--sy) * 0.5)) rotate(calc(var(--sr) * 0.5)); }
             100% { transform: translate(0, 0) rotate(0deg); }
         }
 
@@ -79,10 +82,21 @@
             100% { opacity: 0; transform: translate(var(--rx), -120px) scale(0.8); }
         }
 
-        /* アップグレードボタン等のスタイル */
         .shop { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
-        .upgrade-btn { background: #27ae60; border: none; padding: 12px 5px; color: white; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; align-items: center; }
-        .upgrade-btn:hover:not(:disabled) { background: #2ecc71; }
+        .upgrade-btn { 
+            background: #27ae60; 
+            border: none; 
+            padding: 12px 5px; 
+            color: white; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+            /* ボタンもズーム防止 */
+            touch-action: manipulation;
+        }
+        .upgrade-btn:active:not(:disabled) { transform: scale(0.95); }
         .upgrade-btn:disabled { background: #7f8c8d; opacity: 0.6; }
         .lvl-tag { font-weight: bold; font-size: 1rem; margin-bottom: 4px; }
         .cost-tag { font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; }
@@ -141,19 +155,15 @@
         const dollEl = document.getElementById('straw-doll');
         const dollContainer = document.getElementById('doll-container');
 
-        // --- 振動ロジックの修正 ---
         function triggerShake() {
-            // ランダムな移動量と回転量を生成
-            const sx = (Math.random() - 0.5) * 20 + "px"; // 左右
-            const sy = (Math.random() - 0.5) * 20 + "px"; // 上下
-            const sr = (Math.random() - 0.5) * 10 + "deg"; // 回転
+            const sx = (Math.random() - 0.5) * 30 + "px";
+            const sy = (Math.random() - 0.5) * 30 + "px";
+            const sr = (Math.random() - 0.5) * 15 + "deg";
 
-            // CSS変数にセット
             dollEl.style.setProperty('--sx', sx);
             dollEl.style.setProperty('--sy', sy);
             dollEl.style.setProperty('--sr', sr);
 
-            // クラスを付け直してアニメーションをリセット
             dollEl.classList.remove('shake-active');
             void dollEl.offsetWidth; 
             dollEl.classList.add('shake-active');
@@ -163,9 +173,9 @@
             const el = document.createElement('div');
             el.className = 'damage-popup';
             el.innerText = `-${dmg}`;
-            const randomX = (Math.random() - 0.5) * 120;
-            const randomY = (Math.random() - 0.5) * 60;
-            const moveX = (Math.random() - 0.5) * 100;
+            const randomX = (Math.random() - 0.5) * 150;
+            const randomY = (Math.random() - 0.5) * 80;
+            const moveX = (Math.random() - 0.5) * 120;
             el.style.left = `calc(50% + ${randomX}px)`;
             el.style.top = `calc(50% + ${randomY}px)`;
             el.style.setProperty('--rx', `${moveX}px`);
@@ -177,15 +187,16 @@
             if (dmg <= 0) return;
             totalDamage += dmg;
             points += dmg * state.doll.lv;
-            
             showDamageText(dmg);
             triggerShake(); 
             updateUI();
         }
 
-        // 手動クリック
-        dollEl.addEventListener('mousedown', () => {
+        // pointerdownを使うことで、マウスとタッチの両方に高速反応
+        dollEl.addEventListener('pointerdown', (e) => {
+            e.preventDefault(); // デフォルトの動作（ズームや選択）を抑制
             applyDamage(1 + state.sword.lv + state.gem.lv);
+
             if (state.gun.lv > 0) {
                 let count = 0;
                 const gunInterval = setInterval(() => {
@@ -196,14 +207,13 @@
             }
         });
 
-        // タレット（自動攻撃）
+        // 自動攻撃
         setInterval(() => {
             if (state.turret.lv > 0) {
                 applyDamage(state.turret.lv + state.gem.lv);
             }
         }, 50);
 
-        // アップグレード・UI更新（変更なし）
         function upgrade(key) {
             const item = state[key];
             if (points >= item.cost) {
@@ -215,7 +225,10 @@
         }
 
         Object.keys(state).forEach(key => {
-            document.getElementById(`btn-${key}`).addEventListener('click', () => upgrade(key));
+            document.getElementById(`btn-${key}`).addEventListener('click', (e) => {
+                e.preventDefault();
+                upgrade(key);
+            });
         });
 
         function updateUI() {
