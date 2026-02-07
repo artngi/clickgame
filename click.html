@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>連打ゲーム - わら人形</title>
+    <style>
+        /* スタイルはほぼ維持 */
+        body {
+            font-family: 'Hiragino Kaku Gothic ProN', sans-serif;
+            background-color: #2c3e50;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        #game-container {
+            background: #34495e;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            position: relative;
+        }
+
+        .status-panel {
+            background: #1a252f;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .status-item { font-size: 1.1rem; margin: 5px 0; }
+        .highlight { color: #f1c40f; font-weight: bold; font-size: 1.4rem; }
+
+        #doll-container {
+            position: relative;
+            display: inline-block;
+            margin: 30px 0;
+        }
+
+        #straw-doll {
+            font-size: 120px;
+            cursor: pointer;
+            display: inline-block;
+            filter: drop-shadow(0 5px 15px rgba(0,0,0,0.3));
+            /* transitionを消して即時性を高める */
+        }
+
+        /* 振動用のアニメーション */
+        @keyframes random-shake {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(var(--sx), var(--sy)) rotate(var(--sr)); }
+            50% { transform: translate(calc(var(--sx) * -0.8), calc(var(--sy) * -0.8)) rotate(calc(var(--sr) * -0.8)); }
+            75% { transform: translate(calc(var(--sx) * 0.5), calc(var(--sy) * 0.5)) rotate(calc(var(--sr) * 0.5)); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+
+        .shake-active {
+            animation: random-shake 0.08s linear forwards;
+        }
+
+        .damage-popup {
+            position: absolute;
+            color: #ff4757;
+            font-weight: bold;
+            font-size: 1.5rem;
+            pointer-events: none;
+            z-index: 100;
+            animation: float-up 0.6s ease-out forwards;
+        }
+
+        @keyframes float-up {
+            0% { opacity: 1; transform: translate(0, 0) scale(1.2); }
+            100% { opacity: 0; transform: translate(var(--rx), -120px) scale(0.8); }
+        }
+
+        /* アップグレードボタン等のスタイル */
+        .shop { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+        .upgrade-btn { background: #27ae60; border: none; padding: 12px 5px; color: white; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; align-items: center; }
+        .upgrade-btn:hover:not(:disabled) { background: #2ecc71; }
+        .upgrade-btn:disabled { background: #7f8c8d; opacity: 0.6; }
+        .lvl-tag { font-weight: bold; font-size: 1rem; margin-bottom: 4px; }
+        .cost-tag { font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; }
+        .full-width { grid-column: span 2; background: #e67e22; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div class="status-panel">
+            <div class="status-item">現在のポイント: <span id="points" class="highlight">0</span> pt</div>
+            <div class="status-item">総ダメージ記録: <span id="total-damage">0</span></div>
+        </div>
+
+        <div id="doll-container">
+            <div id="straw-doll">🌾</div>
+        </div>
+
+        <div class="shop">
+            <button class="upgrade-btn" id="btn-sword">
+                <span class="lvl-tag">剣 Lv<span id="lv-sword">0</span></span>
+                <span class="cost-tag">コスト: <span id="cost-sword">10</span></span>
+            </button>
+            <button class="upgrade-btn" id="btn-gun">
+                <span class="lvl-tag">銃 Lv<span id="lv-gun">0</span></span>
+                <span class="cost-tag">コスト: <span id="cost-gun">100</span></span>
+            </button>
+            <button class="upgrade-btn" id="btn-gem">
+                <span class="lvl-tag">ジェム Lv<span id="lv-gem">0</span></span>
+                <span class="cost-tag">コスト: <span id="cost-gem">500</span></span>
+            </button>
+            <button class="upgrade-btn" id="btn-turret">
+                <span class="lvl-tag">タレット Lv<span id="lv-turret">0</span></span>
+                <span class="cost-tag">コスト: <span id="cost-turret">1000</span></span>
+            </button>
+            <button class="upgrade-btn full-width" id="btn-doll">
+                <span class="lvl-tag">わら人形強化 Lv<span id="lv-doll">1</span></span>
+                <span>(<span id="val-doll">1</span>倍)</span>
+                <span class="cost-tag">コスト: <span id="cost-doll">50</span></span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let points = 0;
+        let totalDamage = 0;
+
+        const state = {
+            sword: { lv: 0, cost: 10, baseCost: 10 },
+            gun: { lv: 0, cost: 100, baseCost: 100 },
+            gem: { lv: 0, cost: 500, baseCost: 500 },
+            turret: { lv: 0, cost: 1000, baseCost: 1000 },
+            doll: { lv: 1, cost: 50, baseCost: 50 }
+        };
+
+        const dollEl = document.getElementById('straw-doll');
+        const dollContainer = document.getElementById('doll-container');
+
+        // --- 振動ロジックの修正 ---
+        function triggerShake() {
+            // ランダムな移動量と回転量を生成
+            const sx = (Math.random() - 0.5) * 20 + "px"; // 左右
+            const sy = (Math.random() - 0.5) * 20 + "px"; // 上下
+            const sr = (Math.random() - 0.5) * 10 + "deg"; // 回転
+
+            // CSS変数にセット
+            dollEl.style.setProperty('--sx', sx);
+            dollEl.style.setProperty('--sy', sy);
+            dollEl.style.setProperty('--sr', sr);
+
+            // クラスを付け直してアニメーションをリセット
+            dollEl.classList.remove('shake-active');
+            void dollEl.offsetWidth; 
+            dollEl.classList.add('shake-active');
+        }
+
+        function showDamageText(dmg) {
+            const el = document.createElement('div');
+            el.className = 'damage-popup';
+            el.innerText = `-${dmg}`;
+            const randomX = (Math.random() - 0.5) * 120;
+            const randomY = (Math.random() - 0.5) * 60;
+            const moveX = (Math.random() - 0.5) * 100;
+            el.style.left = `calc(50% + ${randomX}px)`;
+            el.style.top = `calc(50% + ${randomY}px)`;
+            el.style.setProperty('--rx', `${moveX}px`);
+            dollContainer.appendChild(el);
+            setTimeout(() => el.remove(), 600);
+        }
+
+        function applyDamage(dmg) {
+            if (dmg <= 0) return;
+            totalDamage += dmg;
+            points += dmg * state.doll.lv;
+            
+            showDamageText(dmg);
+            triggerShake(); 
+            updateUI();
+        }
+
+        // 手動クリック
+        dollEl.addEventListener('mousedown', () => {
+            applyDamage(1 + state.sword.lv + state.gem.lv);
+            if (state.gun.lv > 0) {
+                let count = 0;
+                const gunInterval = setInterval(() => {
+                    applyDamage(state.gun.lv + state.gem.lv);
+                    count++;
+                    if (count >= 10) clearInterval(gunInterval);
+                }, 30);
+            }
+        });
+
+        // タレット（自動攻撃）
+        setInterval(() => {
+            if (state.turret.lv > 0) {
+                applyDamage(state.turret.lv + state.gem.lv);
+            }
+        }, 50);
+
+        // アップグレード・UI更新（変更なし）
+        function upgrade(key) {
+            const item = state[key];
+            if (points >= item.cost) {
+                points -= item.cost;
+                item.lv++;
+                item.cost = Math.floor(item.baseCost * Math.pow(1.5, key === 'doll' ? item.lv - 1 : item.lv));
+                updateUI();
+            }
+        }
+
+        Object.keys(state).forEach(key => {
+            document.getElementById(`btn-${key}`).addEventListener('click', () => upgrade(key));
+        });
+
+        function updateUI() {
+            document.getElementById('points').innerText = Math.floor(points).toLocaleString();
+            document.getElementById('total-damage').innerText = Math.floor(totalDamage).toLocaleString();
+            Object.keys(state).forEach(key => {
+                const item = state[key];
+                document.getElementById(`lv-${key}`).innerText = item.lv;
+                document.getElementById(`cost-${key}`).innerText = item.cost.toLocaleString();
+                if (key === 'doll') document.getElementById('val-doll').innerText = item.lv;
+                document.getElementById(`btn-${key}`).disabled = points < item.cost;
+            });
+        }
+        updateUI();
+    </script>
+</body>
+</html>
