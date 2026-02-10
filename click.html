@@ -12,42 +12,52 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 15px;
+            justify-content: center; /* 中央寄せ追加 */
+            min-height: 100vh; /* 画面全体の高さを確保 */
+            margin: 0;
+            padding: 10px;
             user-select: none;
             -webkit-user-select: none;
             touch-action: manipulation; 
-            overflow: hidden;
+            overflow: hidden; /* 全体のスクロールを防ぐ */
         }
 
         #game-container {
             background: #34495e;
-            padding: 15px;
+            padding: 15px; /* 余白を少し削る */
             border-radius: 20px;
             box-shadow: 0 15px 30px rgba(0,0,0,0.5);
             width: 100%;
-            max-width: 500px;
+            max-width: 400px; /* 横幅を少しスリムに */
+            max-height: 95vh; /* 画面の高さからはみ出さないように制限 */
             text-align: center;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto; /* 縦に長い場合はコンテナ内をスクロール */
         }
 
         .status-panel {
             background: #1a252f;
             padding: 10px;
             border-radius: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
+            flex-shrink: 0; /* 潰れないように固定 */
         }
-        .status-item { font-size: 1.1rem; margin: 5px 0; }
-        .highlight { color: #f1c40f; font-weight: bold; font-size: 1.4rem; }
+        .status-item { font-size: 0.9rem; margin: 2px 0; }
+        .highlight { color: #f1c40f; font-weight: bold; font-size: 1.2rem; }
 
         #doll-container {
             position: relative;
             display: inline-block;
-            margin: 30px 0;
+            margin: 10px 0;
+            flex-shrink: 0;
             -webkit-touch-callout: none;
         }
 
         #straw-doll {
-            font-size: 120px;
+            font-size: 80px; /* 初期サイズを少し小さく */
+            font-size: clamp(60px, 20vw, 120px); /* 画面幅に合わせて可変 */
             cursor: pointer;
             display: inline-block;
             filter: drop-shadow(0 5px 15px rgba(0,0,0,0.3));
@@ -68,7 +78,7 @@
             position: absolute;
             color: #ff4757;
             font-weight: bold;
-            font-size: 1.5rem;
+            font-size: 1.2rem;
             pointer-events: none;
             z-index: 100;
             animation: float-up 0.6s ease-out forwards;
@@ -76,14 +86,20 @@
 
         @keyframes float-up {
             0% { opacity: 1; transform: translate(0, 0) scale(1.2); }
-            100% { opacity: 0; transform: translate(var(--rx), -120px) scale(0.8); }
+            100% { opacity: 0; transform: translate(var(--rx), -80px) scale(0.8); }
         }
 
-        .shop { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+        .shop { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 8px; 
+            margin-top: 10px;
+            flex-shrink: 0; 
+        }
         .upgrade-btn { 
             background: #27ae60; 
             border: none; 
-            padding: 12px 5px; 
+            padding: 8px 4px; 
             color: white; 
             border-radius: 8px; 
             cursor: pointer; 
@@ -94,23 +110,21 @@
         }
         .upgrade-btn:active:not(:disabled) { transform: scale(0.95); }
         .upgrade-btn:disabled { background: #7f8c8d; opacity: 0.6; }
-        .lvl-tag { font-weight: bold; font-size: 1rem; margin-bottom: 4px; }
-        .cost-tag { font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; }
+        .lvl-tag { font-weight: bold; font-size: 0.85rem; margin-bottom: 2px; }
+        .cost-tag { font-size: 0.7rem; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; }
         .full-width { grid-column: span 2; background: #e67e22; }
 
-        /* リセットボタンのスタイル */
-        .reset-area { margin-top: 25px; border-top: 1px solid #5d6d7e; padding-top: 15px; }
+        .reset-area { margin-top: 15px; border-top: 1px solid #5d6d7e; padding-top: 10px; flex-shrink: 0; }
         #btn-reset { 
             background: #c0392b; 
             color: #ecf0f1; 
             border: none; 
-            padding: 8px 15px; 
+            padding: 6px 12px; 
             border-radius: 5px; 
-            font-size: 0.8rem; 
+            font-size: 0.7rem; 
             cursor: pointer; 
             opacity: 0.7;
         }
-        #btn-reset:hover { opacity: 1; }
     </style>
 </head>
 <body>
@@ -155,6 +169,7 @@
     </div>
 
     <script>
+        // --- JavaScriptの内容は元のままで変更なし ---
         let points = 0;
         let totalDamage = 0;
 
@@ -169,7 +184,6 @@
         const dollEl = document.getElementById('straw-doll');
         const dollContainer = document.getElementById('doll-container');
 
-        // --- セーブ機能 ---
         function saveGame() {
             const saveData = {
                 points: points,
@@ -179,14 +193,12 @@
             localStorage.setItem('straw_doll_save', JSON.stringify(saveData));
         }
 
-        // --- ロード機能 ---
         function loadGame() {
             const saved = localStorage.getItem('straw_doll_save');
             if (saved) {
                 const data = JSON.parse(saved);
                 points = data.points || 0;
                 totalDamage = data.totalDamage || 0;
-                // 各ステータスの復元
                 Object.keys(state).forEach(key => {
                     if (data.state[key]) {
                         state[key].lv = data.state[key].lv;
@@ -196,12 +208,11 @@
             }
         }
 
-        // --- リセット機能 ---
         document.getElementById('btn-reset').addEventListener('click', () => {
             const confirmed = confirm("これまでの進捗がすべて消去されます。本当によろしいですか？");
             if (confirmed) {
                 localStorage.removeItem('straw_doll_save');
-                location.reload(); // ページをリロードして初期状態に戻す
+                location.reload();
             }
         });
 
@@ -240,7 +251,7 @@
             showDamageText(dmg);
             triggerShake(); 
             updateUI();
-            saveGame(); // 数値が変わるたびに保存
+            saveGame();
         }
 
         dollEl.addEventListener('pointerdown', (e) => {
@@ -270,7 +281,7 @@
                 item.lv++;
                 item.cost = Math.floor(item.baseCost * Math.pow(1.5, key === 'doll' ? item.lv - 1 : item.lv));
                 updateUI();
-                saveGame(); // アップグレード時も保存
+                saveGame();
             }
         }
 
@@ -293,7 +304,6 @@
             });
         }
 
-        // 起動時にロードを実行
         loadGame();
         updateUI();
     </script>
