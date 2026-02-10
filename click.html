@@ -13,7 +13,6 @@
             flex-direction: column;
             align-items: center;
             padding: 20px;
-            /* 文字選択やデフォルトのタッチ動作を禁止 */
             user-select: none;
             -webkit-user-select: none;
             touch-action: manipulation; 
@@ -44,7 +43,6 @@
             position: relative;
             display: inline-block;
             margin: 30px 0;
-            /* スマホでの長押しメニューを禁止 */
             -webkit-touch-callout: none;
         }
 
@@ -55,7 +53,6 @@
             filter: drop-shadow(0 5px 15px rgba(0,0,0,0.3));
         }
 
-        /* 振動アニメーション */
         @keyframes random-shake {
             0% { transform: translate(0, 0) rotate(0deg); }
             25% { transform: translate(var(--sx), var(--sy)) rotate(var(--sr)); }
@@ -93,7 +90,6 @@
             display: flex; 
             flex-direction: column; 
             align-items: center;
-            /* ボタンもズーム防止 */
             touch-action: manipulation;
         }
         .upgrade-btn:active:not(:disabled) { transform: scale(0.95); }
@@ -101,6 +97,20 @@
         .lvl-tag { font-weight: bold; font-size: 1rem; margin-bottom: 4px; }
         .cost-tag { font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; }
         .full-width { grid-column: span 2; background: #e67e22; }
+
+        /* リセットボタンのスタイル */
+        .reset-area { margin-top: 25px; border-top: 1px solid #5d6d7e; padding-top: 15px; }
+        #btn-reset { 
+            background: #c0392b; 
+            color: #ecf0f1; 
+            border: none; 
+            padding: 8px 15px; 
+            border-radius: 5px; 
+            font-size: 0.8rem; 
+            cursor: pointer; 
+            opacity: 0.7;
+        }
+        #btn-reset:hover { opacity: 1; }
     </style>
 </head>
 <body>
@@ -138,6 +148,10 @@
                 <span class="cost-tag">コスト: <span id="cost-doll">50</span></span>
             </button>
         </div>
+
+        <div class="reset-area">
+            <button id="btn-reset">データをリセットする</button>
+        </div>
     </div>
 
     <script>
@@ -154,6 +168,42 @@
 
         const dollEl = document.getElementById('straw-doll');
         const dollContainer = document.getElementById('doll-container');
+
+        // --- セーブ機能 ---
+        function saveGame() {
+            const saveData = {
+                points: points,
+                totalDamage: totalDamage,
+                state: state
+            };
+            localStorage.setItem('straw_doll_save', JSON.stringify(saveData));
+        }
+
+        // --- ロード機能 ---
+        function loadGame() {
+            const saved = localStorage.getItem('straw_doll_save');
+            if (saved) {
+                const data = JSON.parse(saved);
+                points = data.points || 0;
+                totalDamage = data.totalDamage || 0;
+                // 各ステータスの復元
+                Object.keys(state).forEach(key => {
+                    if (data.state[key]) {
+                        state[key].lv = data.state[key].lv;
+                        state[key].cost = data.state[key].cost;
+                    }
+                });
+            }
+        }
+
+        // --- リセット機能 ---
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            const confirmed = confirm("これまでの進捗がすべて消去されます。本当によろしいですか？");
+            if (confirmed) {
+                localStorage.removeItem('straw_doll_save');
+                location.reload(); // ページをリロードして初期状態に戻す
+            }
+        });
 
         function triggerShake() {
             const sx = (Math.random() - 0.5) * 30 + "px";
@@ -190,11 +240,11 @@
             showDamageText(dmg);
             triggerShake(); 
             updateUI();
+            saveGame(); // 数値が変わるたびに保存
         }
 
-        // pointerdownを使うことで、マウスとタッチの両方に高速反応
         dollEl.addEventListener('pointerdown', (e) => {
-            e.preventDefault(); // デフォルトの動作（ズームや選択）を抑制
+            e.preventDefault();
             applyDamage(1 + state.sword.lv * (state.gem.lv + 1));
 
             if (state.gun.lv > 0) {
@@ -207,7 +257,6 @@
             }
         });
 
-        // 自動攻撃
         setInterval(() => {
             if (state.turret.lv > 0) {
                 applyDamage(state.turret.lv * (state.gem.lv + 1));
@@ -221,6 +270,7 @@
                 item.lv++;
                 item.cost = Math.floor(item.baseCost * Math.pow(1.5, key === 'doll' ? item.lv - 1 : item.lv));
                 updateUI();
+                saveGame(); // アップグレード時も保存
             }
         }
 
@@ -242,6 +292,9 @@
                 document.getElementById(`btn-${key}`).disabled = points < item.cost;
             });
         }
+
+        // 起動時にロードを実行
+        loadGame();
         updateUI();
     </script>
 </body>
