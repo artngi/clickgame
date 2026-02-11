@@ -279,7 +279,7 @@
             if (points >= item.cost) {
                 points -= item.cost;
                 item.lv++;
-                item.cost = Math.floor(item.baseCost * Math.pow(1.5, key === 'doll' ? item.lv - 1 : item.lv));
+                item.cost = Math.floor(item.baseCost * Math.pow(1.4, key === 'doll' ? item.lv - 1 : item.lv));
                 updateUI();
                 saveGame();
             }
