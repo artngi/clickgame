@@ -160,7 +160,7 @@
 
         <div class="multiplier-config">
             <label for="input-multiplier">一括購入数:</label>
-            <input type="number" id="input-multiplier" value="1" min="1" max="999999">
+            <input type="number" id="input-multiplier" value="1" min="1">
         </div>
 
         <div class="shop">
@@ -237,7 +237,6 @@
         multInput.addEventListener('input', () => {
             let val = parseInt(multInput.value);
             if (isNaN(val) || val < 1) val = 1;
-            if (val > 999999) val = 999999;
             currentMultiplier = val;
             updateUI();
         });
