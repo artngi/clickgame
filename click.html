@@ -12,29 +12,29 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center; /* 中央寄せ追加 */
-            min-height: 100vh; /* 画面全体の高さを確保 */
+            justify-content: center;
+            min-height: 100vh;
             margin: 0;
             padding: 10px;
             user-select: none;
             -webkit-user-select: none;
             touch-action: manipulation; 
-            overflow: hidden; /* 全体のスクロールを防ぐ */
+            overflow: hidden;
         }
 
         #game-container {
             background: #34495e;
-            padding: 15px; /* 余白を少し削る */
+            padding: 15px;
             border-radius: 20px;
             box-shadow: 0 15px 30px rgba(0,0,0,0.5);
             width: 100%;
-            max-width: 400px; /* 横幅を少しスリムに */
-            max-height: 95vh; /* 画面の高さからはみ出さないように制限 */
+            max-width: 420px;
+            max-height: 95vh;
             text-align: center;
             position: relative;
             display: flex;
             flex-direction: column;
-            overflow-y: auto; /* 縦に長い場合はコンテナ内をスクロール */
+            overflow-y: auto;
         }
 
         .status-panel {
@@ -42,7 +42,7 @@
             padding: 10px;
             border-radius: 10px;
             margin-bottom: 10px;
-            flex-shrink: 0; /* 潰れないように固定 */
+            flex-shrink: 0;
         }
         .status-item { font-size: 0.9rem; margin: 2px 0; }
         .highlight { color: #f1c40f; font-weight: bold; font-size: 1.2rem; }
@@ -52,15 +52,35 @@
             display: inline-block;
             margin: 10px 0;
             flex-shrink: 0;
-            -webkit-touch-callout: none;
         }
 
         #straw-doll {
-            font-size: 80px; /* 初期サイズを少し小さく */
-            font-size: clamp(60px, 20vw, 120px); /* 画面幅に合わせて可変 */
+            font-size: clamp(60px, 20vw, 100px);
             cursor: pointer;
             display: inline-block;
             filter: drop-shadow(0 5px 15px rgba(0,0,0,0.3));
+        }
+
+        /* 入力エリアのスタイル */
+        .multiplier-config {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .multiplier-config label { font-size: 0.85rem; }
+        #input-multiplier {
+            width: 80px;
+            padding: 5px;
+            border-radius: 5px;
+            border: none;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1rem;
         }
 
         @keyframes random-shake {
@@ -69,33 +89,30 @@
             50% { transform: translate(calc(var(--sx) * -0.8), calc(var(--sy) * -0.8)) rotate(calc(var(--sr) * -0.8)); }
             100% { transform: translate(0, 0) rotate(0deg); }
         }
-
-        .shake-active {
-            animation: random-shake 0.08s linear forwards;
-        }
-
-        .damage-popup {
-            position: absolute;
-            color: #ff4757;
-            font-weight: bold;
-            font-size: 1.2rem;
-            pointer-events: none;
-            z-index: 100;
-            animation: float-up 0.6s ease-out forwards;
-        }
-
-        @keyframes float-up {
-            0% { opacity: 1; transform: translate(0, 0) scale(1.2); }
-            100% { opacity: 0; transform: translate(var(--rx), -80px) scale(0.8); }
-        }
+        .shake-active { animation: random-shake 0.08s linear forwards; }
 
         .shop { 
             display: grid; 
             grid-template-columns: 1fr 1fr; 
-            gap: 8px; 
-            margin-top: 10px;
-            flex-shrink: 0; 
+            gap: 10px; 
+            margin-top: 5px;
         }
+        
+        .item-box {
+            background: rgba(0,0,0,0.2);
+            padding: 8px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .item-box.full-width { grid-column: span 2; }
+
+        .current-lv-label {
+            font-size: 0.75rem;
+            color: #bdc3c7;
+        }
+
         .upgrade-btn { 
             background: #27ae60; 
             border: none; 
@@ -106,61 +123,82 @@
             display: flex; 
             flex-direction: column; 
             align-items: center;
-            touch-action: manipulation;
+            transition: background 0.2s;
         }
-        .upgrade-btn:active:not(:disabled) { transform: scale(0.95); }
-        .upgrade-btn:disabled { background: #7f8c8d; opacity: 0.6; }
-        .lvl-tag { font-weight: bold; font-size: 0.85rem; margin-bottom: 2px; }
-        .cost-tag { font-size: 0.7rem; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; }
-        .full-width { grid-column: span 2; background: #e67e22; }
+        .upgrade-btn:disabled { background: #7f8c8d; opacity: 0.6; cursor: not-allowed; }
+        .next-tag { font-weight: bold; font-size: 0.8rem; }
+        .cost-tag { font-size: 0.7rem; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; margin-top: 2px;}
 
-        .reset-area { margin-top: 15px; border-top: 1px solid #5d6d7e; padding-top: 10px; flex-shrink: 0; }
-        #btn-reset { 
-            background: #c0392b; 
-            color: #ecf0f1; 
-            border: none; 
-            padding: 6px 12px; 
-            border-radius: 5px; 
-            font-size: 0.7rem; 
-            cursor: pointer; 
-            opacity: 0.7;
+        .damage-popup {
+            position: absolute;
+            color: #ff4757;
+            font-weight: bold;
+            font-size: 1.2rem;
+            pointer-events: none;
+            animation: float-up 0.6s ease-out forwards;
         }
+        @keyframes float-up {
+            0% { opacity: 1; transform: translate(0, 0) scale(1.2); }
+            100% { opacity: 0; transform: translate(var(--rx), -80px) scale(0.8); }
+        }
+
+        .reset-area { margin-top: 15px; border-top: 1px solid #5d6d7e; padding-top: 10px; }
+        #btn-reset { background: #c0392b; color: #ecf0f1; border: none; padding: 6px 12px; border-radius: 5px; font-size: 0.7rem; cursor: pointer; opacity: 0.7; }
     </style>
 </head>
 <body>
 
     <div id="game-container">
         <div class="status-panel">
-            <div class="status-item">現在のポイント: <span id="points" class="highlight">0</span> pt</div>
-            <div class="status-item">総ダメージ記録: <span id="total-damage">0</span></div>
+            <div class="status-item">ポイント: <span id="points" class="highlight">0</span> pt</div>
+            <div class="status-item">総ダメージ: <span id="total-damage">0</span></div>
         </div>
 
         <div id="doll-container">
             <div id="straw-doll">🌾</div>
         </div>
 
+        <div class="multiplier-config">
+            <label for="input-multiplier">一括購入数:</label>
+            <input type="number" id="input-multiplier" value="1" min="1" max="999999">
+        </div>
+
         <div class="shop">
-            <button class="upgrade-btn" id="btn-sword">
-                <span class="lvl-tag">剣 Lv<span id="lv-sword">0</span></span>
-                <span class="cost-tag">コスト: <span id="cost-sword">10</span></span>
-            </button>
-            <button class="upgrade-btn" id="btn-gun">
-                <span class="lvl-tag">銃 Lv<span id="lv-gun">0</span></span>
-                <span class="cost-tag">コスト: <span id="cost-gun">100</span></span>
-            </button>
-            <button class="upgrade-btn" id="btn-gem">
-                <span class="lvl-tag">ジェム Lv<span id="lv-gem">0</span></span>
-                <span class="cost-tag">コスト: <span id="cost-gem">500</span></span>
-            </button>
-            <button class="upgrade-btn" id="btn-turret">
-                <span class="lvl-tag">タレット Lv<span id="lv-turret">0</span></span>
-                <span class="cost-tag">コスト: <span id="cost-turret">1000</span></span>
-            </button>
-            <button class="upgrade-btn full-width" id="btn-doll">
-                <span class="lvl-tag">わら人形強化 Lv<span id="lv-doll">1</span></span>
-                <span>(<span id="val-doll">1</span>倍)</span>
-                <span class="cost-tag">コスト: <span id="cost-doll">50</span></span>
-            </button>
+            <div class="item-box">
+                <span class="current-lv-label">剣 現在: Lv<span id="cur-lv-sword">0</span></span>
+                <button class="upgrade-btn" id="btn-sword">
+                    <span class="next-tag">+<span class="plus-val">1</span> Lv (➡ Lv<span id="next-lv-sword">1</span>)</span>
+                    <span class="cost-tag"><span id="cost-sword">10</span> pt</span>
+                </button>
+            </div>
+            <div class="item-box">
+                <span class="current-lv-label">銃 現在: Lv<span id="cur-lv-gun">0</span></span>
+                <button class="upgrade-btn" id="btn-gun">
+                    <span class="next-tag">+<span class="plus-val">1</span> Lv (➡ Lv<span id="next-lv-gun">1</span>)</span>
+                    <span class="cost-tag"><span id="cost-gun">100</span> pt</span>
+                </button>
+            </div>
+            <div class="item-box">
+                <span class="current-lv-label">ジェム 現在: Lv<span id="cur-lv-gem">0</span></span>
+                <button class="upgrade-btn" id="btn-gem">
+                    <span class="next-tag">+<span class="plus-val">1</span> Lv (➡ Lv<span id="next-lv-gem">1</span>)</span>
+                    <span class="cost-tag"><span id="cost-gem">500</span> pt</span>
+                </button>
+            </div>
+            <div class="item-box">
+                <span class="current-lv-label">タレット 現在: Lv<span id="cur-lv-turret">0</span></span>
+                <button class="upgrade-btn" id="btn-turret">
+                    <span class="next-tag">+<span class="plus-val">1</span> Lv (➡ Lv<span id="next-lv-turret">1</span>)</span>
+                    <span class="cost-tag"><span id="cost-turret">1000</span> pt</span>
+                </button>
+            </div>
+            <div class="item-box full-width" style="background: rgba(230, 126, 34, 0.2);">
+                <span class="current-lv-label">わら人形強化 現在: Lv<span id="cur-lv-doll">1</span></span>
+                <button class="upgrade-btn" id="btn-doll" style="background: #e67e22;">
+                    <span class="next-tag">+<span class="plus-val">1</span> Lv (➡ Lv<span id="next-lv-doll">2</span>)</span>
+                    <span class="cost-tag"><span id="cost-doll">50</span> pt</span>
+                </button>
+            </div>
         </div>
 
         <div class="reset-area">
@@ -169,9 +207,9 @@
     </div>
 
     <script>
-        // --- JavaScriptの内容は元のままで変更なし ---
         let points = 0;
         let totalDamage = 0;
+        let currentMultiplier = 1;
 
         const state = {
             sword: { lv: 0, cost: 10, baseCost: 10 },
@@ -183,14 +221,29 @@
 
         const dollEl = document.getElementById('straw-doll');
         const dollContainer = document.getElementById('doll-container');
+        const multInput = document.getElementById('input-multiplier');
+
+        // 等差数列の和を用いた一括コスト計算
+        function getBulkCost(key, amount) {
+            if (amount < 1) return 0;
+            const item = state[key];
+            let startLv = (key === 'doll') ? item.lv : item.lv + 1;
+            let endLv = startLv + amount - 1;
+            // 和の公式: (項数 * (初項 + 末項)) / 2 * baseCost
+            let sum = (amount * (startLv + endLv)) / 2;
+            return Math.floor(sum * item.baseCost);
+        }
+
+        multInput.addEventListener('input', () => {
+            let val = parseInt(multInput.value);
+            if (isNaN(val) || val < 1) val = 1;
+            if (val > 999999) val = 999999;
+            currentMultiplier = val;
+            updateUI();
+        });
 
         function saveGame() {
-            const saveData = {
-                points: points,
-                totalDamage: totalDamage,
-                state: state
-            };
-            localStorage.setItem('straw_doll_save', JSON.stringify(saveData));
+            localStorage.setItem('straw_doll_save', JSON.stringify({ points, totalDamage, state }));
         }
 
         function loadGame() {
@@ -202,47 +255,17 @@
                 Object.keys(state).forEach(key => {
                     if (data.state[key]) {
                         state[key].lv = data.state[key].lv;
-                        state[key].cost = data.state[key].cost;
                     }
                 });
             }
         }
 
         document.getElementById('btn-reset').addEventListener('click', () => {
-            const confirmed = confirm("これまでの進捗がすべて消去されます。本当によろしいですか？");
-            if (confirmed) {
+            if (confirm("全データを削除しますか？")) {
                 localStorage.removeItem('straw_doll_save');
                 location.reload();
             }
         });
-
-        function triggerShake() {
-            const sx = (Math.random() - 0.5) * 30 + "px";
-            const sy = (Math.random() - 0.5) * 30 + "px";
-            const sr = (Math.random() - 0.5) * 15 + "deg";
-
-            dollEl.style.setProperty('--sx', sx);
-            dollEl.style.setProperty('--sy', sy);
-            dollEl.style.setProperty('--sr', sr);
-
-            dollEl.classList.remove('shake-active');
-            void dollEl.offsetWidth; 
-            dollEl.classList.add('shake-active');
-        }
-
-        function showDamageText(dmg) {
-            const el = document.createElement('div');
-            el.className = 'damage-popup';
-            el.innerText = `-${dmg}`;
-            const randomX = (Math.random() - 0.5) * 150;
-            const randomY = (Math.random() - 0.5) * 80;
-            const moveX = (Math.random() - 0.5) * 120;
-            el.style.left = `calc(50% + ${randomX}px)`;
-            el.style.top = `calc(50% + ${randomY}px)`;
-            el.style.setProperty('--rx', `${moveX}px`);
-            dollContainer.appendChild(el);
-            setTimeout(() => el.remove(), 600);
-        }
 
         function applyDamage(dmg) {
             if (dmg <= 0) return;
@@ -254,32 +277,47 @@
             saveGame();
         }
 
+        function triggerShake() {
+            dollEl.style.setProperty('--sx', (Math.random() - 0.5) * 30 + "px");
+            dollEl.style.setProperty('--sy', (Math.random() - 0.5) * 30 + "px");
+            dollEl.style.setProperty('--sr', (Math.random() - 0.5) * 15 + "deg");
+            dollEl.classList.remove('shake-active');
+            void dollEl.offsetWidth; 
+            dollEl.classList.add('shake-active');
+        }
+
+        function showDamageText(dmg) {
+            const el = document.createElement('div');
+            el.className = 'damage-popup';
+            el.innerText = `-${dmg}`;
+            el.style.left = `calc(50% + ${(Math.random() - 0.5) * 150}px)`;
+            el.style.top = `calc(50% + ${(Math.random() - 0.5) * 80}px)`;
+            el.style.setProperty('--rx', `${(Math.random() - 0.5) * 120}px`);
+            dollContainer.appendChild(el);
+            setTimeout(() => el.remove(), 600);
+        }
+
         dollEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
-            applyDamage(1 + state.sword.lv * (state.gem.lv + 1));
-
+            applyDamage(1 + state.sword.lv + state.gem.lv);
             if (state.gun.lv > 0) {
                 let count = 0;
                 const gunInterval = setInterval(() => {
-                    applyDamage(state.gun.lv * (state.gem.lv + 1));
-                    count++;
-                    if (count >= 10) clearInterval(gunInterval);
+                    applyDamage(state.gun.lv + state.gem.lv);
+                    if (++count >= 10) clearInterval(gunInterval);
                 }, 30);
             }
         });
 
         setInterval(() => {
-            if (state.turret.lv > 0) {
-                applyDamage(state.turret.lv * (state.gem.lv + 1));
-            }
+            if (state.turret.lv > 0) applyDamage(state.turret.lv + state.gem.lv);
         }, 50);
 
         function upgrade(key) {
-            const item = state[key];
-            if (points >= item.cost) {
-                points -= item.cost;
-                item.lv++;
-                item.cost = Math.floor(item.baseCost * Math.pow(1.4, key === 'doll' ? item.lv - 1 : item.lv));
+            const needed = getBulkCost(key, currentMultiplier);
+            if (points >= needed) {
+                points -= needed;
+                state[key].lv += currentMultiplier;
                 updateUI();
                 saveGame();
             }
@@ -295,12 +333,17 @@
         function updateUI() {
             document.getElementById('points').innerText = Math.floor(points).toLocaleString();
             document.getElementById('total-damage').innerText = Math.floor(totalDamage).toLocaleString();
+            
+            document.querySelectorAll('.plus-val').forEach(el => el.innerText = currentMultiplier.toLocaleString());
+
             Object.keys(state).forEach(key => {
                 const item = state[key];
-                document.getElementById(`lv-${key}`).innerText = item.lv;
-                document.getElementById(`cost-${key}`).innerText = item.cost.toLocaleString();
-                if (key === 'doll') document.getElementById('val-doll').innerText = item.lv;
-                document.getElementById(`btn-${key}`).disabled = points < item.cost;
+                const bulkCost = getBulkCost(key, currentMultiplier);
+                
+                document.getElementById(`cur-lv-${key}`).innerText = item.lv.toLocaleString();
+                document.getElementById(`next-lv-${key}`).innerText = (item.lv + currentMultiplier).toLocaleString();
+                document.getElementById(`cost-${key}`).innerText = bulkCost.toLocaleString();
+                document.getElementById(`btn-${key}`).disabled = (points < bulkCost || currentMultiplier < 1);
             });
         }
 
