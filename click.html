@@ -260,9 +260,22 @@
         }
 
         document.getElementById('btn-reset').addEventListener('click', () => {
-            if (confirm("全データを削除しますか？")) {
+            if (confirm("全データを削除して最初からやり直しますか？")) {
+                // 1. ローカルストレージを削除
                 localStorage.removeItem('straw_doll_save');
-                location.reload();
+                
+                // 2. メモリ上の変数を初期状態に戻す（念のため）
+                points = 0;
+                totalDamage = 0;
+                state.sword.lv = 0;
+                state.gun.lv = 0;
+                state.gem.lv = 0;
+                state.turret.lv = 0;
+                state.doll.lv = 1;
+
+                // 3. ページを強制リロード
+                // trueを入れるとサーバーから最新の状態を読み込みます
+                location.replace(location.href); 
             }
         });
 
