@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>連打ゲーム - わら人形</title>
+    <title>連打ゲーム - わら人形【ランク称号版】</title>
     <style>
         body {
             font-family: 'Hiragino Kaku Gothic ProN', sans-serif;
@@ -37,6 +37,38 @@
             overflow-y: auto;
         }
 
+        /* ランク表示エリア */
+        .rank-display {
+            background: #8e44ad;
+            border-radius: 10px;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 2px solid #9b59b6;
+        }
+        #current-rank {
+            font-weight: bold;
+            color: #f1c40f;
+            font-size: 1.1rem;
+            text-shadow: 0 0 5px rgba(241, 196, 15, 0.5);
+        }
+
+        .top-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+
+        #event-timer-display {
+            background: #e74c3c;
+            padding: 8px 10px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            flex: 1;
+            font-weight: bold;
+        }
+
         .status-panel {
             background: #1a252f;
             padding: 10px;
@@ -47,11 +79,30 @@
         .status-item { font-size: 0.9rem; margin: 2px 0; }
         .highlight { color: #f1c40f; font-weight: bold; font-size: 1.2rem; }
 
+        /* ボス用HPバー */
+        #boss-hp-container {
+            display: none;
+            width: 100%;
+            background: #444;
+            height: 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+            border: 2px solid #000;
+        }
+        #boss-hp-bar {
+            width: 100%;
+            height: 100%;
+            background: #ff4757;
+            transition: width 0.1s;
+        }
+
         #doll-container {
             position: relative;
             display: inline-block;
             margin: 10px 0;
             flex-shrink: 0;
+            min-height: 120px;
         }
 
         #straw-doll {
@@ -61,7 +112,6 @@
             filter: drop-shadow(0 5px 15px rgba(0,0,0,0.3));
         }
 
-        /* 入力エリアのスタイル */
         .multiplier-config {
             background: rgba(0,0,0,0.3);
             padding: 10px;
@@ -72,16 +122,7 @@
             justify-content: center;
             gap: 10px;
         }
-        .multiplier-config label { font-size: 0.85rem; }
-        #input-multiplier {
-            width: 80px;
-            padding: 5px;
-            border-radius: 5px;
-            border: none;
-            text-align: center;
-            font-weight: bold;
-            font-size: 1rem;
-        }
+        #input-multiplier { width: 60px; text-align: center; }
 
         @keyframes random-shake {
             0% { transform: translate(0, 0) rotate(0deg); }
@@ -108,32 +149,21 @@
         }
         .item-box.full-width { grid-column: span 2; }
 
-        .current-lv-label {
-            font-size: 0.75rem;
-            color: #bdc3c7;
-        }
-
         .upgrade-btn { 
             background: #27ae60; 
             border: none; 
             padding: 8px 4px; 
             color: white; 
             border-radius: 8px; 
-            cursor: pointer; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center;
-            transition: background 0.2s;
+            cursor: pointer;
+            transition: 0.2s;
         }
-        .upgrade-btn:disabled { background: #7f8c8d; opacity: 0.6; cursor: not-allowed; }
-        .next-tag { font-weight: bold; font-size: 0.8rem; }
-        .cost-tag { font-size: 0.7rem; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; margin-top: 2px;}
+        .upgrade-btn:disabled { background: #7f8c8d; opacity: 0.6; }
 
         .damage-popup {
             position: absolute;
             color: #ff4757;
             font-weight: bold;
-            font-size: 1.2rem;
             pointer-events: none;
             animation: float-up 0.6s ease-out forwards;
         }
@@ -142,60 +172,83 @@
             100% { opacity: 0; transform: translate(var(--rx), -80px) scale(0.8); }
         }
 
+        .event-active-banner {
+            background: #f1c40f;
+            color: #000;
+            padding: 5px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            display: none;
+        }
+
         .reset-area { margin-top: 15px; border-top: 1px solid #5d6d7e; padding-top: 10px; }
-        #btn-reset { background: #c0392b; color: #ecf0f1; border: none; padding: 6px 12px; border-radius: 5px; font-size: 0.7rem; cursor: pointer; opacity: 0.7; }
+        #btn-reset { background: #c0392b; color: #ecf0f1; border: none; padding: 6px 12px; border-radius: 5px; font-size: 0.7rem; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div id="game-container">
+        <div class="rank-display">
+            現在のランク: <span id="current-rank">読み込み中...</span>
+        </div>
+
+        <div class="top-controls">
+            <div id="event-timer-display">次まで: 10:00</div>
+        </div>
+
+        <div id="event-banner" class="event-active-banner"></div>
+
         <div class="status-panel">
             <div class="status-item">ポイント: <span id="points" class="highlight">0</span> pt</div>
             <div class="status-item">総ダメージ: <span id="total-damage">0</span></div>
         </div>
+
+        <div id="boss-hp-container"><div id="boss-hp-bar"></div></div>
 
         <div id="doll-container">
             <div id="straw-doll">🌾</div>
         </div>
 
         <div class="multiplier-config">
-            <label for="input-multiplier">一括購入数:</label>
+            <label for="input-multiplier">一括購入:</label>
             <input type="number" id="input-multiplier" value="1" min="1">
         </div>
 
         <div class="shop">
             <div class="item-box">
-                <span class="current-lv-label">剣 現在: Lv<span id="cur-lv-sword">0</span></span>
+                <span style="font-size:0.7rem">剣 Lv<span id="cur-lv-sword">0</span></span>
                 <button class="upgrade-btn" id="btn-sword">
-                    <span class="next-tag">+<span class="plus-val">1</span> Lv (➡ Lv<span id="next-lv-sword">1</span>)</span>
+                    <span class="next-tag">+<span class="plus-val">1</span> Lv</span>
                     <span class="cost-tag"><span id="cost-sword">10</span> pt</span>
                 </button>
             </div>
             <div class="item-box">
-                <span class="current-lv-label">銃 現在: Lv<span id="cur-lv-gun">0</span></span>
+                <span style="font-size:0.7rem">銃 Lv<span id="cur-lv-gun">0</span></span>
                 <button class="upgrade-btn" id="btn-gun">
-                    <span class="next-tag">+<span class="plus-val">1</span> Lv (➡ Lv<span id="next-lv-gun">1</span>)</span>
+                    <span class="next-tag">+<span class="plus-val">1</span> Lv</span>
                     <span class="cost-tag"><span id="cost-gun">100</span> pt</span>
                 </button>
             </div>
             <div class="item-box">
-                <span class="current-lv-label">ジェム 現在: Lv<span id="cur-lv-gem">0</span></span>
+                <span style="font-size:0.7rem">ジェム Lv<span id="cur-lv-gem">0</span></span>
                 <button class="upgrade-btn" id="btn-gem">
-                    <span class="next-tag">+<span class="plus-val">1</span> Lv (➡ Lv<span id="next-lv-gem">1</span>)</span>
+                    <span class="next-tag">+<span class="plus-val">1</span> Lv</span>
                     <span class="cost-tag"><span id="cost-gem">500</span> pt</span>
                 </button>
             </div>
             <div class="item-box">
-                <span class="current-lv-label">タレット 現在: Lv<span id="cur-lv-turret">0</span></span>
+                <span style="font-size:0.7rem">タレット Lv<span id="cur-lv-turret">0</span></span>
                 <button class="upgrade-btn" id="btn-turret">
-                    <span class="next-tag">+<span class="plus-val">1</span> Lv (➡ Lv<span id="next-lv-turret">1</span>)</span>
+                    <span class="next-tag">+<span class="plus-val">1</span> Lv</span>
                     <span class="cost-tag"><span id="cost-turret">1000</span> pt</span>
                 </button>
             </div>
             <div class="item-box full-width" style="background: rgba(230, 126, 34, 0.2);">
-                <span class="current-lv-label">わら人形強化 現在: Lv<span id="cur-lv-doll">1</span></span>
+                <span style="font-size:0.7rem">わら人形強化 Lv<span id="cur-lv-doll">1</span></span>
                 <button class="upgrade-btn" id="btn-doll" style="background: #e67e22;">
-                    <span class="next-tag">+<span class="plus-val">1</span> Lv (➡ Lv<span id="next-lv-doll">2</span>)</span>
+                    <span class="next-tag">+<span class="plus-val">1</span> Lv</span>
                     <span class="cost-tag"><span id="cost-doll">50</span> pt</span>
                 </button>
             </div>
@@ -209,7 +262,28 @@
     <script>
         let points = 0;
         let totalDamage = 0;
+        let userName = "";
         let currentMultiplier = 1;
+
+        // --- ランク設定：ここを書き換えるだけでランクを増やせます ---
+        const RANKS = [
+            { threshold: 0, title: "初心者" },
+            { threshold: 1000, title: "一般人" },
+            { threshold: 5000, title: "中級者" },
+            { threshold: 20000, title: "上級者" },
+            { threshold: 100000, title: "達人" },
+            { threshold: 500000, title: "プロ" },
+            { threshold: 1000000, title: "仙人" },
+            { threshold: 10000000, title: "神" }
+        ];
+
+        // イベント用変数
+        let eventTimer = 90; 
+        let activeEvent = null;
+        let eventDuration = 0;
+        let bossMode = false;
+        let bossHP = 0;
+        let bossMaxHP = 0;
 
         const state = {
             sword: { lv: 0, cost: 10, baseCost: 10 },
@@ -221,68 +295,144 @@
 
         const dollEl = document.getElementById('straw-doll');
         const dollContainer = document.getElementById('doll-container');
-        const multInput = document.getElementById('input-multiplier');
+        const eventTimerEl = document.getElementById('event-timer-display');
+        const bannerEl = document.getElementById('event-banner');
 
-        // 等差数列の和を用いた一括コスト計算
+        function saveGame() {
+            localStorage.setItem('straw_doll_v2_save', JSON.stringify({ points, totalDamage, userName, state }));
+        }
+
+        function loadGame() {
+            const saved = localStorage.getItem('straw_doll_v2_save');
+            if (saved) {
+                const data = JSON.parse(saved);
+                points = data.points || 0;
+                totalDamage = data.totalDamage || 0;
+                userName = data.userName || "";
+                if(data.state) Object.keys(state).forEach(k => { if(data.state[k]) state[k].lv = data.state[k].lv; });
+            }
+        }
+
+        // --- ランク取得ロジック ---
+        function updateRankUI() {
+            // thresholdを超えているものの中で最大の称号を表示
+            let currentTitle = RANKS[0].title;
+            for (let i = RANKS.length - 1; i >= 0; i--) {
+                if (totalDamage >= RANKS[i].threshold) {
+                    currentTitle = RANKS[i].title;
+                    break;
+                }
+            }
+            document.getElementById('current-rank').innerText = currentTitle;
+        }
+
+        // --- イベント・ボス戦ロジック ---
+        function startEvent() {
+            const events = ["DMG_X2", "DMG_HALF", "PT_X2", "PT_HALF", "COST_HALF", "COST_X2", "BOSS"];
+            const choice = events[Math.floor(Math.random() * events.length)];
+            activeEvent = choice;
+            
+            if (choice === "BOSS") {
+                spawnBoss();
+            } else {
+                eventDuration = 30;
+                const labels = {
+                    "DMG_X2": "🔥 ダメージ2倍！", "DMG_HALF": "❄️ ダメージ1/2...",
+                    "PT_X2": "💰 ポイント倍率2倍！", "PT_HALF": "💸 ポイント倍率1/2...",
+                    "COST_HALF": "🛠️ コスト1/2！", "COST_X2": "⚠️ コスト2倍..."
+                };
+                bannerEl.innerText = labels[choice];
+                bannerEl.style.display = "block";
+            }
+        }
+
+        function spawnBoss() {
+            bossMode = true;
+            eventDuration = 30;
+            bossMaxHP = ((state.turret.lv + (state.gem.lv) * 0.3) * 0.2 * 600) + 
+                         ((1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3) + 
+                         ((state.gun.lv + (state.gem.lv) * 0.3) * 0.1 * 10)) * 900;
+            bossHP = bossMaxHP;
+            
+            dollEl.innerText = "👹";
+            document.getElementById('boss-hp-container').style.display = "block";
+            updateBossUI();
+            bannerEl.innerText = "☢️ BOSS出現！30秒以内に倒せ！";
+            bannerEl.style.display = "block";
+            bannerEl.style.background = "#ff4757";
+        }
+
+        function updateBossUI() {
+            const pct = (bossHP / bossMaxHP) * 100;
+            document.getElementById('boss-hp-bar').style.width = Math.max(0, pct) + "%";
+        }
+
+        function endEvent() {
+            activeEvent = null;
+            bossMode = false;
+            bannerEl.style.display = "none";
+            bannerEl.style.background = "#f1c40f";
+            document.getElementById('boss-hp-container').style.display = "none";
+            dollEl.innerText = "🌾";
+            eventTimer = 90;
+        }
+
+        setInterval(() => {
+            if (activeEvent) {
+                eventDuration--;
+                if (bossMode) {
+                    eventTimerEl.innerText = `ボス終了まで: ${eventDuration}s`;
+                    if (eventDuration <= 0) {
+                        alert("ボスを倒せなかった...セーブデータが消滅しました。");
+                        resetData(true);
+                    }
+                } else {
+                    eventTimerEl.innerText = `イベント終了まで: ${eventDuration}s`;
+                }
+                if (eventDuration <= 0) endEvent();
+            } else {
+                eventTimer--;
+                let m = Math.floor(eventTimer / 60);
+                let s = eventTimer % 60;
+                eventTimerEl.innerText = `次まで: ${m}:${s.toString().padStart(2, '0')}`;
+                if (eventTimer <= 0) startEvent();
+            }
+        }, 1000);
+
         function getBulkCost(key, amount) {
             if (amount < 1) return 0;
             const item = state[key];
             let startLv = (key === 'doll') ? item.lv : item.lv + 1;
             let endLv = startLv + amount - 1;
-            // 和の公式: (項数 * (初項 + 末項)) / 2 * baseCost
             let sum = (amount * (startLv + endLv)) / 2;
-            return Math.floor(sum * item.baseCost);
+            let total = Math.floor(sum * item.baseCost);
+            
+            if (activeEvent === "COST_HALF") total *= 0.5;
+            if (activeEvent === "COST_X2") total *= 2;
+            return Math.floor(total);
         }
-
-        multInput.addEventListener('input', () => {
-            let val = parseInt(multInput.value);
-            if (isNaN(val) || val < 1) val = 1;
-            currentMultiplier = val;
-            updateUI();
-        });
-
-        function saveGame() {
-            localStorage.setItem('straw_doll_save', JSON.stringify({ points, totalDamage, state }));
-        }
-
-        function loadGame() {
-            const saved = localStorage.getItem('straw_doll_save');
-            if (saved) {
-                const data = JSON.parse(saved);
-                points = data.points || 0;
-                totalDamage = data.totalDamage || 0;
-                Object.keys(state).forEach(key => {
-                    if (data.state[key]) {
-                        state[key].lv = data.state[key].lv;
-                    }
-                });
-            }
-        }
-
-        document.getElementById('btn-reset').addEventListener('click', () => {
-            if (confirm("全データを削除して最初からやり直しますか？")) {
-                // 1. ローカルストレージを削除
-                localStorage.removeItem('straw_doll_save');
-                
-                // 2. メモリ上の変数を初期状態に戻す（念のため）
-                points = 0;
-                totalDamage = 0;
-                state.sword.lv = 0;
-                state.gun.lv = 0;
-                state.gem.lv = 0;
-                state.turret.lv = 0;
-                state.doll.lv = 1;
-
-                // 3. ページを強制リロード
-                // trueを入れるとサーバーから最新の状態を読み込みます
-                location.replace(location.href); 
-            }
-        });
 
         function applyDamage(dmg) {
             if (dmg <= 0) return;
+            if (activeEvent === "DMG_X2") dmg *= 2;
+            if (activeEvent === "DMG_HALF") dmg *= 0.5;
+
+            if (bossMode) {
+                bossHP -= dmg;
+                updateBossUI();
+                if (bossHP <= 0) {
+                    alert("ボス撃破！ボーナス10,000pt！");
+                    points += 10000;
+                    endEvent();
+                }
+            }
+
             totalDamage += dmg;
-            points += dmg * state.doll.lv;
+            let ptGain = dmg * state.doll.lv;
+            if (activeEvent === "PT_X2") ptGain *= 2;
+            if (activeEvent === "PT_HALF") ptGain *= 0.5;
+            
+            points += ptGain;
             showDamageText(dmg);
             triggerShake(); 
             updateUI();
@@ -301,7 +451,7 @@
         function showDamageText(dmg) {
             const el = document.createElement('div');
             el.className = 'damage-popup';
-            el.innerText = `-${dmg}`;
+            el.innerText = `-${Math.ceil(dmg)}`;
             el.style.left = `calc(50% + ${(Math.random() - 0.5) * 150}px)`;
             el.style.top = `calc(50% + ${(Math.random() - 0.5) * 80}px)`;
             el.style.setProperty('--rx', `${(Math.random() - 0.5) * 120}px`);
@@ -311,53 +461,58 @@
 
         dollEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
-            applyDamage(1 + state.sword.lv + state.gem.lv);
+            applyDamage(1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3);
             if (state.gun.lv > 0) {
                 let count = 0;
                 const gunInterval = setInterval(() => {
-                    applyDamage(state.gun.lv + state.gem.lv);
+                    applyDamage((state.gun.lv + (state.gem.lv) * 0.3) * 0.1);
                     if (++count >= 10) clearInterval(gunInterval);
                 }, 30);
             }
         });
 
         setInterval(() => {
-            if (state.turret.lv > 0) applyDamage(state.turret.lv + state.gem.lv);
+            if (state.turret.lv > 0) applyDamage((state.turret.lv + (state.gem.lv) * 0.3) * 0.2);
         }, 50);
 
-        function upgrade(key) {
-            const needed = getBulkCost(key, currentMultiplier);
-            if (points >= needed) {
-                points -= needed;
-                state[key].lv += currentMultiplier;
-                updateUI();
-                saveGame();
-            }
-        }
-
-        Object.keys(state).forEach(key => {
-            document.getElementById(`btn-${key}`).addEventListener('click', (e) => {
-                e.preventDefault();
-                upgrade(key);
-            });
-        });
-
         function updateUI() {
-            document.getElementById('points').innerText = Math.floor(points).toLocaleString();
-            document.getElementById('total-damage').innerText = Math.floor(totalDamage).toLocaleString();
-            
+            document.getElementById('points').innerText = Math.ceil(points).toLocaleString();
+            document.getElementById('total-damage').innerText = Math.ceil(totalDamage).toLocaleString();
             document.querySelectorAll('.plus-val').forEach(el => el.innerText = currentMultiplier.toLocaleString());
-
             Object.keys(state).forEach(key => {
                 const item = state[key];
                 const bulkCost = getBulkCost(key, currentMultiplier);
-                
                 document.getElementById(`cur-lv-${key}`).innerText = item.lv.toLocaleString();
-                document.getElementById(`next-lv-${key}`).innerText = (item.lv + currentMultiplier).toLocaleString();
                 document.getElementById(`cost-${key}`).innerText = bulkCost.toLocaleString();
-                document.getElementById(`btn-${key}`).disabled = (points < bulkCost || currentMultiplier < 1);
+                document.getElementById(`btn-${key}`).disabled = (points < bulkCost);
             });
+            updateRankUI(); // ランク表示を更新
         }
+
+        function resetData(force = false) {
+            if (force || confirm("全データを削除して最初からやり直しますか？")) {
+                localStorage.removeItem('straw_doll_v2_save');
+                location.reload();
+            }
+        }
+
+        document.getElementById('btn-reset').addEventListener('click', () => resetData());
+        document.getElementById('input-multiplier').addEventListener('input', (e) => {
+            currentMultiplier = parseInt(e.target.value) || 1;
+            updateUI();
+        });
+
+        Object.keys(state).forEach(key => {
+            document.getElementById(`btn-${key}`).addEventListener('click', () => {
+                const needed = getBulkCost(key, currentMultiplier);
+                if (points >= needed) {
+                    points -= needed;
+                    state[key].lv += currentMultiplier;
+                    updateUI();
+                    saveGame();
+                }
+            });
+        });
 
         loadGame();
         updateUI();
