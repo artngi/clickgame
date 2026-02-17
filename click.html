@@ -37,7 +37,6 @@
             overflow-y: auto;
         }
 
-        /* ランク表示エリア */
         .rank-display {
             background: #8e44ad;
             border-radius: 10px;
@@ -79,7 +78,6 @@
         .status-item { font-size: 0.9rem; margin: 2px 0; }
         .highlight { color: #f1c40f; font-weight: bold; font-size: 1.2rem; }
 
-        /* ボス用HPバー */
         #boss-hp-container {
             display: none;
             width: 100%;
@@ -195,7 +193,7 @@
         </div>
 
         <div class="top-controls">
-            <div id="event-timer-display">次まで: 10:00</div>
+            <div id="event-timer-display">次まで: 1:30</div>
         </div>
 
         <div id="event-banner" class="event-active-banner"></div>
@@ -265,7 +263,6 @@
         let userName = "";
         let currentMultiplier = 1;
 
-        // --- ランク設定：ここを書き換えるだけでランクを増やせます ---
         const RANKS = [
             { threshold: 0, title: "初心者" },
             { threshold: 1000, title: "一般人" },
@@ -277,7 +274,6 @@
             { threshold: 10000000, title: "神" }
         ];
 
-        // イベント用変数
         let eventTimer = 90; 
         let activeEvent = null;
         let eventDuration = 0;
@@ -313,9 +309,7 @@
             }
         }
 
-        // --- ランク取得ロジック ---
         function updateRankUI() {
-            // thresholdを超えているものの中で最大の称号を表示
             let currentTitle = RANKS[0].title;
             for (let i = RANKS.length - 1; i >= 0; i--) {
                 if (totalDamage >= RANKS[i].threshold) {
@@ -326,7 +320,6 @@
             document.getElementById('current-rank').innerText = currentTitle;
         }
 
-        // --- イベント・ボス戦ロジック ---
         function startEvent() {
             const events = ["DMG_X2", "DMG_HALF", "PT_X2", "PT_HALF", "COST_HALF", "COST_X2", "BOSS"];
             const choice = events[Math.floor(Math.random() * events.length)];
@@ -349,9 +342,12 @@
         function spawnBoss() {
             bossMode = true;
             eventDuration = 30;
+            // プレイヤーの強さに合わせてHPを計算
             bossMaxHP = ((state.turret.lv + (state.gem.lv) * 0.3) * 0.2 * 600) + 
                          ((1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3) + 
                          ((state.gun.lv + (state.gem.lv) * 0.3) * 0.1 * 10)) * 900;
+            
+            if(bossMaxHP < 100) bossMaxHP = 100; // 最低HP
             bossHP = bossMaxHP;
             
             dollEl.innerText = "👹";
@@ -383,13 +379,16 @@
                 if (bossMode) {
                     eventTimerEl.innerText = `ボス終了まで: ${eventDuration}s`;
                     if (eventDuration <= 0) {
-                        alert("ボスを倒せなかった...セーブデータが消滅しました。");
-                        resetData(true);
+                        alert("ボスを倒せなかった...ポイントが没収されました！");
+                        points = 0; // スコア（ポイント）をリセット
+                        saveGame();
+                        updateUI();
+                        endEvent();
                     }
                 } else {
                     eventTimerEl.innerText = `イベント終了まで: ${eventDuration}s`;
+                    if (eventDuration <= 0) endEvent();
                 }
-                if (eventDuration <= 0) endEvent();
             } else {
                 eventTimer--;
                 let m = Math.floor(eventTimer / 60);
@@ -421,9 +420,17 @@
                 bossHP -= dmg;
                 updateBossUI();
                 if (bossHP <= 0) {
-                    alert("ボス撃破！ボーナス10,000pt！");
-                    points += 10000;
-                    endEvent();
+                    // ボスHPが0以下になったら即座に終了処理
+                    bossHP = 0;
+                    updateBossUI();
+                    setTimeout(() => {
+                        alert("ボス撃破！ボーナス10,000pt！");
+                        points += 10000;
+                        endEvent();
+                        updateUI();
+                        saveGame();
+                    }, 10);
+                    return; // 撃破時はここで処理終了
                 }
             }
 
@@ -486,13 +493,22 @@
                 document.getElementById(`cost-${key}`).innerText = bulkCost.toLocaleString();
                 document.getElementById(`btn-${key}`).disabled = (points < bulkCost);
             });
-            updateRankUI(); // ランク表示を更新
+            updateRankUI();
         }
 
-        function resetData(force = false) {
-            if (force || confirm("全データを削除して最初からやり直しますか？")) {
+        function resetData() {
+            if (confirm("全データを削除して最初からやり直しますか？")) {
                 localStorage.removeItem('straw_doll_v2_save');
-                location.reload();
+                localStorage.clear(); // ローカルストレージを完全にクリア
+                points = 0;
+                totalDamage = 0;
+                state.sword.lv = 0;
+                state.gun.lv = 0;
+                state.gem.lv = 0;
+                state.turret.lv = 0;
+                state.doll.lv = 0;
+                // ページを強制リロードして初期化
+                location.reload(true);
             }
         }
 
