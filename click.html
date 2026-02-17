@@ -468,18 +468,18 @@
 
         dollEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
-            applyDamage(1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3);
+            applyDamage(Math.ceil(1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3));
             if (state.gun.lv > 0) {
                 let count = 0;
                 const gunInterval = setInterval(() => {
-                    applyDamage((state.gun.lv + (state.gem.lv) * 0.3) * 0.1);
+                    applyDamage(Math.ceil((state.gun.lv + (state.gem.lv) * 0.3) * 0.1));
                     if (++count >= 10) clearInterval(gunInterval);
                 }, 30);
             }
         });
 
         setInterval(() => {
-            if (state.turret.lv > 0) applyDamage((state.turret.lv + (state.gem.lv) * 0.3) * 0.2);
+            if (state.turret.lv > 0) applyDamage(Math.ceil((state.turret.lv + (state.gem.lv) * 0.3) * 0.2));
         }, 50);
 
         function updateUI() {
