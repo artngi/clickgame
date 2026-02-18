@@ -327,6 +327,7 @@
             const events = ["DMG_X2", "DMG_HALF", "PT_X2", "PT_HALF", "COST_HALF", "COST_X2", "BOSS"];
             const choice = events[Math.floor(Math.random() * events.length)];
             activeEvent = choice;
+            navigator.vibrate?.(200);
             
             if (choice === "BOSS") {
                 spawnBoss();
@@ -373,9 +374,11 @@
             document.getElementById('boss-hp-container').style.display = "none";
             dollEl.innerText = "🌾";
             eventTimer = 90;
+            navigator.vibrate?.(200);
         }
 
         setInterval(() => {
+            navigator.vibrate?.(200);
             if (activeEvent) {
                 eventDuration--;
                 if (bossMode) {
@@ -426,8 +429,10 @@
                     bossHP = 0;
                     updateBossUI();
                     setTimeout(() => {
-                        alert("ボス撃破！ボーナス10,000pt！");
-                        points += 10000;
+                        const bonus = Math.ceil(bossMaxHP);
+                        alert(`ボス撃破！ボーナス ${bonus.toLocaleString()}pt 獲得！`);
+                        points += bonus;
+                        navigator.vibrate?.(500);
                         endEvent();
                         updateUI();
                         saveGame();
@@ -489,11 +494,11 @@
             if (Math.random() < 0.20) {
                 // クリティカル（黄色）
                 applyDamage(swordBaseDmg * 2, "#ffffff", true);
-                navigator.vibrate?.(25);
+                navigator.vibrate?.(50);
             } else {
                 // 通常ダメージ（白）
                 applyDamage(swordBaseDmg, "#ffffff", false);
-                navigator.vibrate?.(50);
+                navigator.vibrate?.(25);
             }
 
             // 2. 銃のダメージ（オレンジ）
