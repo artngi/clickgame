@@ -378,7 +378,6 @@
         }
 
         setInterval(() => {
-            navigator.vibrate?.(200);
             if (activeEvent) {
                 eventDuration--;
                 if (bossMode) {
@@ -389,6 +388,7 @@
                         saveGame();
                         updateUI();
                         endEvent();
+                        navigator.vibrate?.(200);
                     }
                 } else {
                     eventTimerEl.innerText = `イベント終了まで: ${eventDuration}s`;
