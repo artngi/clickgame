@@ -494,11 +494,9 @@
             if (Math.random() < 0.20) {
                 // クリティカル（黄色）
                 applyDamage(swordBaseDmg * 2, "#ffffff", true);
-                navigator.vibrate?.(50);
             } else {
                 // 通常ダメージ（白）
                 applyDamage(swordBaseDmg, "#ffffff", false);
-                navigator.vibrate?.(25);
             }
 
             // 2. 銃のダメージ（オレンジ）
@@ -506,7 +504,6 @@
                 let count = 0;
                 const gunInterval = setInterval(() => {
                     applyDamage(Math.ceil((state.gun.lv + (state.gem.lv) * 0.3) * 0.1), "#e67e22");
-                    navigator.vibrate?.(15);
                     if (++count >= 10) clearInterval(gunInterval);
                 }, 30);
             }
@@ -517,7 +514,6 @@
             if (state.turret.lv > 0) {
                const damage = Math.ceil((state.turret.lv + (state.gem.lv) * 0.3) * 0.2);
                applyDamage(damage, "#dc143c"); // 水色
-               navigator.vibrate?.(10); 
            }
         }, 50);
 
