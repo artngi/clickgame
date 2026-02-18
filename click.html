@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>連打ゲーム - わら人形【ランク称号版】</title>
+    <title>連打ゲーム - わら人形</title>
     <style>
         body {
             font-family: 'Hiragino Kaku Gothic ProN', sans-serif;
@@ -158,12 +158,14 @@
         }
         .upgrade-btn:disabled { background: #7f8c8d; opacity: 0.6; }
 
+        /* ダメージポップアップの基本スタイル（色はJSで指定） */
         .damage-popup {
             position: absolute;
-            color: #ff4757;
             font-weight: bold;
             pointer-events: none;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
             animation: float-up 0.6s ease-out forwards;
+            z-index: 100;
         }
         @keyframes float-up {
             0% { opacity: 1; transform: translate(0, 0) scale(1.2); }
@@ -343,12 +345,11 @@
         function spawnBoss() {
             bossMode = true;
             eventDuration = 30;
-            // プレイヤーの強さに合わせてHPを計算
             bossMaxHP = ((state.turret.lv + (state.gem.lv) * 0.3) * 0.2 * 600) + 
                          ((1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3) + 
                          ((state.gun.lv + (state.gem.lv) * 0.3) * 0.1 * 10)) * 900;
             
-            if(bossMaxHP < 100) bossMaxHP = 100; // 最低HP
+            if(bossMaxHP < 100) bossMaxHP = 100;
             bossHP = bossMaxHP;
             
             dollEl.innerText = "👹";
@@ -381,7 +382,7 @@
                     eventTimerEl.innerText = `ボス終了まで: ${eventDuration}s`;
                     if (eventDuration <= 0) {
                         alert("ボスを倒せなかった...ポイントが没収されました！");
-                        points = 0; // スコア（ポイント）をリセット
+                        points = 0;
                         saveGame();
                         updateUI();
                         endEvent();
@@ -412,7 +413,8 @@
             return Math.floor(total);
         }
 
-        function applyDamage(dmg) {
+        // --- ★ 修正ポイント: applyDamageに色(color)とクリティカル判定(isCrit)を追加 ---
+        function applyDamage(dmg, color = "#ffffff", isCrit = false) {
             if (dmg <= 0) return;
             if (activeEvent === "DMG_X2") dmg *= 2;
             if (activeEvent === "DMG_HALF") dmg *= 0.5;
@@ -421,7 +423,6 @@
                 bossHP -= dmg;
                 updateBossUI();
                 if (bossHP <= 0) {
-                    // ボスHPが0以下になったら即座に終了処理
                     bossHP = 0;
                     updateBossUI();
                     setTimeout(() => {
@@ -431,7 +432,7 @@
                         updateUI();
                         saveGame();
                     }, 10);
-                    return; // 撃破時はここで処理終了
+                    return;
                 }
             }
 
@@ -441,7 +442,7 @@
             if (activeEvent === "PT_HALF") ptGain *= 0.5;
             
             points += ptGain;
-            showDamageText(dmg);
+            showDamageText(dmg, color, isCrit); // 色を渡す
             triggerShake(); 
             updateUI();
             saveGame();
@@ -456,10 +457,21 @@
             dollEl.classList.add('shake-active');
         }
 
-        function showDamageText(dmg) {
+        // --- ★ 修正ポイント: showDamageTextに色とサイズ変更のロジックを追加 ---
+        function showDamageText(dmg, color, isCrit) {
             const el = document.createElement('div');
             el.className = 'damage-popup';
-            el.innerText = `-${Math.ceil(dmg)}`;
+            el.innerText = isCrit ? `Critical! -${Math.ceil(dmg)}` : `-${Math.ceil(dmg)}`;
+            
+            // スタイル設定
+            el.style.color = color;
+            if (isCrit) {
+                el.style.fontSize = "1.5rem";
+                el.style.zIndex = "101";
+            } else {
+                el.style.fontSize = "1.1rem";
+            }
+
             el.style.left = `calc(50% + ${(Math.random() - 0.5) * 150}px)`;
             el.style.top = `calc(50% + ${(Math.random() - 0.5) * 80}px)`;
             el.style.setProperty('--rx', `${(Math.random() - 0.5) * 120}px`);
@@ -467,34 +479,39 @@
             setTimeout(() => el.remove(), 600);
         }
 
+        // --- ★ 修正ポイント: クリック時のダメージ色分け ---
         dollEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
+            
+            // 1. 剣のダメージ計算
+            const swordBaseDmg = Math.ceil(1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3);
+            
             if (Math.random() < 0.20) {
-                applyDamage(Math.ceil(1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3) * 2);
+                // クリティカル（黄色）
+                applyDamage(swordBaseDmg * 2, "#ffffff", true);
                 navigator.vibrate?.(25);
             } else {
-                applyDamage(Math.ceil(1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3));
+                // 通常ダメージ（白）
+                applyDamage(swordBaseDmg, "#ffffff", false);
                 navigator.vibrate?.(50);
             }
+
+            // 2. 銃のダメージ（オレンジ）
             if (state.gun.lv > 0) {
                 let count = 0;
                 const gunInterval = setInterval(() => {
-                    applyDamage(Math.ceil((state.gun.lv + (state.gem.lv) * 0.3) * 0.1));
+                    applyDamage(Math.ceil((state.gun.lv + (state.gem.lv) * 0.3) * 0.1), "#e67e22");
                     navigator.vibrate?.(15);
                     if (++count >= 10) clearInterval(gunInterval);
                 }, 30);
             }
         });
 
+        // --- ★ 修正ポイント: タレットのダメージ（水色） ---
         setInterval(() => {
             if (state.turret.lv > 0) {
-                // ダメージ計算
                const damage = Math.ceil((state.turret.lv + (state.gem.lv) * 0.3) * 0.2);
-        
-               // ダメージ適用
-                applyDamage(damage);
-
-               // 振動の実行（対応ブラウザのみ。PCや非対応スマホでもエラーになりません）
+               applyDamage(damage, "#dc143c"); // 水色
                navigator.vibrate?.(10); 
            }
         }, 50);
@@ -516,7 +533,7 @@
         function resetData() {
             if (confirm("全データを削除して最初からやり直しますか？")) {
                 localStorage.removeItem('straw_doll_v2_save');
-                localStorage.clear(); // ローカルストレージを完全にクリア
+                localStorage.clear();
                 points = 0;
                 totalDamage = 0;
                 state.sword.lv = 0;
@@ -524,7 +541,6 @@
                 state.gem.lv = 0;
                 state.turret.lv = 0;
                 state.doll.lv = 0;
-                // ページを強制リロードして初期化
                 location.reload(true);
             }
         }
