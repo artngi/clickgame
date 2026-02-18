@@ -469,13 +469,18 @@
 
         dollEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
-            applyDamage(Math.ceil(1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3));
-            navigator.vibrate?.(20);
+            if (Math.random() < 0.20) {
+                applyDamage(Math.ceil(1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3) * 2);
+                navigator.vibrate?.(25);
+            } else {
+                applyDamage(Math.ceil(1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3));
+                navigator.vibrate?.(50);
+            }
             if (state.gun.lv > 0) {
                 let count = 0;
                 const gunInterval = setInterval(() => {
                     applyDamage(Math.ceil((state.gun.lv + (state.gem.lv) * 0.3) * 0.1));
-                    navigator.vibrate?.(20);
+                    navigator.vibrate?.(15);
                     if (++count >= 10) clearInterval(gunInterval);
                 }, 30);
             }
@@ -490,7 +495,7 @@
                 applyDamage(damage);
 
                // 振動の実行（対応ブラウザのみ。PCや非対応スマホでもエラーになりません）
-               navigator.vibrate?.(20); 
+               navigator.vibrate?.(10); 
            }
         }, 50);
 
