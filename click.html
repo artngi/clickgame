@@ -324,7 +324,7 @@
         }
 
         function startEvent() {
-            const events = ["DMG_X2", "DMG_HALF", "PT_X2", "PT_HALF", "COST_HALF", "COST_X2", "BOSS"];
+            const events = ["DMG_X2", "DMG_HALF", "PT_X2", "PT_HALF", "COST_HALF", "COST_X2", "BOSS", "BOSS", "BOSS", "BOSS"];
             const choice = events[Math.floor(Math.random() * events.length)];
             activeEvent = choice;
             navigator.vibrate?.(200);
@@ -348,7 +348,7 @@
             eventDuration = 30;
             bossMaxHP = ((state.turret.lv + (state.gem.lv) * 0.3) * 0.2 * 600) + 
                          ((1 + (state.sword.lv) * 0.5 + (state.gem.lv) * 0.3) + 
-                         ((state.gun.lv + (state.gem.lv) * 0.3) * 0.1 * 10)) * 900;
+                         ((state.gun.lv + (state.gem.lv) * 0.3) * 0.1 * 10)) * 300;
             
             if(bossMaxHP < 100) bossMaxHP = 100;
             bossHP = bossMaxHP;
@@ -428,7 +428,7 @@
                     bossHP = 0;
                     updateBossUI();
                     setTimeout(() => {
-                        const bonus = Math.ceil(bossMaxHP);
+                        const bonus = Math.ceil(bossMaxHP) * 10;
                         alert(`ボス撃破！ボーナス ${bonus.toLocaleString()}pt 獲得！`);
                         points += bonus;
                         navigator.vibrate?.(500);
