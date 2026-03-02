@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Reaction Grid: Flow</title>
+    <title>Reaction Grid: Flow Fix</title>
     <style>
         :root {
             --bg-color: #020617;
@@ -62,12 +62,13 @@
             box-shadow: 0 0 40px rgba(0,0,0,0.8);
             box-sizing: border-box;
             position: relative;
+            /* タイル自体に反応させるため pointer-events: auto (デフォルト) */
         }
 
         .tile {
             background-color: var(--active-color);
             border-radius: 2px;
-            pointer-events: none; /* 個別のイベントは親で一括管理するため無効化 */
+            /* ここが pointer-events: none だと押せなくなるため削除 */
         }
 
         .tile.target {
@@ -98,7 +99,6 @@
             justify-content: center;
             z-index: 100;
             border-radius: 8px;
-            pointer-events: auto; /* ここだけ反応するように */
         }
 
         .btn {
@@ -150,39 +150,38 @@
         };
 
         const board = document.getElementById('game-board');
-        let isTouching = false; // ドラッグ判定用
+        let isTouching = false; 
 
         function getRequiredTaps(lvl) {
             return 15 + (lvl * 5);
         }
 
         function init() {
-            const saved = localStorage.getItem('reactionGameV5');
+            const saved = localStorage.getItem('reactionGameV6');
             if (saved) state = JSON.parse(saved);
             renderBoard();
             updateUI();
             
-            // ボード全体でタッチ/マウス移動を監視
-            board.addEventListener('pointerdown', handleStart);
-            window.addEventListener('pointermove', handleMove);
+            // pointerdown で開始
+            board.addEventListener('pointerdown', (e) => {
+                if (state.isCleared) return;
+                isTouching = true;
+                checkIntersection(e.clientX, e.clientY);
+            });
+
+            // 指が動いたとき（なぞり）
+            window.addEventListener('pointermove', (e) => {
+                if (!isTouching || state.isCleared) return;
+                checkIntersection(e.clientX, e.clientY);
+            });
+
+            // 指が離れたとき
             window.addEventListener('pointerup', () => isTouching = false);
-            window.addEventListener('pointercancel', () => isTouching = false);
         }
 
-        function handleStart(e) {
-            if (state.isCleared) return;
-            isTouching = true;
-            checkIntersection(e.clientX, e.clientY);
-        }
-
-        function handleMove(e) {
-            if (!isTouching || state.isCleared) return;
-            checkIntersection(e.clientX, e.clientY);
-        }
-
-        // 座標からどのタイルの上にいるか判定
         function checkIntersection(x, y) {
             const elem = document.elementFromPoint(x, y);
+            // タイルであり、かつターゲットインデックスと一致するか確認
             if (elem && elem.classList.contains('tile')) {
                 const index = parseInt(elem.id.split('-')[1]);
                 if (index === state.targetIndex) {
@@ -302,7 +301,7 @@
         }
 
         function save() {
-            localStorage.setItem('reactionGameV5', JSON.stringify(state));
+            localStorage.setItem('reactionGameV6', JSON.stringify(state));
         }
 
         setInterval(() => { if(state.startTime && !state.isCleared) updateUI(); }, 50);
@@ -317,7 +316,7 @@
         }
 
         function confirmReset() {
-            localStorage.removeItem('reactionGameV5');
+            localStorage.removeItem('reactionGameV6');
             location.reload();
         }
 
