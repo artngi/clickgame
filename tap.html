@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Reaction Grid: Precision</title>
+    <title>Reaction Grid: Flow</title>
     <style>
         :root {
             --bg-color: #020617;
@@ -26,7 +26,7 @@
             height: 100vh;
             overflow: hidden;
             touch-action: none;
-            user-select: none; /* テキスト選択を防止 */
+            user-select: none;
             -webkit-user-select: none;
         }
 
@@ -67,21 +67,18 @@
         .tile {
             background-color: var(--active-color);
             border-radius: 2px;
-            pointer-events: auto;
+            pointer-events: none; /* 個別のイベントは親で一括管理するため無効化 */
         }
 
-        /* ターゲットの状態 */
         .tile.target {
             background-color: var(--target-color);
             box-shadow: 0 0 15px var(--target-color);
         }
 
-        /* クリア済みの状態 */
         .tile.completed {
             background-color: var(--complete-color);
         }
 
-        /* 光るエフェクト：class追加で実行 */
         .flash {
             animation: flash-anim 0.2s ease-out;
         }
@@ -101,6 +98,7 @@
             justify-content: center;
             z-index: 100;
             border-radius: 8px;
+            pointer-events: auto; /* ここだけ反応するように */
         }
 
         .btn {
@@ -152,20 +150,48 @@
         };
 
         const board = document.getElementById('game-board');
-        
+        let isTouching = false; // ドラッグ判定用
+
         function getRequiredTaps(lvl) {
             return 15 + (lvl * 5);
         }
 
         function init() {
-            const saved = localStorage.getItem('reactionGameV4');
+            const saved = localStorage.getItem('reactionGameV5');
             if (saved) state = JSON.parse(saved);
             renderBoard();
             updateUI();
+            
+            // ボード全体でタッチ/マウス移動を監視
+            board.addEventListener('pointerdown', handleStart);
+            window.addEventListener('pointermove', handleMove);
+            window.addEventListener('pointerup', () => isTouching = false);
+            window.addEventListener('pointercancel', () => isTouching = false);
+        }
+
+        function handleStart(e) {
+            if (state.isCleared) return;
+            isTouching = true;
+            checkIntersection(e.clientX, e.clientY);
+        }
+
+        function handleMove(e) {
+            if (!isTouching || state.isCleared) return;
+            checkIntersection(e.clientX, e.clientY);
+        }
+
+        // 座標からどのタイルの上にいるか判定
+        function checkIntersection(x, y) {
+            const elem = document.elementFromPoint(x, y);
+            if (elem && elem.classList.contains('tile')) {
+                const index = parseInt(elem.id.split('-')[1]);
+                if (index === state.targetIndex) {
+                    processTap(index);
+                }
+            }
         }
 
         function renderBoard() {
-            // オーバーレイ以外のタイルを削除
             const tiles = board.querySelectorAll('.tile');
             tiles.forEach(t => t.remove());
 
@@ -181,14 +207,6 @@
                 tile.className = 'tile';
                 tile.id = `tile-${i}`;
                 if (state.completedIndices.includes(i)) tile.classList.add('completed');
-                
-                // タッチイベントの重複を避ける対策
-                const handleEvent = (e) => {
-                    e.preventDefault();
-                    processTap(i);
-                };
-                tile.addEventListener('touchstart', handleEvent, {passive: false});
-                tile.addEventListener('mousedown', handleEvent);
                 board.appendChild(tile);
             }
             if (!state.isCleared) spawnTarget();
@@ -224,10 +242,8 @@
             if (!state.startTime) state.startTime = Date.now();
 
             const targetTile = document.getElementById(`tile-${index}`);
-            
-            // 光るエフェクトの制御（一度クラスを消して付け直すことで連続再生）
             targetTile.classList.remove('flash');
-            void targetTile.offsetWidth; // リフロー強制
+            void targetTile.offsetWidth; 
             targetTile.classList.add('flash');
 
             state.totalTaps++;
@@ -286,7 +302,7 @@
         }
 
         function save() {
-            localStorage.setItem('reactionGameV4', JSON.stringify(state));
+            localStorage.setItem('reactionGameV5', JSON.stringify(state));
         }
 
         setInterval(() => { if(state.startTime && !state.isCleared) updateUI(); }, 50);
@@ -301,7 +317,7 @@
         }
 
         function confirmReset() {
-            localStorage.removeItem('reactionGameV4');
+            localStorage.removeItem('reactionGameV5');
             location.reload();
         }
 
