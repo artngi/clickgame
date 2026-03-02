@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Reaction Grid Game</title>
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --tile-color: #16213e;
+            --active-color: #0f3460;
+            --target-color: #e94560;
+            --text-color: #e2e2e2;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        #stats {
+            width: 90%;
+            max-width: 400px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        #game-board {
+            display: grid;
+            gap: 10px;
+            width: 90vw;
+            height: 90vw;
+            max-width: 400px;
+            max-height: 400px;
+            background: var(--tile-color);
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .tile {
+            background-color: var(--active-color);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .tile.target {
+            background-color: var(--target-color);
+            box-shadow: 0 0 15px var(--target-color);
+        }
+
+        /* ぴかっと光るエフェクト */
+        @keyframes flash {
+            0% { background-color: #fff; transform: scale(1.05); box-shadow: 0 0 40px #fff; }
+            100% { background-color: var(--active-color); transform: scale(1); }
+        }
+
+        .flash-effect {
+            animation: flash 0.3s ease-out;
+        }
+
+        #controls {
+            margin-top: 30px;
+        }
+
+        button {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button.danger { background: #822; }
+        button.confirm { background: #d00; font-weight: bold; }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="stats">
+        <div class="stat-box">Level: <span id="lvl-display">1</span></div>
+        <div class="stat-box">Speed: <span id="tps-display">0.00</span> taps/s</div>
+        <div class="stat-box">Max Taps: <span id="max-display">0</span></div>
+        <div class="stat-box">Next Level: <span id="progress-display">0/10</span></div>
+    </div>
+
+    <div id="game-board"></div>
+
+    <div id="controls">
+        <button id="reset-btn" onclick="requestReset()">データを消去</button>
+        <button id="confirm-btn" class="danger hidden" onclick="confirmReset()">本当によろしいですか？</button>
+    </div>
+
+    <script>
+        // ゲーム状態
+        let state = {
+            level: 1,
+            totalTaps: 0,
+            levelTaps: 0,
+            maxTapsPerLevel: 0,
+            startTime: null,
+            targetIndex: -1
+        };
+
+        const board = document.getElementById('game-board');
+        const lvlDisp = document.getElementById('lvl-display');
+        const tpsDisp = document.getElementById('tps-display');
+        const maxDisp = document.getElementById('max-display');
+        const progDisp = document.getElementById('progress-display');
+
+        // 初期化
+        function init() {
+            const saved = localStorage.getItem('reactionGameData');
+            if (saved) {
+                state = JSON.parse(saved);
+                state.startTime = Date.now();
+                state.levelTaps = 0; 
+            }
+            renderBoard();
+            updateUI();
+        }
+
+        function save() {
+            localStorage.setItem('reactionGameData', JSON.stringify(state));
+        }
+
+        // ボード描写
+        function renderBoard() {
+            board.innerHTML = '';
+            const gridSize = state.level + 1; // Level 1 = 2x2, Level 2 = 3x3...
+            board.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+            board.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
+
+            const totalTiles = gridSize * gridSize;
+            for (let i = 0; i < totalTiles; i++) {
+                const tile = document.createElement('div');
+                tile.className = 'tile';
+                tile.dataset.index = i;
+                tile.addEventListener('touchstart', (e) => { e.preventDefault(); handleTap(i); });
+                tile.addEventListener('mousedown', () => handleTap(i));
+                board.appendChild(tile);
+            }
+            spawnTarget();
+        }
+
+        function spawnTarget() {
+            const tiles = document.querySelectorAll('.tile');
+            tiles.forEach(t => t.classList.remove('target'));
+            
+            const gridSize = state.level + 1;
+            const totalTiles = gridSize * gridSize;
+            let newIndex;
+            do {
+                newIndex = Math.floor(Math.random() * totalTiles);
+            } while (newIndex === state.targetIndex);
+
+            state.targetIndex = newIndex;
+            tiles[newIndex].classList.add('target');
+        }
+
+        function handleTap(index) {
+            if (index === state.targetIndex) {
+                // バイブレーション
+                if (navigator.vibrate) navigator.vibrate(40);
+
+                // エフェクト
+                const tiles = document.querySelectorAll('.tile');
+                const targetTile = tiles[index];
+                targetTile.classList.remove('target');
+                targetTile.classList.add('flash-effect');
+                setTimeout(() => targetTile.classList.remove('flash-effect'), 300);
+
+                // スコア更新
+                if (!state.startTime) state.startTime = Date.now();
+                state.totalTaps++;
+                state.levelTaps++;
+                
+                if (state.levelTaps > state.maxTapsPerLevel) {
+                    state.maxTapsPerLevel = state.levelTaps;
+                }
+
+                // レベルアップ判定 (10回タップごとにレベルアップ)
+                if (state.levelTaps >= 10) {
+                    state.level++;
+                    state.levelTaps = 0;
+                    renderBoard();
+                } else {
+                    spawnTarget();
+                }
+
+                updateUI();
+                save();
+            }
+        }
+
+        function updateUI() {
+            lvlDisp.innerText = state.level;
+            maxDisp.innerText = state.maxTapsPerLevel;
+            progDisp.innerText = `${state.levelTaps}/10`;
+
+            if (state.startTime) {
+                const elapsed = (Date.now() - state.startTime) / 1000;
+                const tps = (state.totalTaps / elapsed).toFixed(2);
+                tpsDisp.innerText = tps;
+            }
+        }
+
+        // TPS更新用ループ
+        setInterval(() => {
+            if(state.totalTaps > 0) updateUI();
+        }, 500);
+
+        // リセット機能 (二段階確認)
+        function requestReset() {
+            document.getElementById('reset-btn').classList.add('hidden');
+            document.getElementById('confirm-btn').classList.remove('hidden');
+            setTimeout(() => { // 5秒経ったら戻す
+                document.getElementById('reset-btn').classList.remove('hidden');
+                document.getElementById('confirm-btn').classList.add('hidden');
+            }, 5000);
+        }
+
+        function confirmReset() {
+            localStorage.removeItem('reactionGameData');
+            location.reload();
+        }
+
+        init();
+    </script>
+</body>
+</html>
