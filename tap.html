@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Reaction Grid: The Final 100</title>
+    <title>Reaction Grid: Precision</title>
     <style>
         :root {
             --bg-color: #020617;
             --tile-color: #0f172a;
             --active-color: #1e293b;
-            --target-color: #f43f5e; /* 情熱的な赤 */
-            --complete-color: #fbbf24; /* クリア時の金 */
+            --target-color: #f43f5e;
+            --complete-color: #fbbf24;
             --text-color: #f8fafc;
         }
 
         body {
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: 'Inter', sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
@@ -26,6 +26,8 @@
             height: 100vh;
             overflow: hidden;
             touch-action: none;
+            user-select: none; /* テキスト選択を防止 */
+            -webkit-user-select: none;
         }
 
         #stats {
@@ -46,9 +48,7 @@
         }
 
         .stat-label { font-size: 0.65rem; color: #94a3b8; display: block; text-transform: uppercase; letter-spacing: 0.05em; }
-        .stat-value { font-weight: 800; font-family: 'Courier New', monospace; font-size: 1.2rem; color: #38bdf8; }
-
-        #game-container { position: relative; }
+        .stat-value { font-weight: 800; font-family: monospace; font-size: 1.2rem; color: #38bdf8; }
 
         #game-board {
             display: grid;
@@ -61,48 +61,47 @@
             border-radius: 8px;
             box-shadow: 0 0 40px rgba(0,0,0,0.8);
             box-sizing: border-box;
+            position: relative;
         }
 
         .tile {
             background-color: var(--active-color);
             border-radius: 2px;
-            transition: background-color 0.1s;
+            pointer-events: auto;
         }
 
+        /* ターゲットの状態 */
         .tile.target {
             background-color: var(--target-color);
             box-shadow: 0 0 15px var(--target-color);
-            z-index: 5;
         }
 
+        /* クリア済みの状態 */
         .tile.completed {
             background-color: var(--complete-color);
-            box-shadow: inset 0 0 10px rgba(255,255,255,0.5);
         }
 
-        /* 派手なフラッシュ */
-        @keyframes explosion {
-            0% { background-color: #fff; transform: scale(1.2); filter: brightness(3); z-index: 10; }
+        /* 光るエフェクト：class追加で実行 */
+        .flash {
+            animation: flash-anim 0.2s ease-out;
+        }
+
+        @keyframes flash-anim {
+            0% { background-color: #fff; transform: scale(1.1); filter: brightness(2); }
             100% { transform: scale(1); }
         }
-        .flash { animation: explosion 0.2s forwards; }
 
-        /* クリア画面 */
         #clear-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(2, 6, 23, 0.9);
-            display: flex;
+            background: rgba(2, 6, 23, 0.95);
+            display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-radius: 8px;
             z-index: 100;
-            display: none;
+            border-radius: 8px;
         }
-
-        #clear-overlay h1 { color: var(--complete-color); margin-bottom: 5px; }
-        #clear-overlay p { font-size: 1.2rem; }
 
         .btn {
             background: #334155;
@@ -111,12 +110,10 @@
             padding: 12px 24px;
             border-radius: 8px;
             font-weight: bold;
-            cursor: pointer;
             margin-top: 15px;
         }
-        .btn-restart { background: var(--complete-color); color: #000; margin-top: 20px; }
+        .btn-restart { background: var(--complete-color); color: #000; }
         .btn-danger { color: #f43f5e; background: transparent; font-size: 0.8rem; opacity: 0.6; }
-
         .hidden { display: none; }
     </style>
 </head>
@@ -125,17 +122,15 @@
     <div id="stats">
         <div class="stat-box"><span class="stat-label">Level</span><span class="stat-value" id="lvl-display">1</span></div>
         <div class="stat-box"><span class="stat-label">Time</span><span class="stat-value" id="time-display">00:00.0</span></div>
-        <div class="stat-box"><span class="stat-label">Best TPS</span><span class="stat-value" id="max-display">0.00</span></div>
+        <div class="stat-box"><span class="stat-label">TPS</span><span class="stat-value" id="tps-display">0.00</span></div>
         <div class="stat-box"><span class="stat-label" id="prog-label">Next LVL</span><span class="stat-value" id="prog-display">0/25</span></div>
     </div>
 
-    <div id="game-container">
-        <div id="game-board"></div>
+    <div id="game-board">
         <div id="clear-overlay">
-            <h1>ALL TILES FILLED!</h1>
-            <p>Clear Time: <span id="final-time">0</span></p>
-            <p>Total Taps: <span id="final-taps">0</span></p>
-            <button class="btn btn-restart" onclick="confirmReset()">RESTART GAME</button>
+            <h1 style="color:var(--complete-color)">FINISH!</h1>
+            <p id="final-stats"></p>
+            <button class="btn btn-restart" onclick="confirmReset()">RESTART</button>
         </div>
     </div>
 
@@ -150,97 +145,100 @@
             level: 1,
             totalTaps: 0,
             levelTaps: 0,
-            maxTPS: 0,
             startTime: null,
             targetIndex: -1,
-            completedIndices: [], // 10x10モードで使用
+            completedIndices: [],
             isCleared: false
         };
 
         const board = document.getElementById('game-board');
         
         function getRequiredTaps(lvl) {
-            // 難易度上昇：15 + (LV * 10)
             return 15 + (lvl * 10);
         }
 
         function init() {
-            const saved = localStorage.getItem('reactionGameV3');
+            const saved = localStorage.getItem('reactionGameV4');
             if (saved) state = JSON.parse(saved);
             renderBoard();
             updateUI();
         }
 
         function renderBoard() {
-            board.innerHTML = '';
+            // オーバーレイ以外のタイルを削除
+            const tiles = board.querySelectorAll('.tile');
+            tiles.forEach(t => t.remove());
+
             const gridSize = Math.min(state.level + 1, MAX_GRID);
-            
-            // 隙間を極限まで狭く（10x10では1px）
             const gapSize = Math.max(1, 8 - (gridSize - 2) * 1);
+            
             board.style.gap = `${gapSize}px`;
             board.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
             board.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
 
-            const totalTiles = gridSize * gridSize;
-            for (let i = 0; i < totalTiles; i++) {
+            for (let i = 0; i < gridSize * gridSize; i++) {
                 const tile = document.createElement('div');
                 tile.className = 'tile';
+                tile.id = `tile-${i}`;
                 if (state.completedIndices.includes(i)) tile.classList.add('completed');
                 
-                const trigger = (e) => { e.preventDefault(); handleTap(i); };
-                tile.addEventListener('touchstart', trigger);
-                tile.addEventListener('mousedown', trigger);
+                // タッチイベントの重複を避ける対策
+                const handleEvent = (e) => {
+                    e.preventDefault();
+                    processTap(i);
+                };
+                tile.addEventListener('touchstart', handleEvent, {passive: false});
+                tile.addEventListener('mousedown', handleEvent);
                 board.appendChild(tile);
             }
             if (!state.isCleared) spawnTarget();
         }
 
         function spawnTarget() {
-            const tiles = document.querySelectorAll('.tile');
+            const tiles = board.querySelectorAll('.tile');
             tiles.forEach(t => t.classList.remove('target'));
             
             const gridSize = Math.min(state.level + 1, MAX_GRID);
             const totalTiles = gridSize * gridSize;
 
-            let availableIndices = [];
+            let available = [];
             for(let i=0; i<totalTiles; i++) {
-                if (!state.completedIndices.includes(i)) availableIndices.push(i);
+                if (!state.completedIndices.includes(i)) available.push(i);
             }
 
-            if (availableIndices.length === 0) {
+            if (available.length === 0) {
                 gameClear();
                 return;
             }
 
-            let newIndex;
-            do {
-                newIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
-            } while (newIndex === state.targetIndex && availableIndices.length > 1);
-
+            let newIndex = available[Math.floor(Math.random() * available.length)];
             state.targetIndex = newIndex;
-            tiles[newIndex].classList.add('target');
+            const targetTile = document.getElementById(`tile-${newIndex}`);
+            if (targetTile) targetTile.classList.add('target');
         }
 
-        function handleTap(index) {
+        function processTap(index) {
             if (state.isCleared || index !== state.targetIndex) return;
 
-            if (navigator.vibrate) navigator.vibrate(60);
+            if (navigator.vibrate) navigator.vibrate(30);
             if (!state.startTime) state.startTime = Date.now();
 
-            const tiles = document.querySelectorAll('.tile');
-            const targetTile = tiles[index];
+            const targetTile = document.getElementById(`tile-${index}`);
+            
+            // 光るエフェクトの制御（一度クラスを消して付け直すことで連続再生）
+            targetTile.classList.remove('flash');
+            void targetTile.offsetWidth; // リフロー強制
             targetTile.classList.add('flash');
 
             state.totalTaps++;
             state.levelTaps++;
 
-            // 10x10モード（レベル9以降）のロジック
             if (state.level + 1 >= MAX_GRID) {
                 state.completedIndices.push(index);
                 targetTile.classList.add('completed');
+                targetTile.classList.remove('target');
             }
 
-            // レベルアップ判定
             if (state.level + 1 < MAX_GRID && state.levelTaps >= getRequiredTaps(state.level)) {
                 state.level++;
                 state.levelTaps = 0;
@@ -255,9 +253,8 @@
 
         function gameClear() {
             state.isCleared = true;
-            const finalTimeStr = formatTime(Date.now() - state.startTime);
-            document.getElementById('final-time').innerText = finalTimeStr;
-            document.getElementById('final-taps').innerText = state.totalTaps;
+            const timeStr = formatTime(Date.now() - state.startTime);
+            document.getElementById('final-stats').innerHTML = `Time: ${timeStr}<br>Total Taps: ${state.totalTaps}`;
             document.getElementById('clear-overlay').style.display = 'flex';
             save();
         }
@@ -266,7 +263,7 @@
             const totalSec = ms / 1000;
             const min = Math.floor(totalSec / 60);
             const sec = (totalSec % 60).toFixed(1);
-            return `${min.toString().padStart(2, '0')}:${sec.padStart(4, '0')}`;
+            return `${min}:${sec.padStart(4, '0')}`;
         }
 
         function updateUI() {
@@ -283,15 +280,13 @@
             if (state.startTime && !state.isCleared) {
                 const ms = Date.now() - state.startTime;
                 document.getElementById('time-display').innerText = formatTime(ms);
-                
                 const tps = (state.totalTaps / (ms / 1000)).toFixed(2);
-                if (parseFloat(tps) > parseFloat(state.maxTPS)) state.maxTPS = tps;
-                document.getElementById('max-display').innerText = state.maxTPS;
+                document.getElementById('tps-display').innerText = tps;
             }
         }
 
         function save() {
-            localStorage.setItem('reactionGameV3', JSON.stringify(state));
+            localStorage.setItem('reactionGameV4', JSON.stringify(state));
         }
 
         setInterval(() => { if(state.startTime && !state.isCleared) updateUI(); }, 50);
@@ -306,7 +301,7 @@
         }
 
         function confirmReset() {
-            localStorage.removeItem('reactionGameV3');
+            localStorage.removeItem('reactionGameV4');
             location.reload();
         }
 
