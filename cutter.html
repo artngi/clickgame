@@ -191,8 +191,8 @@ class Fruit {
                 this.stopTime = 9; // ヒットストップ（一瞬静止）
                 
                 // 速度を減衰させて、静止感を出す
-                this.vx *= 0.2;
-                this.vy = 0.1; 
+                this.vx = Math.random() - 0.5;
+                this.vy = Math.random() - 0.5; 
                 
                 this.flash = 1;
                 shakeTime = isCritical ? 25 : 8;
