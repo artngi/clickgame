@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fruit Cutter</title>
+    <title>Fruit Cutter - Impact Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Arial', sans-serif; user-select: none; touch-action: none; }
         canvas { display: block; cursor: crosshair; }
         #ui { position: absolute; top: 10px; left: 10px; color: white; pointer-events: none; text-shadow: 2px 2px 4px #000; font-size: 14px; z-index: 10; }
+        #combo-ui { position: absolute; top: 50%; right: 20px; transform: translateY(-50%); color: #ff4500; font-size: 40px; font-weight: bold; font-style: italic; pointer-events: none; text-shadow: 0 0 10px #fff; display: none; text-align: right; }
         #buffs { position: absolute; top: 10px; right: 10px; color: #ffd700; text-align: right; pointer-events: none; font-size: 12px; font-weight: bold; }
         .btn { pointer-events: auto; background: #444; color: white; border: none; padding: 12px 20px; cursor: pointer; border-radius: 8px; margin-top: 8px; font-weight: bold; }
         #shop-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); border: 2px solid #ffd700; padding: 20px; color: white; display: none; text-align: center; border-radius: 15px; width: 85%; max-width: 400px; z-index: 100; }
@@ -27,6 +28,7 @@
     <button class="btn" style="background:#822;" onclick="resetData()">🗑️ 削除</button>
 </div>
 
+<div id="combo-ui"><span id="combo-count">0</span> COMBO!</div>
 <div id="buffs"></div>
 
 <div id="shop-screen">
@@ -48,11 +50,13 @@ let width, height;
 let state = {
     hp: 5, maxHp: 5, score: 0,
     recoveryTimer: 30, isPaused: false, isFever: false,
-    activeBuffs: {} // { type: remainingMs }
+    activeBuffs: {},
+    combo: 0, comboTimer: 0
 };
 
 let fruits = [];
 let particles = [];
+let floatingTexts = [];
 let mouse = { x: 0, y: 0, px: 0, py: 0, isMoving: false };
 let mouseHistory = [];
 let shakeTime = 0;
@@ -120,30 +124,53 @@ class Fruit {
         this.r = config.r;
         this.maxHp = (typeKey === 'BOSS' || typeKey === 'FEVER') ? (Math.floor(Math.random()*50)+50) : config.hp;
         this.hp = this.maxHp;
-        this.x = Math.random() * (width - this.r * 2) + this.r;
-        this.y = -this.r;
-        this.vx = (Math.random() - 0.5) * 2;
-        this.vy = 1.5;
+        
+        const side = Math.random();
+        if (side < 0.4) { // 上
+            this.x = Math.random() * (width - this.r * 2) + this.r;
+            this.y = -this.r;
+            this.vx = (Math.random() - 0.5) * 6;
+            this.vy = 0.5;
+        } else if (side < 0.7) { // 左
+            this.x = -this.r;
+            this.y = height * 0.3 + Math.random() * height * 0.4;
+            this.vx = 1 + Math.random() * 1;
+            this.vy = -3 - Math.random() * 3;
+        } else { // 右
+            this.x = width + this.r;
+            this.y = height * 0.3 + Math.random() * height * 0.4;
+            this.vx = -(1 + Math.random() * 1);
+            this.vy = -3 - Math.random() * 3;
+        }
+
         this.hitCooldown = 0;
+        this.stopTime = 0; // ヒットストップ用
         this.flash = 0;
     }
 
     update() {
         if (state.isPaused) return;
-        
-        // バフ：スロー適用の判定
-        const speedMul = state.activeBuffs['slowFall'] ? 0.5 : 1.0;
-        this.vy += 0.02 * speedMul;
-        this.x += this.vx;
-        this.y += this.vy;
 
-        if (this.x - this.r < 0) { this.x = this.r; this.vx *= -1; }
-        if (this.x + this.r > width) { this.x = width - this.r; this.vx *= -1; }
+        // ヒットストップ中は動きを止める
+        if (this.stopTime > 0) {
+            this.stopTime--;
+            return false;
+        }
         
+        const speedMul = state.activeBuffs['slowFall'] ? 0.5 : 1.0;
+        this.vy += 0.01 * speedMul; // 重力
+        this.x += this.vx * speedMul;
+        this.y += this.vy * speedMul;
+
+        // 左右の壁でバウンド
+        if (this.x - this.r < 0) { this.x = this.r; this.vx *= -0.8; }
+        if (this.x + this.r > width) { this.x = width - this.r; this.vx *= -0.8; }
+
         if (this.y - this.r > height) {
             if (!state.isFever) {
                 state.hp--;
                 shakeTime = 15;
+                state.combo = 0;
             }
             if (this.typeKey === 'BOSS' || this.typeKey === 'FEVER') bossActive = false;
             return true;
@@ -155,17 +182,34 @@ class Fruit {
         if (mouse.isMoving && this.hitCooldown <= 0) {
             const d = distToSegment({x: this.x, y: this.y}, {x: mouse.px, y: mouse.py}, {x: mouse.x, y: mouse.y});
             if (d < this.r + 40) { 
-                const dmgMul = state.activeBuffs['doubleDamage'] ? 2 : 1;
-                this.hp -= dmgMul;
-                this.hitCooldown = 8; 
-                this.vx = (Math.random() - 0.5) * 2;
-                this.vy = 0.2; 
-                this.flash = 1;
-                shakeTime = 8;
-                createParticles(this.x, this.y, TYPES[this.typeKey].color);
+                const isCritical = Math.random() < 0.1;
+                let dmg = state.activeBuffs['doubleDamage'] ? 2 : 1;
+                if (isCritical) dmg *= 5;
+
+                this.hp -= dmg;
+                this.hitCooldown = 10; 
+                this.stopTime = 9; // ヒットストップ（一瞬静止）
                 
+                // 速度を減衰させて、静止感を出す
+                this.vx *= 0.2;
+                this.vy = 0.1; 
+                
+                this.flash = 1;
+                shakeTime = isCritical ? 25 : 8;
+                state.combo++;
+                state.comboTimer = 100;
+
+                createParticles(this.x, this.y, isCritical ? '#fff' : TYPES[this.typeKey].color, isCritical ? 20 : 8);
+                
+                if (isCritical) {
+                    floatingTexts.push({ x: this.x, y: this.y, text: "CRITICAL!!", life: 1, color: "#ffff00" });
+                }
+
                 if (this.hp <= 0) {
-                    state.score += (this.typeKey === 'BOSS' || this.typeKey === 'FEVER') ? this.maxHp : TYPES[this.typeKey].pts;
+                    let basePts = (this.typeKey === 'BOSS' || this.typeKey === 'FEVER') ? this.maxHp : TYPES[this.typeKey].pts;
+                    let comboBonus = 1 + (state.combo * 0.1);
+                    state.score += Math.floor(basePts * comboBonus * (isCritical ? 2 : 1));
+
                     if (this.typeKey === 'BOSS' || this.typeKey === 'FEVER') bossActive = false;
                     if (this.typeKey === 'FEVER') startFever();
                     shakeTime = 20;
@@ -191,6 +235,7 @@ class Fruit {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(TYPES[this.typeKey].label, 0, 2);
+        
         if (this.typeKey === 'BOSS' || this.typeKey === 'FEVER') {
             const barW = 140;
             ctx.fillStyle = "rgba(0,0,0,0.6)";
@@ -204,9 +249,9 @@ class Fruit {
     }
 }
 
-function createParticles(x, y, color) {
-    for(let i=0; i<8; i++) {
-        particles.push({ x, y, vx: (Math.random()-0.5)*12, vy: (Math.random()-0.5)*12, life: 1, color });
+function createParticles(x, y, color, count = 8) {
+    for(let i=0; i<count; i++) {
+        particles.push({ x, y, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15, life: 1, color });
     }
 }
 
@@ -219,7 +264,7 @@ function drawTrail() {
     for (let i = 0; i < mouseHistory.length - 1; i++) {
         const p1 = mouseHistory[i];
         const p2 = mouseHistory[i + 1];
-        ctx.lineWidth = i * 1.5;
+        ctx.lineWidth = i * 2;
         ctx.globalAlpha = i / mouseHistory.length;
         ctx.moveTo(p1.x, p1.y);
         ctx.lineTo(p2.x, p2.y);
@@ -241,12 +286,19 @@ function update(time) {
         if (shakeTime > 0) {
             ctx.translate((Math.random() - 0.5) * shakeTime, (Math.random() - 0.5) * shakeTime);
             shakeTime *= 0.9;
-            if (shakeTime < 0.5) shakeTime = 0;
         }
 
         ctx.clearRect(-100, -100, width + 200, height + 200);
 
-        // 体力回復処理
+        if (state.comboTimer > 0) {
+            state.comboTimer--;
+            document.getElementById('combo-ui').style.display = 'block';
+            document.getElementById('combo-count').innerText = state.combo;
+        } else {
+            state.combo = 0;
+            document.getElementById('combo-ui').style.display = 'none';
+        }
+
         const recoverMul = state.activeBuffs['fastRecover'] ? 2 : 1;
         state.recoveryTimer -= (dt / 1000) * recoverMul;
         if (state.recoveryTimer <= 0) {
@@ -254,7 +306,6 @@ function update(time) {
             state.recoveryTimer = 30;
         }
 
-        // フィーバー処理
         if (state.isFever) {
             feverTimer -= dt;
             if (feverTimer <= 0) {
@@ -263,30 +314,38 @@ function update(time) {
             }
         }
 
-        // 果物出現：フィーバー時は超高頻度
         spawnTimer -= dt;
         if (spawnTimer <= 0 && !bossActive) {
             let rand = Math.random();
-            if (!state.isFever && rand < 0.03) { 
+            if (!state.isFever && rand < 0.04) { 
                 fruits.push(new Fruit(Math.random() < 0.3 ? 'FEVER' : 'BOSS'));
                 bossActive = true;
             } else {
                 let type = 'S';
-                if (rand > 0.6) type = 'M';
-                if (rand > 0.85) type = 'L';
+                if (rand > 0.5) type = 'M';
+                if (rand > 0.8) type = 'L';
                 fruits.push(new Fruit(type));
             }
-            // ★ フィーバー時は100ms（0.1秒）間隔で出現
-            spawnTimer = state.isFever ? 100 : 500;
+            spawnTimer = state.isFever ? 80 : 350;
         }
 
         fruits = fruits.filter(f => !f.update());
         fruits.forEach(f => f.draw());
 
+        floatingTexts = floatingTexts.filter(t => {
+            t.y -= 2; t.life -= 0.02;
+            ctx.globalAlpha = t.life;
+            ctx.fillStyle = t.color;
+            ctx.font = "bold 24px Arial";
+            ctx.fillText(t.text, t.x, t.y);
+            ctx.globalAlpha = 1;
+            return t.life > 0;
+        });
+
         particles = particles.filter(p => {
-            p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+            p.x += p.vx; p.y += p.vy; p.life -= 0.03;
             ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
-            ctx.fillRect(p.x, p.y, 5, 5);
+            ctx.fillRect(p.x, p.y, 6, 6);
             ctx.globalAlpha = 1;
             return p.life > 0;
         });
@@ -296,7 +355,6 @@ function update(time) {
         drawTrail();
         ctx.restore();
 
-        // バフの残り時間更新
         let buffHtml = "";
         Object.keys(state.activeBuffs).forEach(key => {
             state.activeBuffs[key] -= dt;
@@ -334,58 +392,32 @@ function closeShop() { state.isPaused = false; document.getElementById('shop-scr
 function buyUpgrade(type, price) {
     if (state.score < price) return alert("ポイント不足！");
     state.score -= price;
-    
-    if(type === 'maxHp') { 
-        state.maxHp++; 
-        state.hp++; 
-    } else {
+    if(type === 'maxHp') { state.maxHp++; state.hp++; } 
+    else {
         const durations = { fastRecover: 60000, doubleDamage: 30000, slowFall: 45000 };
-        // すでにバフがある場合は時間を加算、なければ新規設定
-        if (state.activeBuffs[type]) {
-            state.activeBuffs[type] += durations[type];
-        } else {
-            state.activeBuffs[type] = durations[type];
-        }
+        state.activeBuffs[type] = (state.activeBuffs[type] || 0) + durations[type];
     }
     updateUI();
 }
 
 function saveGame() {
-    localStorage.setItem('fruitCutterData_v6', JSON.stringify({
-        score: state.score, 
-        maxHp: state.maxHp, 
-        hp: state.hp,
-        activeBuffs: state.activeBuffs 
+    localStorage.setItem('fruitCutterData_v8', JSON.stringify({
+        score: state.score, maxHp: state.maxHp, hp: state.hp, activeBuffs: state.activeBuffs 
     }));
 }
 
 function loadGame() {
-    const saved = localStorage.getItem('fruitCutterData_v6');
+    const saved = localStorage.getItem('fruitCutterData_v8');
     if (saved) {
         const data = JSON.parse(saved);
-        state.score = data.score; 
-        state.maxHp = data.maxHp; 
-        state.hp = data.hp;
+        state.score = data.score; state.maxHp = data.maxHp; state.hp = data.hp;
         state.activeBuffs = data.activeBuffs || {};
     }
 }
 
 function resetData() {
-    if (confirm("データを削除しますか？") && confirm("本当によろしいですか？")) {
-        // 1. 自動保存を止める（念のため）
-        state.isPaused = true; 
-        
-        // 2. ローカルストレージを削除
-        localStorage.removeItem('fruitCutterData_v6');
-        
-        // 3. 現在の状態も初期値にリセット（保存関数が動いても大丈夫なように）
-        state = {
-            hp: 5, maxHp: 5, score: 0,
-            recoveryTimer: 30, isPaused: false, isFever: false,
-            activeBuffs: {}
-        };
-
-        // 4. 即座にリロード
+    if (confirm("データを削除しますか？")) {
+        localStorage.removeItem('fruitCutterData_v8');
         location.reload();
     }
 }
@@ -394,8 +426,9 @@ function gameOver() {
     alert("ゲームオーバー！ ポイントを半分失いました。");
     state.hp = state.maxHp;
     state.score = Math.floor(state.score / 2);
+    state.combo = 0;
     fruits = []; bossActive = false;
-    state.activeBuffs = {}; // バフ全消去
+    state.activeBuffs = {};
     saveGame();
 }
 
