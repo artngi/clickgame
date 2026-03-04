@@ -87,7 +87,8 @@ function init() {
         mouse.py = mouse.y;
         mouse.x = nx;
         mouse.y = ny;
-        if (Math.hypot(mouse.x - mouse.px, mouse.y - mouse.py) > 1) {
+        // 変更箇所①：閾値を1から15に上げ、ある程度速い動きのみを斬撃として判定する
+        if (Math.hypot(mouse.x - mouse.px, mouse.y - mouse.py) > 15) {
             mouse.isMoving = true;
             mouseHistory.push({x: nx, y: ny, life: 10});
         }
@@ -187,6 +188,14 @@ class Fruit {
                 if (isCritical) dmg *= 5;
 
                 this.hp -= dmg;
+
+                // 変更箇所②：ボスやフィーバー以外のフルーツの場合、残りHPに応じてサイズを小さくする
+                if (this.typeKey !== 'BOSS' && this.typeKey !== 'FEVER' && this.hp > 0) {
+                    const config = TYPES[this.typeKey];
+                    // 小さくなりすぎて斬れなくなるのを防ぐため、最小サイズを25に設定
+                    this.r = Math.max(25, config.r * (this.hp / this.maxHp));
+                }
+
                 this.hitCooldown = 10; 
                 this.stopTime = 9; // ヒットストップ（一瞬静止）
                 
@@ -231,6 +240,7 @@ class Fruit {
         ctx.strokeStyle = "rgba(255,255,255,0.4)";
         ctx.lineWidth = 3;
         ctx.stroke();
+        // 半径に合わせてフォントサイズも変更
         ctx.font = `${this.r}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
