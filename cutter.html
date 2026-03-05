@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fruit Cutter - Impact Edition</title>
+    <title>Fruit Cutter</title>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Arial', sans-serif; user-select: none; touch-action: none; }
         canvas { display: block; cursor: crosshair; }
         #ui { position: absolute; top: 10px; left: 10px; color: white; pointer-events: none; text-shadow: 2px 2px 4px #000; font-size: 14px; z-index: 10; }
         #combo-ui { position: absolute; top: 50%; right: 20px; transform: translateY(-50%); color: #ff4500; font-size: 40px; font-weight: bold; font-style: italic; pointer-events: none; text-shadow: 0 0 10px #fff; display: none; text-align: right; }
-        #buffs { position: absolute; top: 10px; right: 10px; color: #ffd700; text-align: right; pointer-events: none; font-size: 12px; font-weight: bold; }
+        #buffs { position: absolute; top: 10px; right: 10px; color: #ffd700; text-align: right; pointer-events: none; font-size: 14px; font-weight: bold; text-shadow: 1px 1px 3px #000; }
         .btn { pointer-events: auto; background: #444; color: white; border: none; padding: 12px 20px; cursor: pointer; border-radius: 8px; margin-top: 8px; font-weight: bold; }
-        #shop-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); border: 2px solid #ffd700; padding: 20px; color: white; display: none; text-align: center; border-radius: 15px; width: 85%; max-width: 400px; z-index: 100; }
+        .btn:disabled { background: #555 !important; cursor: not-allowed; color: #888; }
+        #shop-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); border: 2px solid #ffd700; padding: 20px; color: white; display: none; text-align: center; border-radius: 15px; width: 85%; max-width: 400px; max-height: 80vh; overflow-y: auto; z-index: 100; }
         .shop-item { margin: 10px 0; padding: 10px; border: 1px solid #444; background: #222; border-radius: 8px; }
         #fever-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; box-shadow: inset 0 0 80px #ffd700; display: none; z-index: 5; }
     </style>
@@ -34,6 +35,8 @@
 <div id="shop-screen">
     <h2>🛒 強化ショップ</h2>
     <div class="shop-item">❤️ 最大体力+1 <br> <button class="btn" onclick="buyUpgrade('maxHp', 50)">50 Pt</button></div>
+    <div class="shop-item">🛡️ 盾 <br> <button class="btn" onclick="buyShield(100)">100 Pt</button></div>
+    <div class="shop-item">💣 爆弾投下 <br> <button class="btn" id="btn-buy-bomb" onclick="buyBombItem(200)">200 Pt</button></div>
     <div class="shop-item">⚡ 回復速度2倍 (60s) <br> <button class="btn" onclick="buyUpgrade('fastRecover', 100)">100 Pt</button></div>
     <div class="shop-item">⚔️ 切れ味2倍 (30s) <br> <button class="btn" onclick="buyUpgrade('doubleDamage', 150)">150 Pt</button></div>
     <div class="shop-item">❄️ 低速落下 (45s) <br> <button class="btn" onclick="buyUpgrade('slowFall', 80)">80 Pt</button></div>
@@ -51,7 +54,8 @@ let state = {
     hp: 5, maxHp: 5, score: 0,
     recoveryTimer: 30, isPaused: false, isFever: false,
     activeBuffs: {},
-    combo: 0, comboTimer: 0
+    combo: 0, comboTimer: 0,
+    shields: 0, bombCooldown: 0
 };
 
 let fruits = [];
@@ -63,12 +67,17 @@ let shakeTime = 0;
 let bossActive = false;
 let feverTimer = 0;
 
+// フルーツとアイテムの種類定義
 const TYPES = {
     S: { r: 25, hp: 1, pts: 1, color: '#ff4d4d', label: '🍎' },
     M: { r: 45, hp: 3, pts: 3, color: '#ffa500', label: '🍊' },
     L: { r: 65, hp: 5, pts: 5, color: '#44ff44', label: '🍉' },
     BOSS: { r: 100, hp: 75, pts: 100, color: '#9932cc', label: '👿' },
-    FEVER: { r: 100, hp: 50, pts: 50, color: '#ffd700', label: '🌟' }
+    FEVER: { r: 100, hp: 50, pts: 50, color: '#ffd700', label: '🌟' },
+    BOMB: { r: 40, hp: 3, pts: 0, color: '#555555', label: '💣' },
+    SILVER: { r: 35, hp: 15, pts: 150, color: '#c0c0c0', label: '🍏' },
+    GOLD: { r: 35, hp: 20, pts: 250, color: '#ffd700', label: '🍎' },
+    ITEM_BOMB: { r: 50, hp: 999, pts: 0, color: '#ffffff', label: '💣' }
 };
 
 const BUFF_LABELS = {
@@ -87,7 +96,6 @@ function init() {
         mouse.py = mouse.y;
         mouse.x = nx;
         mouse.y = ny;
-        // 変更箇所①：閾値を1から15に上げ、ある程度速い動きのみを斬撃として判定する
         if (Math.hypot(mouse.x - mouse.px, mouse.y - mouse.py) > 15) {
             mouse.isMoving = true;
             mouseHistory.push({x: nx, y: ny, life: 10});
@@ -145,33 +153,50 @@ class Fruit {
         }
 
         this.hitCooldown = 0;
-        this.stopTime = 0; // ヒットストップ用
+        this.stopTime = 0;
         this.flash = 0;
+        this.timer = 0; // アイテム爆弾用
     }
 
     update() {
-        if (state.isPaused) return;
+        if (state.isPaused) return false;
 
-        // ヒットストップ中は動きを止める
         if (this.stopTime > 0) {
             this.stopTime--;
             return false;
         }
         
+        // 味方の爆弾（アイテム）の特殊な動き
+        if (this.typeKey === 'ITEM_BOMB') {
+            if (this.y < height / 2) {
+                this.y += this.vy;
+            } else {
+                this.timer--;
+                if (this.timer <= 0) {
+                    // 味方の爆弾起爆フラグ
+                    state.triggerItemBomb = { x: this.x, y: this.y };
+                    return true;
+                }
+            }
+            return false; // マウス判定はスキップ（斬る必要なし）
+        }
+
         const speedMul = state.activeBuffs['slowFall'] ? 0.5 : 1.0;
-        this.vy += 0.1 * speedMul; // 重力
+        this.vy += 0.1 * speedMul;
         this.x += this.vx * speedMul;
         this.y += this.vy * speedMul;
 
-        // 左右の壁でバウンド
         if (this.x - this.r < 0) { this.x = this.r; this.vx *= -0.8; }
         if (this.x + this.r > width) { this.x = width - this.r; this.vx *= -0.8; }
 
         if (this.y - this.r > height) {
-            if (!state.isFever) {
-                state.hp--;
-                shakeTime = 15;
-                state.combo = 0;
+            // 敵の爆弾が画面外に落ちた場合はペナルティなし
+            if (this.typeKey !== 'BOMB') {
+                if (!state.isFever) {
+                    state.hp--;
+                    shakeTime = 15;
+                    state.combo = 0;
+                }
             }
             if (this.typeKey === 'BOSS' || this.typeKey === 'FEVER') bossActive = false;
             return true;
@@ -186,20 +211,22 @@ class Fruit {
                 const isCritical = Math.random() < 0.1;
                 let dmg = state.activeBuffs['doubleDamage'] ? 2 : 1;
                 if (isCritical) dmg *= 5;
+                
+                // 敵の爆弾はクリティカルで一撃死させず、必ず3回斬らせる
+                if (this.typeKey === 'BOMB') dmg = 1;
 
                 this.hp -= dmg;
 
-                // 変更箇所②：ボスやフィーバー以外のフルーツの場合、残りHPに応じてサイズを小さくする
-                if (this.typeKey !== 'BOSS' && this.typeKey !== 'FEVER' && this.hp > 0) {
+                // 特殊フルーツ以外はダメージに応じて小さくなる
+                const specialTypes = ['BOSS', 'FEVER', 'BOMB', 'SILVER', 'GOLD'];
+                if (!specialTypes.includes(this.typeKey) && this.hp > 0) {
                     const config = TYPES[this.typeKey];
-                    // 小さくなりすぎて斬れなくなるのを防ぐため、最小サイズを25に設定
                     this.r = Math.max(25, config.r * (this.hp / this.maxHp));
                 }
 
                 this.hitCooldown = 10; 
-                this.stopTime = 3; // ヒットストップ（一瞬静止）
+                this.stopTime = 3; 
                 
-                // 速度を減衰させて、静止感を出す
                 this.vx = (Math.random() - 0.5) * 3;
                 this.vy = (Math.random() - 0.7) * 3; 
                 
@@ -215,6 +242,12 @@ class Fruit {
                 }
 
                 if (this.hp <= 0) {
+                    // 敵の爆弾起爆判定
+                    if (this.typeKey === 'BOMB') {
+                        state.triggerEnemyBomb = { x: this.x, y: this.y };
+                        return true;
+                    }
+
                     let basePts = (this.typeKey === 'BOSS' || this.typeKey === 'FEVER') ? this.maxHp : TYPES[this.typeKey].pts;
                     let comboBonus = 1 + (state.combo * 0.1);
                     state.score += Math.floor(basePts * comboBonus * (isCritical ? 2 : 1));
@@ -233,14 +266,26 @@ class Fruit {
         ctx.save();
         ctx.translate(this.x, this.y);
         if (this.flash > 0) { ctx.shadowBlur = 30; ctx.shadowColor = "white"; }
+        
+        // 色の動的切り替え
+        let drawColor = TYPES[this.typeKey].color;
+        if (this.typeKey === 'BOMB' && this.hp === 1) {
+            // 敵の爆弾：残り1回で白→オレンジ→赤の点滅
+            const colors = ['#ffffff', '#ffa500', '#ff0000'];
+            drawColor = colors[Math.floor(Date.now() / 100) % 3];
+        } else if (this.typeKey === 'ITEM_BOMB' && this.y >= height / 2) {
+            // アイテム爆弾：停止時に点滅
+            const colors = ['#ffffff', '#ffa500', '#ff0000'];
+            drawColor = colors[Math.floor(Date.now() / 100) % 3];
+        }
+
         ctx.beginPath();
         ctx.arc(0, 0, this.r, 0, Math.PI * 2);
-        ctx.fillStyle = TYPES[this.typeKey].color;
+        ctx.fillStyle = drawColor;
         ctx.fill();
         ctx.strokeStyle = "rgba(255,255,255,0.4)";
         ctx.lineWidth = 3;
         ctx.stroke();
-        // 半径に合わせてフォントサイズも変更
         ctx.font = `${this.r}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -309,6 +354,22 @@ function update(time) {
             document.getElementById('combo-ui').style.display = 'none';
         }
 
+        // ボムのクールダウン更新
+        if (state.bombCooldown > 0) {
+            state.bombCooldown -= dt;
+            let bombBtn = document.getElementById('btn-buy-bomb');
+            if(bombBtn) {
+                bombBtn.innerText = `⏳ ${Math.ceil(state.bombCooldown/1000)}s`;
+                bombBtn.disabled = true;
+            }
+        } else {
+            let bombBtn = document.getElementById('btn-buy-bomb');
+            if(bombBtn && bombBtn.disabled) {
+                bombBtn.innerText = "200 Pt";
+                bombBtn.disabled = false;
+            }
+        }
+
         const recoverMul = state.activeBuffs['fastRecover'] ? 2 : 1;
         state.recoveryTimer -= (dt / 1000) * recoverMul;
         if (state.recoveryTimer <= 0) {
@@ -324,19 +385,68 @@ function update(time) {
             }
         }
 
+        // フルーツ・アイテムの出現ロジック
         spawnTimer -= dt;
         if (spawnTimer <= 0 && !bossActive) {
             let rand = Math.random();
             if (!state.isFever && rand < 0.04) { 
                 fruits.push(new Fruit(Math.random() < 0.3 ? 'FEVER' : 'BOSS'));
                 bossActive = true;
+            } else if (!state.isFever && rand < 0.14) { // 10%で敵の爆弾
+                fruits.push(new Fruit('BOMB'));
+            } else if (!state.isFever && rand < 0.16) { // 2%で銀のリンゴ
+                fruits.push(new Fruit('SILVER'));
+            } else if (!state.isFever && rand < 0.17) { // 1%で黄金のリンゴ
+                fruits.push(new Fruit('GOLD'));
             } else {
                 let type = 'S';
-                if (rand > 0.5) type = 'M';
-                if (rand > 0.8) type = 'L';
+                let r2 = Math.random();
+                if (r2 > 0.5) type = 'M';
+                if (r2 > 0.8) type = 'L';
                 fruits.push(new Fruit(type));
             }
             spawnTimer = state.isFever ? 80 : 350;
+        }
+
+        // アイテム爆弾の起爆処理
+        if (state.triggerItemBomb) {
+            shakeTime = 40;
+            createParticles(state.triggerItemBomb.x, state.triggerItemBomb.y, '#ffa500', 50);
+            floatingTexts.push({ x: state.triggerItemBomb.x, y: state.triggerItemBomb.y, text: "BOOOM!!", life: 1.5, color: "#ffa500" });
+            
+            let addedScore = 0;
+            fruits.forEach(f => {
+                // 敵の爆弾と自分以外の果物を全破壊
+                if (f.typeKey !== 'BOMB' && f.typeKey !== 'ITEM_BOMB') {
+                    let basePts = (f.typeKey === 'BOSS' || f.typeKey === 'FEVER') ? f.maxHp : TYPES[f.typeKey].pts;
+                    addedScore += basePts;
+                    createParticles(f.x, f.y, TYPES[f.typeKey].color, 15);
+                }
+            });
+            state.score += addedScore;
+            fruits = []; // 画面一掃
+            bossActive = false;
+            state.triggerItemBomb = null;
+        }
+
+        // 敵の爆弾の起爆処理
+        if (state.triggerEnemyBomb) {
+            if (state.shields > 0) {
+                state.shields--;
+                state.hp -= 1; // 盾で軽減
+                floatingTexts.push({ x: state.triggerEnemyBomb.x, y: state.triggerEnemyBomb.y - 40, text: "🛡️ SHIELD!!", life: 1.5, color: "#44ccff" });
+            } else {
+                state.hp -= 5;
+            }
+            shakeTime = 50;
+            createParticles(state.triggerEnemyBomb.x, state.triggerEnemyBomb.y, '#ff0000', 50);
+            floatingTexts.push({ x: state.triggerEnemyBomb.x, y: state.triggerEnemyBomb.y, text: "BOMB!!", life: 1.5, color: "#ff0000" });
+            
+            // アイテム爆弾以外を全消し（ポイントなし）
+            fruits = fruits.filter(f => f.typeKey === 'ITEM_BOMB');
+            bossActive = false;
+            state.combo = 0;
+            state.triggerEnemyBomb = null;
         }
 
         fruits = fruits.filter(f => !f.update());
@@ -365,7 +475,11 @@ function update(time) {
         drawTrail();
         ctx.restore();
 
+        // UIのバフと盾の表示
         let buffHtml = "";
+        if (state.shields > 0) {
+            buffHtml += `<div style="color: #44ccff;">🛡️ 盾: ${state.shields}個</div>`;
+        }
         Object.keys(state.activeBuffs).forEach(key => {
             state.activeBuffs[key] -= dt;
             if (state.activeBuffs[key] <= 0) {
@@ -410,24 +524,56 @@ function buyUpgrade(type, price) {
     updateUI();
 }
 
+function buyShield(price) {
+    if (state.score < price) return alert("ポイント不足！");
+    state.score -= price;
+    state.shields++;
+    updateUI();
+}
+
+function buyBombItem(price) {
+    if (state.bombCooldown > 0) return alert("クールダウン中です！");
+    if (state.score < price) return alert("ポイント不足！");
+    
+    state.score -= price;
+    state.bombCooldown = 20000; // 20秒
+    
+    let bomb = new Fruit('ITEM_BOMB');
+    bomb.x = width / 2;
+    bomb.y = -bomb.r;
+    bomb.vx = 0;
+    bomb.vy = 8;
+    bomb.timer = 50; // 中央到達後、50フレームで爆発
+    fruits.push(bomb);
+    
+    updateUI();
+    closeShop();
+}
+
 function saveGame() {
-    localStorage.setItem('fruitCutterData_v8', JSON.stringify({
-        score: state.score, maxHp: state.maxHp, hp: state.hp, activeBuffs: state.activeBuffs 
+    // 古いデータの名前空間を変えて、v9として保存
+    localStorage.setItem('fruitCutterData_v9', JSON.stringify({
+        score: state.score, maxHp: state.maxHp, hp: state.hp, activeBuffs: state.activeBuffs,
+        shields: state.shields, bombCooldown: state.bombCooldown
     }));
 }
 
 function loadGame() {
-    const saved = localStorage.getItem('fruitCutterData_v8');
+    // 互換性のため、v9が無ければv8を読むようにしてもいいですが、今回はv9ベースで読み込みます
+    const saved = localStorage.getItem('fruitCutterData_v9') || localStorage.getItem('fruitCutterData_v8');
     if (saved) {
         const data = JSON.parse(saved);
-        state.score = data.score; state.maxHp = data.maxHp; state.hp = data.hp;
+        state.score = data.score || 0; state.maxHp = data.maxHp || 5; state.hp = data.hp || 5;
         state.activeBuffs = data.activeBuffs || {};
+        state.shields = data.shields || 0;
+        state.bombCooldown = data.bombCooldown || 0;
     }
 }
 
 function resetData() {
-    if (confirm("データを削除しますか？")) {
+    if (confirm("データを完全に削除しますか？")) {
         localStorage.removeItem('fruitCutterData_v8');
+        localStorage.removeItem('fruitCutterData_v9');
         location.reload();
     }
 }
