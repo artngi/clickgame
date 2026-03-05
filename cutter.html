@@ -408,7 +408,7 @@ function update(time) {
             spawnTimer = state.isFever ? 80 : 350;
         }
 
-        // アイテム爆弾の起爆処理
+        // 味方のアイテム爆弾の起爆処理
         if (state.triggerItemBomb) {
             shakeTime = 40;
             createParticles(state.triggerItemBomb.x, state.triggerItemBomb.y, '#ffa500', 50);
@@ -416,16 +416,32 @@ function update(time) {
             
             let addedScore = 0;
             fruits.forEach(f => {
-                // 敵の爆弾と自分以外の果物を全破壊
+                // 敵の爆弾と他のアイテム爆弾には干渉させない
                 if (f.typeKey !== 'BOMB' && f.typeKey !== 'ITEM_BOMB') {
-                    let basePts = (f.typeKey === 'BOSS' || f.typeKey === 'FEVER') ? f.maxHp : TYPES[f.typeKey].pts;
-                    addedScore += basePts;
-                    createParticles(f.x, f.y, TYPES[f.typeKey].color, 15);
+                    if (f.typeKey === 'BOSS' || f.typeKey === 'FEVER') {
+                        f.hp -= 50; // 即死ではなく50ダメージ
+                        if (f.hp <= 0) {
+                            addedScore += f.maxHp;
+                            createParticles(f.x, f.y, TYPES[f.typeKey].color, 15);
+                            if (f.typeKey === 'FEVER') startFever();
+                            bossActive = false;
+                            f.dead = true; // 削除フラグ
+                        } else {
+                            // ボスが生き残った場合はサイズを縮小して継続
+                            const config = TYPES[f.typeKey];
+                            f.r = Math.max(25, config.r * (f.hp / f.maxHp));
+                            f.flash = 1;
+                        }
+                    } else {
+                        // 通常フルーツは破壊してポイント加算
+                        addedScore += TYPES[f.typeKey].pts;
+                        createParticles(f.x, f.y, TYPES[f.typeKey].color, 15);
+                        f.dead = true;
+                    }
                 }
             });
             state.score += addedScore;
-            fruits = []; // 画面一掃
-            bossActive = false;
+            fruits = fruits.filter(f => !f.dead); // 破壊されたフルーツのみ画面から消す
             state.triggerItemBomb = null;
         }
 
@@ -442,9 +458,28 @@ function update(time) {
             createParticles(state.triggerEnemyBomb.x, state.triggerEnemyBomb.y, '#ff0000', 50);
             floatingTexts.push({ x: state.triggerEnemyBomb.x, y: state.triggerEnemyBomb.y, text: "BOMB!!", life: 1.5, color: "#ff0000" });
             
-            // アイテム爆弾以外を全消し（ポイントなし）
-            fruits = fruits.filter(f => f.typeKey === 'ITEM_BOMB');
-            bossActive = false;
+            fruits.forEach(f => {
+                // アイテム爆弾と他の敵の爆弾には干渉させない
+                if (f.typeKey !== 'ITEM_BOMB' && f.typeKey !== 'BOMB') {
+                    if (f.typeKey === 'BOSS' || f.typeKey === 'FEVER') {
+                        f.hp -= 50; // 敵の爆弾もボスには50ダメージ
+                        if (f.hp <= 0) {
+                            createParticles(f.x, f.y, TYPES[f.typeKey].color, 15);
+                            bossActive = false;
+                            f.dead = true;
+                        } else {
+                            const config = TYPES[f.typeKey];
+                            f.r = Math.max(25, config.r * (f.hp / f.maxHp));
+                            f.flash = 1;
+                        }
+                    } else {
+                        // 通常フルーツは全消し（ポイント加算なし）
+                        f.dead = true;
+                    }
+                }
+            });
+            
+            fruits = fruits.filter(f => !f.dead);
             state.combo = 0;
             state.triggerEnemyBomb = null;
         }
