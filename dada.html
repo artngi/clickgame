@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>サバイバー・プロトタイプ</title>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+    body, html {
+        margin: 0; padding: 0; width: 100%; height: 100%;
+        background-color: #1a1a2e;
+        overflow: hidden;
+        touch-action: none;
+        font-family: 'DotGothic16', sans-serif;
+        user-select: none;
+    }
+    #gameCanvas {
+        display: block; width: 100%; height: 100%;
+    }
+    
+    /* --- 追加: システムUI (セーブ・削除ボタン) --- */
+    #systemUi {
+        position: absolute; top: 15px; right: 15px; z-index: 5;
+        display: flex; gap: 10px;
+    }
+    .sys-btn {
+        color: white; border: none; padding: 10px 15px; border-radius: 8px;
+        font-family: 'DotGothic16', sans-serif; font-size: 14px; cursor: pointer;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.2s;
+    }
+    .sys-btn:active { transform: translateY(2px); box-shadow: 0 2px 3px rgba(0,0,0,0.3); }
+    #saveBtn { background: #2ecc71; }
+    #deleteBtn { background: #e74c3c; }
+
+    /* --- レベルアップUI --- */
+    #levelUpScreen, #gameOverScreen {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(10, 10, 25, 0.85);
+        backdrop-filter: blur(5px);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        z-index: 10; display: none; color: white;
+    }
+    #levelUpScreen h2 {
+        margin-top: 0; font-size: 40px; color: #f1c40f;
+        text-shadow: 0 0 10px #f39c12, 0 0 20px #e67e22;
+        animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+    #optionsContainer {
+        display: flex; flex-direction: column; gap: 12px; width: 90%; max-width: 450px;
+    }
+    .skill-btn {
+        background: linear-gradient(135deg, #2c3e50, #34495e);
+        border: 2px solid #5dade2;
+        color: white; padding: 15px; border-radius: 12px;
+        font-size: 16px; text-align: left; cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        display: flex; align-items: center; gap: 15px;
+        font-family: 'DotGothic16', sans-serif;
+    }
+    .skill-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(93, 173, 226, 0.4);
+        border-color: #85c1e9;
+    }
+    .skill-btn:active {
+        transform: translateY(1px); box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    .skill-icon {
+        font-size: 32px; background: rgba(0,0,0,0.2);
+        padding: 10px; border-radius: 8px;
+    }
+    .skill-info { flex: 1; }
+    .skill-name { font-size: 18px; font-weight: bold; color: #fdfefe; margin-bottom: 4px; display: block; }
+    .skill-level { color: #f1c40f; font-size: 14px; }
+    .skill-desc { font-size: 13px; color: #bdc3c7; display: block; line-height: 1.4; }
+    
+    /* --- ゲームオーバーUI --- */
+    #gameOverScreen {
+        background: rgba(50, 0, 0, 0.9); z-index: 20;
+    }
+    #gameOverScreen h1 {
+        font-size: 60px; color: #e74c3c;
+        text-shadow: 0 0 20px #c0392b; margin-bottom: 10px;
+    }
+    #gameOverScreen button {
+        background: #e74c3c; border: none; color: white;
+        padding: 15px 40px; font-size: 20px; border-radius: 30px;
+        margin-top: 30px; cursor: pointer; font-family: 'DotGothic16', sans-serif;
+        box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4); transition: 0.2s;
+    }
+    #gameOverScreen button:hover { background: #c0392b; transform: scale(1.05); }
+</style>
+</head>
+<body>
+
+<div id="systemUi">
+    <button id="saveBtn" class="sys-btn">セーブ</button>
+    <button id="deleteBtn" class="sys-btn">データ削除</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="levelUpScreen">
+    <h2>LEVEL UP!</h2>
+    <div id="optionsContainer"></div>
+</div>
+
+<div id="gameOverScreen">
+    <h1>GAME OVER</h1>
+    <h3 id="finalLevel" style="font-size: 24px; color: #ecf0f1;"></h3>
+    <button id="restartBtn">もう一度プレイ</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// --- ゲーム状態 ---
+let isPlaying = true;
+let frameCount = 0;
+
+// --- セーブ＆ロード機能 ---
+const SAVE_KEY = 'dadaSurvivorSaveData';
+
+function saveGame() {
+    if (!isPlaying || player.hp <= 0) return; // 死亡時はセーブしない
+    const saveData = {
+        player: player,
+        frameCount: frameCount,
+        spawnedBossLevel: spawnedBossLevel
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+    
+    // ボタンのテキストを一時的に変更して完了を知らせる
+    const sBtn = document.getElementById('saveBtn');
+    sBtn.innerText = "セーブ完了!";
+    setTimeout(() => { sBtn.innerText = "セーブ"; }, 1500);
+}
+
+function loadGame() {
+    const saveData = localStorage.getItem(SAVE_KEY);
+    if (saveData) {
+        try {
+            const data = JSON.parse(saveData);
+            Object.assign(player, data.player); // プレイヤーのステータスを復元
+            frameCount = data.frameCount || 0;
+            spawnedBossLevel = data.spawnedBossLevel || 0;
+        } catch (e) {
+            console.error("セーブデータの読み込みに失敗しました", e);
+        }
+    }
+}
+
+// ボタンのイベントリスナー設定
+document.getElementById('saveBtn').addEventListener('click', saveGame);
+
+// データ削除の二段階確認ロジック
+let deleteStep = 0;
+let deleteTimer = null;
+document.getElementById('deleteBtn').addEventListener('click', () => {
+    const dBtn = document.getElementById('deleteBtn');
+    if (deleteStep === 0) {
+        // 1回目のクリック
+        deleteStep = 1;
+        dBtn.innerText = "本当に削除？(再タップ)";
+        dBtn.style.background = "#c0392b"; // さらに濃い赤に
+        
+        // 3秒放置したらキャンセル扱いにする
+        deleteTimer = setTimeout(() => {
+            deleteStep = 0;
+            dBtn.innerText = "データ削除";
+            dBtn.style.background = "#e74c3c";
+        }, 3000);
+    } else if (deleteStep === 1) {
+        // 2回目のクリック（削除実行）
+        clearTimeout(deleteTimer);
+        localStorage.removeItem(SAVE_KEY);
+        alert('セーブデータを削除しました。初期状態から再スタートします。');
+        location.reload(); // ページをリロードして初期化
+    }
+});
+
+// ゲームオーバー後の再プレイボタン
+document.getElementById('restartBtn').addEventListener('click', () => {
+    // 死亡時はセーブデータを消して最初からやり直すか、残すか選べます。
+    // 今回はローグライク風に、死んだらセーブデータを消去する仕様にします。
+    localStorage.removeItem(SAVE_KEY);
+    location.reload();
+});
+
+
+// --- 入力（ジョイスティック） ---
+const joystick = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, vectorX: 0, vectorY: 0 };
+
+canvas.addEventListener('touchstart', e => {
+    const touch = e.touches[0];
+    if (touch.clientX < canvas.width / 2) { 
+        joystick.active = true;
+        joystick.startX = touch.clientX; joystick.startY = touch.clientY;
+        joystick.currentX = touch.clientX; joystick.currentY = touch.clientY;
+        updateJoystickVector();
+    }
+});
+canvas.addEventListener('touchmove', e => {
+    if (!joystick.active) return;
+    for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].clientX < canvas.width / 2 + 100) {
+            joystick.currentX = e.touches[i].clientX; joystick.currentY = e.touches[i].clientY;
+            updateJoystickVector();
+        }
+    }
+});
+canvas.addEventListener('touchend', e => {
+    if (e.touches.length === 0 || Array.from(e.touches).every(t => t.clientX > canvas.width / 2)) {
+        joystick.active = false; joystick.vectorX = 0; joystick.vectorY = 0;
+    }
+});
+
+function updateJoystickVector() {
+    const dx = joystick.currentX - joystick.startX;
+    const dy = joystick.currentY - joystick.startY;
+    const distance = Math.hypot(dx, dy);
+    const maxRadius = 50;
+    if (distance > 0) {
+        joystick.vectorX = dx / distance; joystick.vectorY = dy / distance;
+        if (distance > maxRadius) {
+            joystick.currentX = joystick.startX + joystick.vectorX * maxRadius;
+            joystick.currentY = joystick.startY + joystick.vectorY * maxRadius;
+        }
+    }
+}
+
+let mouseActive = false;
+canvas.addEventListener('mousedown', e => {
+    if(e.clientX < canvas.width/2) {
+        mouseActive = true; joystick.active = true;
+        joystick.startX = e.clientX; joystick.startY = e.clientY;
+        joystick.currentX = e.clientX; joystick.currentY = e.clientY;
+    }
+});
+canvas.addEventListener('mousemove', e => {
+    if(mouseActive) { joystick.currentX = e.clientX; joystick.currentY = e.clientY; updateJoystickVector(); }
+});
+canvas.addEventListener('mouseup', () => { mouseActive = false; joystick.active = false; joystick.vectorX = 0; joystick.vectorY = 0; });
+
+// --- スキル定義 ---
+const SKILLS = {
+    atkSpeed: { id: 'atkSpeed', icon: '⚡', name: "攻撃速度強化", desc: "魔法の連射速度がアップします" },
+    damage: { id: 'damage', icon: '💥', name: "威力強化", desc: "魔法のダメージがアップします" },
+    spread: { id: 'spread', icon: '🎇', name: "マルチショット", desc: "一度に放つ魔法の数が増加します" },
+    maxHp: { id: 'maxHp', icon: '💖', name: "体力増強", desc: "最大HPがアップし、全回復します" },
+    regen: { id: 'regen', icon: '🌿', name: "自然治癒", desc: "時間経過によるHP回復量が増加します" },
+    speed: { id: 'speed', icon: '👟', name: "俊敏", desc: "移動速度がアップします" },
+    knockback: { id: 'knockback', icon: '🛡️', name: "衝撃波", desc: "攻撃を当てた時の敵のノックバックが増加します" },
+    katana: { id: 'katana', icon: '⚔️', name: "オーラブレード", desc: "近づいた敵を自動で斬りつけます" },
+    shuriken: { id: 'shuriken', icon: '🌀', name: "魔力オーブ", desc: "自分の周りを回って敵を攻撃します" }
+};
+
+// --- エンティティ ---
+const player = {
+    x: 0, y: 0, radius: 15, emoji: '👮',
+    hp: 100, maxHp: 100, xp: 0, needXp: 10, level: 1,
+    baseSpeed: 3,
+    levels: { atkSpeed: 0, damage: 0, spread: 0, maxHp: 0, regen: 0, speed: 0, knockback: 0, katana: 0, shuriken: 0 },
+    lastShot: 0, lastKatana: 0, shurikenAngle: 0
+};
+
+let enemies = [];
+let bullets = [];
+let damageTexts = [];
+let katanaEffects = [];
+
+const ENEMY_TYPES = [
+    { emoji: '🧟', hp: 20, speed: 1.5, dmg: 5, radius: 14, xp: 3 },
+    { emoji: '🦇', hp: 10, speed: 2.5, dmg: 3, radius: 12, xp: 2 },
+    { emoji: '🧌', hp: 60, speed: 0.8, dmg: 10, radius: 18, xp: 4 }
+];
+
+const BOSS_TYPES = [
+    { emoji: '👾', hp: 1000, speed: 1.2, dmg: 20, radius: 35, xp: 50, name: "巨大スライム" },
+    { emoji: '👹', hp: 800, speed: 2.0, dmg: 15, radius: 30, xp: 50, name: "オーガキング" }
+];
+
+let spawnedBossLevel = 0;
+
+function spawnEnemy() {
+    if (player.level % 5 === 0 && spawnedBossLevel !== player.level) {
+        spawnBoss();
+        spawnedBossLevel = player.level;
+        return;
+    }
+    const hpScale = 1 + (player.level * 0.2);
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.max(canvas.width, canvas.height) / 2 + 50;
+    const type = ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
+    
+    enemies.push({
+        x: player.x + Math.cos(angle) * dist, y: player.y + Math.sin(angle) * dist,
+        hp: type.hp * hpScale, maxHp: type.hp * hpScale,
+        speed: type.speed, dmg: type.dmg, radius: type.radius, xp: type.xp,
+        emoji: type.emoji, isBoss: false, vx: 0, vy: 0
+    });
+}
+
+function spawnBoss() {
+    const type = BOSS_TYPES[Math.floor(Math.random() * BOSS_TYPES.length)];
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.max(canvas.width, canvas.height) / 2 + 100;
+    enemies.push({
+        x: player.x + Math.cos(angle) * dist, y: player.y + Math.sin(angle) * dist,
+        hp: type.hp * (1 + player.level*0.1), maxHp: type.hp * (1 + player.level*0.1),
+        speed: type.speed, dmg: type.dmg, radius: type.radius, xp: type.xp,
+        emoji: type.emoji, isBoss: true, name: type.name, vx: 0, vy: 0
+    });
+}
+
+// --- 更新ロジック ---
+function update() {
+    if (!isPlaying) return;
+    frameCount++;
+
+    const currentSpeed = player.baseSpeed + (player.levels.speed * 0.5);
+    player.x += joystick.vectorX * currentSpeed;
+    player.y += joystick.vectorY * currentSpeed;
+
+    if (frameCount % 60 === 0 && player.hp < player.maxHp) {
+        player.hp = Math.min(player.maxHp, player.hp + (player.levels.regen * 1));
+    }
+
+    const fireRate = Math.max(10, 60 - (player.levels.atkSpeed * 5));
+    if (frameCount - player.lastShot > fireRate) fireGun();
+
+    if (player.levels.katana > 0) {
+        const katanaCooldown = Math.max(30, 90 - (player.levels.atkSpeed * 5));
+        if (frameCount - player.lastKatana > katanaCooldown) fireKatana();
+    }
+
+    player.shurikenAngle += 0.05;
+
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.x += b.vx; b.y += b.vy; b.life--;
+        if (b.life <= 0) bullets.splice(i, 1);
+    }
+
+    for (let i = katanaEffects.length - 1; i >= 0; i--) {
+        katanaEffects[i].life--;
+        if(katanaEffects[i].life <= 0) katanaEffects.splice(i, 1);
+    }
+
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        let e = enemies[i];
+        const dx = player.x - e.x; const dy = player.y - e.y;
+        const dist = Math.hypot(dx, dy);
+        
+        if (dist > 0) {
+            e.x += (dx / dist) * e.speed + e.vx; e.y += (dy / dist) * e.speed + e.vy;
+        }
+        e.vx *= 0.8; e.vy *= 0.8;
+
+        if (dist < player.radius + e.radius) {
+            player.hp -= e.dmg / 60; 
+            if (player.hp <= 0) gameOver();
+        }
+
+        for (let j = bullets.length - 1; j >= 0; j--) {
+            let b = bullets[j];
+            if (Math.hypot(b.x - e.x, b.y - e.y) < e.radius + b.radius) {
+                damageEnemy(e, i, b.dmg, b.vx * b.kb, b.vy * b.kb);
+                if(!b.pierce) bullets.splice(j, 1);
+            }
+        }
+
+        if (player.levels.shuriken > 0) {
+            const count = player.levels.shuriken;
+            const distShuriken = 60;
+            for(let k=0; k<count; k++){
+                const angle = player.shurikenAngle + (Math.PI * 2 / count) * k;
+                const sx = player.x + Math.cos(angle) * distShuriken;
+                const sy = player.y + Math.sin(angle) * distShuriken;
+                if(Math.hypot(sx - e.x, sy - e.y) < e.radius + 15){
+                    if(Math.random() < 0.2) damageEnemy(e, i, 5 + player.levels.damage*2, 0, 0);
+                }
+            }
+        }
+    }
+
+    for(let i = damageTexts.length -1; i>=0; i--){
+        damageTexts[i].y -= 1; damageTexts[i].life--;
+        if(damageTexts[i].life <= 0) damageTexts.splice(i, 1);
+    }
+
+    const spawnRate = Math.max(10, 180 - Math.floor(player.level / 2));
+    if (frameCount % spawnRate === 0) spawnEnemy();
+}
+
+function fireGun() {
+    if (enemies.length === 0) return;
+    let target = null; let minDist = Infinity;
+    enemies.forEach(e => {
+        const dist = Math.hypot(player.x - e.x, player.y - e.y);
+        if (dist < minDist) { minDist = dist; target = e; }
+    });
+
+    if (target) {
+        const baseAngle = Math.atan2(target.y - player.y, target.x - player.x);
+        const dmg = 10 + (player.levels.damage * 5);
+        const kb = 0.5 + (player.levels.knockback * 0.5);
+        const spreadCount = 1 + player.levels.spread;
+        
+        for(let i=0; i<spreadCount; i++){
+            const offset = spreadCount > 1 ? (i - (spreadCount-1)/2) * 0.2 : 0;
+            const angle = baseAngle + offset;
+            bullets.push({
+                x: player.x, y: player.y,
+                vx: Math.cos(angle) * 12, vy: Math.sin(angle) * 12,
+                radius: 6, dmg: dmg, kb: kb, life: 60, pierce: false
+            });
+        }
+        player.lastShot = frameCount;
+    }
+}
+
+function fireKatana() {
+    const radius = 80 + (player.levels.katana * 10);
+    const dmg = 15 + (player.levels.katana * 10) + (player.levels.damage * 5);
+    const kb = 5 + (player.levels.knockback * 1);
+    
+    katanaEffects.push({x: player.x, y: player.y, radius: radius, life: 15});
+
+    enemies.forEach((e, index) => {
+        if (Math.hypot(player.x - e.x, player.y - e.y) < radius + e.radius) {
+            const angle = Math.atan2(e.y - player.y, e.x - player.x);
+            damageEnemy(e, index, dmg, Math.cos(angle)*kb, Math.sin(angle)*kb);
+        }
+    });
+    player.lastKatana = frameCount;
+}
+
+function damageEnemy(e, index, amount, kbx, kby) {
+    if(!e) return;
+    e.hp -= amount;
+    e.vx += kbx; e.vy += kby; 
+    
+    damageTexts.push({x: e.x + Math.random()*20-10, y: e.y - 20, text: Math.floor(amount), life: 30});
+
+    if (e.hp <= 0) {
+        player.xp += e.xp * player.level;
+        enemies.splice(index, 1);
+        checkLevelUp();
+    }
+}
+
+function checkLevelUp() {
+    if (player.xp >= player.needXp) {
+        player.xp -= player.needXp;
+        player.level++;
+        player.needXp = Math.floor(player.level * 15);
+        showLevelUpScreen();
+    }
+}
+
+function showLevelUpScreen() {
+    isPlaying = false;
+    const container = document.getElementById('optionsContainer');
+    container.innerHTML = '';
+    
+    const skillKeys = Object.keys(SKILLS);
+    const shuffled = skillKeys.sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, 3);
+
+    selected.forEach(key => {
+        const skill = SKILLS[key];
+        const currentLv = player.levels[key];
+        const btn = document.createElement('div');
+        btn.className = 'skill-btn';
+        btn.innerHTML = `
+            <div class="skill-icon">${skill.icon}</div>
+            <div class="skill-info">
+                <span class="skill-name">${skill.name} <span class="skill-level">Lv.${currentLv} &rarr; ${currentLv+1}</span></span>
+                <span class="skill-desc">${skill.desc}</span>
+            </div>
+        `;
+        btn.onclick = () => {
+            player.levels[key]++;
+            if(key === 'maxHp') {
+                player.maxHp += 20; player.hp = player.maxHp;
+            }
+            document.getElementById('levelUpScreen').style.display = 'none';
+            isPlaying = true;
+            
+            // レベルアップ時にもオートセーブするようにおまけ追加
+            saveGame();
+        };
+        container.appendChild(btn);
+    });
+    document.getElementById('levelUpScreen').style.display = 'flex';
+}
+
+function gameOver() {
+    isPlaying = false;
+    document.getElementById('finalLevel').innerText = `到達レベル: ${player.level}`;
+    document.getElementById('gameOverScreen').style.display = 'flex';
+}
+
+// --- 描画ロジック ---
+function draw() {
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const camX = player.x - canvas.width / 2;
+    const camY = player.y - canvas.height / 2;
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+    const gridSize = 80;
+    const startX = Math.floor(camX / gridSize) * gridSize;
+    const startY = Math.floor(camY / gridSize) * gridSize;
+    for (let x = startX; x < startX + canvas.width + gridSize; x += gridSize) {
+        for (let y = startY; y < startY + canvas.height + gridSize; y += gridSize) {
+            ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    katanaEffects.forEach(k => {
+        ctx.beginPath();
+        ctx.arc(k.x, k.y, k.radius, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(52, 152, 219, ${k.life / 15})`;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+    });
+
+    bullets.forEach(b => {
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#f1c40f';
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0; 
+    });
+
+    if (player.levels.shuriken > 0) {
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const count = player.levels.shuriken;
+        const distShuriken = 60;
+        for(let k=0; k<count; k++){
+            const angle = player.shurikenAngle + (Math.PI * 2 / count) * k;
+            const sx = player.x + Math.cos(angle) * distShuriken;
+            const sy = player.y + Math.sin(angle) * distShuriken;
+            ctx.fillText('🌀', sx, sy);
+        }
+    }
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    enemies.forEach(e => {
+        ctx.font = `${e.radius * 2}px sans-serif`;
+        ctx.fillText(e.emoji, e.x, e.y);
+        
+        const hpPct = Math.max(0, e.hp / e.maxHp);
+        const barWidth = e.radius * 2;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(e.x - barWidth/2, e.y - e.radius - 12, barWidth, 6);
+        ctx.fillStyle = e.isBoss ? '#e74c3c' : '#2ecc71';
+        ctx.fillRect(e.x - barWidth/2, e.y - e.radius - 12, barWidth * hpPct, 6);
+        
+        if(e.isBoss) {
+            ctx.fillStyle = '#e74c3c'; ctx.font = '12px DotGothic16';
+            ctx.fillText(e.name, e.x, e.y - e.radius - 25);
+        }
+    });
+
+    ctx.font = '30px sans-serif';
+    ctx.fillText(player.emoji, player.x, player.y);
+    
+    ctx.font = 'bold 16px DotGothic16';
+    damageTexts.forEach(t => {
+        ctx.fillStyle = `rgba(255, 255, 255, ${t.life / 30})`;
+        ctx.fillText(t.text, t.x, t.y);
+    });
+
+    ctx.restore(); 
+
+    // --- UI（画面固定）描画 ---
+    
+    const xpPct = player.xp / player.needXp;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, canvas.width, 15);
+    ctx.fillStyle = '#3498db'; ctx.fillRect(0, 0, canvas.width * xpPct, 15);
+    
+    ctx.fillStyle = 'white'; ctx.font = '18px DotGothic16'; ctx.textAlign = 'left';
+    ctx.fillText(`Lv. ${player.level}`, 15, 40);
+
+    const phpPct = Math.max(0, player.hp / player.maxHp);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath(); ctx.roundRect(15, 55, 200, 20, 10); ctx.fill();
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath(); ctx.roundRect(15, 55, 200 * phpPct, 20, 10); ctx.fill();
+    ctx.fillStyle = 'white'; ctx.font = '14px DotGothic16'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${Math.floor(player.hp)} / ${player.maxHp}`, 15 + 100, 55 + 10);
+
+    if (joystick.active) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(joystick.startX, joystick.startY, 50, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.8)';
+        ctx.beginPath(); ctx.arc(joystick.currentX, joystick.currentY, 20, 0, Math.PI * 2); ctx.fill();
+    }
+}
+
+// --- メインループ ---
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+// ゲーム開始時にセーブデータを読み込む
+loadGame();
+loop();
+</script>
+</body>
+</html>
