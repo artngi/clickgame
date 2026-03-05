@@ -403,7 +403,7 @@ function update() {
         if(damageTexts[i].life <= 0) damageTexts.splice(i, 1);
     }
 
-    const spawnRate = Math.max(10, 180 - Math.floor(player.level / 2));
+    const spawnRate = Math.max(10, 180 - Math.floor(player.level));
     if (frameCount % spawnRate === 0) spawnEnemy();
 }
 
