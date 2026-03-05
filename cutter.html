@@ -64,11 +64,11 @@ let bossActive = false;
 let feverTimer = 0;
 
 const TYPES = {
-    S: { r: 45, hp: 1, pts: 1, color: '#ff4d4d', label: '🍎' },
-    M: { r: 65, hp: 3, pts: 3, color: '#ffa500', label: '🍊' },
-    L: { r: 85, hp: 5, pts: 5, color: '#44ff44', label: '🍉' },
-    BOSS: { r: 150, hp: 75, pts: 100, color: '#9932cc', label: '👿' },
-    FEVER: { r: 150, hp: 50, pts: 50, color: '#ffd700', label: '🌟' }
+    S: { r: 25, hp: 1, pts: 1, color: '#ff4d4d', label: '🍎' },
+    M: { r: 45, hp: 3, pts: 3, color: '#ffa500', label: '🍊' },
+    L: { r: 65, hp: 5, pts: 5, color: '#44ff44', label: '🍉' },
+    BOSS: { r: 100, hp: 75, pts: 100, color: '#9932cc', label: '👿' },
+    FEVER: { r: 100, hp: 50, pts: 50, color: '#ffd700', label: '🌟' }
 };
 
 const BUFF_LABELS = {
@@ -159,7 +159,7 @@ class Fruit {
         }
         
         const speedMul = state.activeBuffs['slowFall'] ? 0.5 : 1.0;
-        this.vy += 0.01 * speedMul; // 重力
+        this.vy += 0.1 * speedMul; // 重力
         this.x += this.vx * speedMul;
         this.y += this.vy * speedMul;
 
@@ -197,11 +197,11 @@ class Fruit {
                 }
 
                 this.hitCooldown = 10; 
-                this.stopTime = 9; // ヒットストップ（一瞬静止）
+                this.stopTime = 3; // ヒットストップ（一瞬静止）
                 
                 // 速度を減衰させて、静止感を出す
-                this.vx = Math.random() - 0.5;
-                this.vy = Math.random() - 0.5; 
+                this.vx = (Math.random() - 0.7) * 3;
+                this.vy = (Math.random() - 0.7) * 3; 
                 
                 this.flash = 1;
                 shakeTime = isCritical ? 25 : 8;
@@ -392,7 +392,7 @@ function updateUI() {
 
 function startFever() {
     state.isFever = true;
-    feverTimer = 10000;
+    feverTimer = 30000;
     document.getElementById('fever-overlay').style.display = 'block';
 }
 
