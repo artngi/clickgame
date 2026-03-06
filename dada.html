@@ -6,359 +6,231 @@
 <title>サバイバー・プロトタイプ</title>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
 <style>
-    body, html {
-        margin: 0; padding: 0; width: 100%; height: 100%;
-        background-color: #1a1a2e;
-        overflow: hidden;
-        touch-action: none;
-        font-family: 'DotGothic16', sans-serif;
-        user-select: none;
-    }
-    #gameCanvas {
-        display: block; width: 100%; height: 100%;
-    }
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #1a1a2e; overflow: hidden; touch-action: none; font-family: 'DotGothic16', sans-serif; user-select: none; }
+    #gameCanvas { display: block; width: 100%; height: 100%; }
     
-    /* --- 追加: システムUI (セーブ・削除ボタン) --- */
-    #systemUi {
-        position: absolute; top: 15px; right: 15px; z-index: 5;
-        display: flex; gap: 10px;
-    }
-    .sys-btn {
-        color: white; border: none; padding: 10px 15px; border-radius: 8px;
-        font-family: 'DotGothic16', sans-serif; font-size: 14px; cursor: pointer;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.2s;
-    }
+    #systemUi { position: absolute; top: 15px; right: 15px; z-index: 5; display: flex; gap: 10px; }
+    .sys-btn { color: white; border: none; padding: 10px 15px; border-radius: 8px; font-family: 'DotGothic16', sans-serif; font-size: 14px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.2s; }
     .sys-btn:active { transform: translateY(2px); box-shadow: 0 2px 3px rgba(0,0,0,0.3); }
+    #shopOpenBtn { background: #9b59b6; }
     #saveBtn { background: #2ecc71; }
     #deleteBtn { background: #e74c3c; }
 
-    /* --- レベルアップUI --- */
-    #levelUpScreen, #gameOverScreen {
-        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(10, 10, 25, 0.85);
-        backdrop-filter: blur(5px);
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        z-index: 10; display: none; color: white;
-    }
-    #levelUpScreen h2 {
-        margin-top: 0; font-size: 40px; color: #f1c40f;
-        text-shadow: 0 0 10px #f39c12, 0 0 20px #e67e22;
-        animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-        100% { transform: scale(1); }
-    }
-    #optionsContainer {
-        display: flex; flex-direction: column; gap: 12px; width: 90%; max-width: 450px;
-    }
-    .skill-btn {
-        background: linear-gradient(135deg, #2c3e50, #34495e);
-        border: 2px solid #5dade2;
-        color: white; padding: 15px; border-radius: 12px;
-        font-size: 16px; text-align: left; cursor: pointer;
-        transition: all 0.2s ease;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        display: flex; align-items: center; gap: 15px;
-        font-family: 'DotGothic16', sans-serif;
-    }
-    .skill-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(93, 173, 226, 0.4);
-        border-color: #85c1e9;
-    }
-    .skill-btn:active {
-        transform: translateY(1px); box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    }
-    .skill-icon {
-        font-size: 32px; background: rgba(0,0,0,0.2);
-        padding: 10px; border-radius: 8px;
-    }
-    .skill-info { flex: 1; }
-    .skill-name { font-size: 18px; font-weight: bold; color: #fdfefe; margin-bottom: 4px; display: block; }
-    .skill-level { color: #f1c40f; font-size: 14px; }
-    .skill-desc { font-size: 13px; color: #bdc3c7; display: block; line-height: 1.4; }
+    .overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 25, 0.85); backdrop-filter: blur(5px); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; color: white; }
     
-    /* --- ゲームオーバーUI --- */
-    #gameOverScreen {
-        background: rgba(50, 0, 0, 0.9); z-index: 20;
-    }
-    #gameOverScreen h1 {
-        font-size: 60px; color: #e74c3c;
-        text-shadow: 0 0 20px #c0392b; margin-bottom: 10px;
-    }
-    #gameOverScreen button {
-        background: #e74c3c; border: none; color: white;
-        padding: 15px 40px; font-size: 20px; border-radius: 30px;
-        margin-top: 30px; cursor: pointer; font-family: 'DotGothic16', sans-serif;
-        box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4); transition: 0.2s;
-    }
-    #gameOverScreen button:hover { background: #c0392b; transform: scale(1.05); }
+    #levelUpScreen h2, #chestScreen h2 { margin-top: 0; font-size: 40px; color: #f1c40f; text-shadow: 0 0 10px #f39c12; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    
+    #optionsContainer, #shopContainer { display: flex; flex-direction: column; gap: 12px; width: 90%; max-width: 450px; }
+    
+    .panel-btn { background: linear-gradient(135deg, #2c3e50, #34495e); border: 2px solid #5dade2; color: white; padding: 15px; border-radius: 12px; font-size: 16px; text-align: left; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 15px; font-family: 'DotGothic16', sans-serif; }
+    .panel-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(93, 173, 226, 0.4); border-color: #85c1e9; }
+    
+    .item-icon { font-size: 32px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; }
+    .item-info { flex: 1; }
+    .item-name { font-size: 18px; font-weight: bold; color: #fdfefe; margin-bottom: 4px; display: block; }
+    .item-desc { font-size: 13px; color: #bdc3c7; display: block; line-height: 1.4; }
+    
+    #gameOverScreen { background: rgba(50, 0, 0, 0.9); z-index: 20; }
+    #gameOverScreen h1 { font-size: 60px; color: #e74c3c; text-shadow: 0 0 20px #c0392b; margin-bottom: 10px; }
+    .action-btn { background: #e74c3c; border: none; color: white; padding: 15px 40px; font-size: 20px; border-radius: 30px; margin-top: 20px; cursor: pointer; font-family: 'DotGothic16', sans-serif; transition: 0.2s; }
+    .action-btn.blue { background: #3498db; }
+    
+    #activeSkillsUI { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; z-index: 5; }
+    .skill-icon-btn { width: 60px; height: 60px; border-radius: 50%; background: #2c3e50; border: 3px solid #f1c40f; font-size: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+    .cd-cover { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.7); height: 100%; transition: height 0.1s linear; }
 </style>
 </head>
 <body>
 
 <div id="systemUi">
+    <div style="color:#f1c40f; font-size:18px; line-height:38px; margin-right:10px;">🟡 <span id="coinDisplay">0</span></div>
+    <button id="shopOpenBtn" class="sys-btn">ショップ</button>
     <button id="saveBtn" class="sys-btn">セーブ</button>
-    <button id="deleteBtn" class="sys-btn">データ削除</button>
+    <button id="deleteBtn" class="sys-btn">削除</button>
 </div>
+
+<div id="activeSkillsUI"></div>
 
 <canvas id="gameCanvas"></canvas>
 
-<div id="levelUpScreen">
+<div id="levelUpScreen" class="overlay-screen">
     <h2>LEVEL UP!</h2>
     <div id="optionsContainer"></div>
 </div>
 
-<div id="gameOverScreen">
+<div id="chestScreen" class="overlay-screen">
+    <h2>💎 宝箱獲得 💎</h2>
+    <p>ランダムに3つの能力が上昇した！</p>
+    <div id="chestContainer" style="margin-bottom: 20px;"></div>
+    <button class="action-btn blue" onclick="resumeGame('chestScreen')">戻る</button>
+</div>
+
+<div id="shopScreen" class="overlay-screen">
+    <h2 style="color: #9b59b6;">SHOP</h2>
+    <p>所持金: <span id="shopCoinDisplay">0</span> 🟡</p>
+    <div id="shopContainer">
+        <div class="panel-btn" onclick="buyPotion()">
+            <div class="item-icon">🍖</div>
+            <div class="item-info">
+                <span class="item-name">極上肉 (コスト: 30 🟡)</span>
+                <span class="item-desc">HPを即座に全回復する。</span>
+            </div>
+        </div>
+    </div>
+    <button class="action-btn blue" onclick="resumeGame('shopScreen')">閉じる</button>
+</div>
+
+<div id="gameOverScreen" class="overlay-screen">
     <h1>GAME OVER</h1>
     <h3 id="finalLevel" style="font-size: 24px; color: #ecf0f1;"></h3>
-    <button id="restartBtn">もう一度プレイ</button>
+    <button id="restartBtn" class="action-btn">もう一度プレイ</button>
 </div>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize); resize();
 
-function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', resize);
-resize();
-
-// --- ゲーム状態 ---
 let isPlaying = true;
 let frameCount = 0;
 
-// --- セーブ＆ロード機能 ---
-const SAVE_KEY = 'dadaSurvivorSaveData';
-
-function saveGame() {
-    if (!isPlaying || player.hp <= 0) return; // 死亡時はセーブしない
-    const saveData = {
-        player: player,
-        frameCount: frameCount,
-        spawnedBossLevel: spawnedBossLevel
-    };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
-    
-    // ボタンのテキストを一時的に変更して完了を知らせる
-    const sBtn = document.getElementById('saveBtn');
-    sBtn.innerText = "セーブ完了!";
-    setTimeout(() => { sBtn.innerText = "セーブ"; }, 1500);
-}
-
-function loadGame() {
-    const saveData = localStorage.getItem(SAVE_KEY);
-    if (saveData) {
-        try {
-            const data = JSON.parse(saveData);
-            Object.assign(player, data.player); // プレイヤーのステータスを復元
-            frameCount = data.frameCount || 0;
-            spawnedBossLevel = data.spawnedBossLevel || 0;
-        } catch (e) {
-            console.error("セーブデータの読み込みに失敗しました", e);
-        }
-    }
-}
-
-// ボタンのイベントリスナー設定
-document.getElementById('saveBtn').addEventListener('click', saveGame);
-
-// データ削除の二段階確認ロジック
-let deleteStep = 0;
-let deleteTimer = null;
-document.getElementById('deleteBtn').addEventListener('click', () => {
-    const dBtn = document.getElementById('deleteBtn');
-    if (deleteStep === 0) {
-        // 1回目のクリック
-        deleteStep = 1;
-        dBtn.innerText = "本当に削除？(再タップ)";
-        dBtn.style.background = "#c0392b"; // さらに濃い赤に
-        
-        // 3秒放置したらキャンセル扱いにする
-        deleteTimer = setTimeout(() => {
-            deleteStep = 0;
-            dBtn.innerText = "データ削除";
-            dBtn.style.background = "#e74c3c";
-        }, 3000);
-    } else if (deleteStep === 1) {
-        // 2回目のクリック（削除実行）
-        clearTimeout(deleteTimer);
-        localStorage.removeItem(SAVE_KEY);
-        alert('セーブデータを削除しました。初期状態から再スタートします。');
-        location.reload(); // ページをリロードして初期化
-    }
-});
-
-// ゲームオーバー後の再プレイボタン
-document.getElementById('restartBtn').addEventListener('click', () => {
-    // 死亡時はセーブデータを消して最初からやり直すか、残すか選べます。
-    // 今回はローグライク風に、死んだらセーブデータを消去する仕様にします。
-    localStorage.removeItem(SAVE_KEY);
-    location.reload();
-});
-
-
-// --- 入力（ジョイスティック） ---
-const joystick = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, vectorX: 0, vectorY: 0 };
-
-canvas.addEventListener('touchstart', e => {
-    const touch = e.touches[0];
-    if (touch.clientX < canvas.width / 2) { 
-        joystick.active = true;
-        joystick.startX = touch.clientX; joystick.startY = touch.clientY;
-        joystick.currentX = touch.clientX; joystick.currentY = touch.clientY;
-        updateJoystickVector();
-    }
-});
-canvas.addEventListener('touchmove', e => {
-    if (!joystick.active) return;
-    for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].clientX < canvas.width / 2 + 100) {
-            joystick.currentX = e.touches[i].clientX; joystick.currentY = e.touches[i].clientY;
-            updateJoystickVector();
-        }
-    }
-});
-canvas.addEventListener('touchend', e => {
-    if (e.touches.length === 0 || Array.from(e.touches).every(t => t.clientX > canvas.width / 2)) {
-        joystick.active = false; joystick.vectorX = 0; joystick.vectorY = 0;
-    }
-});
-
-function updateJoystickVector() {
-    const dx = joystick.currentX - joystick.startX;
-    const dy = joystick.currentY - joystick.startY;
-    const distance = Math.hypot(dx, dy);
-    const maxRadius = 50;
-    if (distance > 0) {
-        joystick.vectorX = dx / distance; joystick.vectorY = dy / distance;
-        if (distance > maxRadius) {
-            joystick.currentX = joystick.startX + joystick.vectorX * maxRadius;
-            joystick.currentY = joystick.startY + joystick.vectorY * maxRadius;
-        }
-    }
-}
-
-let mouseActive = false;
-canvas.addEventListener('mousedown', e => {
-    if(e.clientX < canvas.width/2) {
-        mouseActive = true; joystick.active = true;
-        joystick.startX = e.clientX; joystick.startY = e.clientY;
-        joystick.currentX = e.clientX; joystick.currentY = e.clientY;
-    }
-});
-canvas.addEventListener('mousemove', e => {
-    if(mouseActive) { joystick.currentX = e.clientX; joystick.currentY = e.clientY; updateJoystickVector(); }
-});
-canvas.addEventListener('mouseup', () => { mouseActive = false; joystick.active = false; joystick.vectorX = 0; joystick.vectorY = 0; });
-
-// --- スキル定義 ---
 const SKILLS = {
-    atkSpeed: { id: 'atkSpeed', icon: '⚡', name: "攻撃速度強化", desc: "魔法の連射速度がアップします" },
-    damage: { id: 'damage', icon: '💥', name: "威力強化", desc: "魔法のダメージがアップします" },
-    spread: { id: 'spread', icon: '🎇', name: "マルチショット", desc: "一度に放つ魔法の数が増加します" },
-    maxHp: { id: 'maxHp', icon: '💖', name: "体力増強", desc: "最大HPがアップし、全回復します" },
-    regen: { id: 'regen', icon: '🌿', name: "自然治癒", desc: "時間経過によるHP回復量が増加します" },
-    speed: { id: 'speed', icon: '👟', name: "俊敏", desc: "移動速度がアップします" },
-    knockback: { id: 'knockback', icon: '🛡️', name: "衝撃波", desc: "攻撃を当てた時の敵のノックバックが増加します" },
-    katana: { id: 'katana', icon: '⚔️', name: "オーラブレード", desc: "近づいた敵を自動で斬りつけます" },
-    shuriken: { id: 'shuriken', icon: '🌀', name: "魔力オーブ", desc: "自分の周りを回って敵を攻撃します" }
+    atkSpeed: { id: 'atkSpeed', icon: '⚡', name: "攻撃速度強化", desc: "魔法の連射速度がアップ" },
+    damage: { id: 'damage', icon: '💥', name: "威力強化", desc: "魔法のダメージがアップ" },
+    spread: { id: 'spread', icon: '🎇', name: "マルチショット", desc: "一度に放つ魔法の数が増加" },
+    maxHp: { id: 'maxHp', icon: '💖', name: "体力増強", desc: "最大HPがアップし、全回復" },
+    speed: { id: 'speed', icon: '👟', name: "俊敏", desc: "移動速度がアップ" },
+    katana: { id: 'katana', icon: '⚔️', name: "オーラブレード", desc: "近づいた敵を自動で斬る" },
+    shuriken: { id: 'shuriken', icon: '🌀', name: "魔力オーブ", desc: "自分の周りを回って攻撃" }
 };
 
-// --- エンティティ ---
+const ACTIVE_SKILLS_DB = {
+    meteor: { id: 'meteor', icon: '☄️', name: 'メテオストライク', cd: 600, lastUse: -9999 },
+    heal: { id: 'heal', icon: '🌿', name: '大地の癒やし', cd: 900, lastUse: -9999 },
+    quake: { id: 'quake', icon: '🌋', name: 'アースクエイク', cd: 480, lastUse: -9999 }
+};
+
 const player = {
     x: 0, y: 0, radius: 15, emoji: '👮',
-    hp: 100, maxHp: 100, xp: 0, needXp: 10, level: 1,
-    baseSpeed: 3,
-    levels: { atkSpeed: 0, damage: 0, spread: 0, maxHp: 0, regen: 0, speed: 0, knockback: 0, katana: 0, shuriken: 0 },
-    lastShot: 0, lastKatana: 0, shurikenAngle: 0
+    hp: 100, maxHp: 100, xp: 0, needXp: 10, level: 1, coins: 0,
+    baseSpeed: 3, pickupRadius: 50,
+    levels: { atkSpeed: 0, damage: 0, spread: 0, maxHp: 0, speed: 0, pickup: 0, katana: 0, shuriken: 0 },
+    activeSkills: [], 
+    lastShot: 0, lastKatana: 0, shurikenAngle: 0, slowed: false
 };
 
 let enemies = [];
 let bullets = [];
+let enemyBullets = []; 
+let items = []; 
+let aoeEffects = []; 
 let damageTexts = [];
 let katanaEffects = [];
 
 const ENEMY_TYPES = [
-    { emoji: '🧟', hp: 20, speed: 1.5, dmg: 5, radius: 14, xp: 3 },
-    { emoji: '🦇', hp: 10, speed: 2.5, dmg: 3, radius: 12, xp: 2 },
-    { emoji: '🧌', hp: 60, speed: 0.8, dmg: 10, radius: 18, xp: 4 }
+    { emoji: '🧟', hp: 20, speed: 1.5, dmg: 5, radius: 14, xp: 2, type: 'melee' },
+    { emoji: '🦇', hp: 10, speed: 2.5, dmg: 3, radius: 12, xp: 1, type: 'melee' },
+    { emoji: '🧌', hp: 60, speed: 0.8, dmg: 10, radius: 18, xp: 4, type: 'melee' },
+    { emoji: '🧙‍♂️', hp: 15, speed: 1.2, dmg: 8, radius: 14, xp: 3, type: 'ranged', fireRate: 100 }
 ];
 
 const BOSS_TYPES = [
-    { emoji: '👾', hp: 1000, speed: 1.2, dmg: 20, radius: 35, xp: 50, name: "巨大スライム" },
-    { emoji: '👹', hp: 800, speed: 2.0, dmg: 15, radius: 30, xp: 50, name: "オーガキング" }
+    { emoji: '👾', hp: 800, speed: 1.0, dmg: 15, radius: 35, xp: 50, name: "巨大スライム", skill: 'slime_trail', type: 'melee' },
+    { emoji: '👹', hp: 1200, speed: 1.8, dmg: 20, radius: 30, xp: 50, name: "オーガキング", skill: 'smash', type: 'melee' },
+    { emoji: '🧛', hp: 1000, speed: 1.4, dmg: 15, radius: 30, xp: 50, name: "吸血鬼", skill: 'bullet_hell', type: 'ranged', fireRate: 60 }
 ];
 
 let spawnedBossLevel = 0;
 
-function spawnEnemy() {
-    if (player.level % 5 === 0 && spawnedBossLevel !== player.level) {
-        spawnBoss();
-        spawnedBossLevel = player.level;
-        return;
+const joystick = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, vectorX: 0, vectorY: 0 };
+function handleInputStart(x, y) {
+    if (x < canvas.width / 2) { 
+        joystick.active = true; joystick.startX = x; joystick.startY = y; joystick.currentX = x; joystick.currentY = y; updateJoystickVector();
     }
-    const hpScale = 1 + (player.level * 0.2);
-    const angle = Math.random() * Math.PI * 2;
-    const dist = Math.max(canvas.width, canvas.height) / 2 + 50;
-    const type = ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
-    
-    enemies.push({
-        x: player.x + Math.cos(angle) * dist, y: player.y + Math.sin(angle) * dist,
-        hp: type.hp * hpScale, maxHp: type.hp * hpScale,
-        speed: type.speed, dmg: type.dmg, radius: type.radius, xp: type.xp,
-        emoji: type.emoji, isBoss: false, vx: 0, vy: 0
-    });
 }
-
-function spawnBoss() {
-    const type = BOSS_TYPES[Math.floor(Math.random() * BOSS_TYPES.length)];
-    const angle = Math.random() * Math.PI * 2;
-    const dist = Math.max(canvas.width, canvas.height) / 2 + 100;
-    enemies.push({
-        x: player.x + Math.cos(angle) * dist, y: player.y + Math.sin(angle) * dist,
-        hp: type.hp * (1 + player.level*0.1), maxHp: type.hp * (1 + player.level*0.1),
-        speed: type.speed, dmg: type.dmg, radius: type.radius, xp: type.xp,
-        emoji: type.emoji, isBoss: true, name: type.name, vx: 0, vy: 0
-    });
+function handleInputMove(x, y) {
+    if (joystick.active) { joystick.currentX = x; joystick.currentY = y; updateJoystickVector(); }
 }
+function handleInputEnd() { joystick.active = false; joystick.vectorX = 0; joystick.vectorY = 0; }
+function updateJoystickVector() {
+    const dx = joystick.currentX - joystick.startX; const dy = joystick.currentY - joystick.startY; const distance = Math.hypot(dx, dy);
+    if (distance > 0) {
+        joystick.vectorX = dx / distance; joystick.vectorY = dy / distance;
+        if (distance > 50) { joystick.currentX = joystick.startX + joystick.vectorX * 50; joystick.currentY = joystick.startY + joystick.vectorY * 50; }
+    }
+}
+canvas.addEventListener('touchstart', e => handleInputStart(e.touches[0].clientX, e.touches[0].clientY));
+canvas.addEventListener('touchmove', e => { if(joystick.active) handleInputMove(e.touches[0].clientX, e.touches[0].clientY); });
+canvas.addEventListener('touchend', handleInputEnd);
+let mouseActive = false;
+canvas.addEventListener('mousedown', e => { mouseActive = true; handleInputStart(e.clientX, e.clientY); });
+canvas.addEventListener('mousemove', e => { if(mouseActive) handleInputMove(e.clientX, e.clientY); });
+canvas.addEventListener('mouseup', () => { mouseActive = false; handleInputEnd(); });
 
-// --- 更新ロジック ---
 function update() {
     if (!isPlaying) return;
     frameCount++;
 
-    const currentSpeed = player.baseSpeed + (player.levels.speed * 0.5);
-    player.x += joystick.vectorX * currentSpeed;
-    player.y += joystick.vectorY * currentSpeed;
-
-    if (frameCount % 60 === 0 && player.hp < player.maxHp) {
-        player.hp = Math.min(player.maxHp, player.hp + (player.levels.regen * 1));
-    }
+    let currentSpeed = player.baseSpeed + (player.levels.speed * 0.5);
+    if (player.slowed) { currentSpeed *= 0.5; player.slowed = false; }
+    player.x += joystick.vectorX * currentSpeed; player.y += joystick.vectorY * currentSpeed;
 
     const fireRate = Math.max(10, 60 - (player.levels.atkSpeed * 5));
     if (frameCount - player.lastShot > fireRate) fireGun();
-
     if (player.levels.katana > 0) {
         const katanaCooldown = Math.max(30, 90 - (player.levels.atkSpeed * 5));
         if (frameCount - player.lastKatana > katanaCooldown) fireKatana();
     }
-
     player.shurikenAngle += 0.05;
 
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        let b = bullets[i];
-        b.x += b.vx; b.y += b.vy; b.life--;
-        if (b.life <= 0) bullets.splice(i, 1);
+    bullets.forEach((b, i) => { b.x += b.vx; b.y += b.vy; b.life--; if (b.life <= 0) bullets.splice(i, 1); });
+    enemyBullets.forEach((b, i) => { b.x += b.vx; b.y += b.vy; b.life--; if (b.life <= 0) enemyBullets.splice(i, 1); });
+    katanaEffects.forEach((k, i) => { k.life--; if(k.life <= 0) katanaEffects.splice(i, 1); });
+    damageTexts.forEach((t, i) => { t.y -= 1; t.life--; if(t.life <= 0) damageTexts.splice(i, 1); });
+
+    const currentCoinPickupRadius = player.pickupRadius + (player.levels.pickup * 30);
+    for (let i = items.length - 1; i >= 0; i--) {
+        let it = items[i];
+        const dist = Math.hypot(player.x - it.x, player.y - it.y);
+        
+        // --- 修正箇所：XPは無条件で引き寄せ、コインはスキルに応じて引き寄せ ---
+        if (it.type === 'xp') {
+            const spd = 12; // XPの引き寄せ速度
+            it.x += ((player.x - it.x) / dist) * spd;
+            it.y += ((player.y - it.y) / dist) * spd;
+        } else if (it.type === 'coin') {
+            if (dist < currentCoinPickupRadius) it.isPulling = true;
+            if (it.isPulling) {
+                const spd = 10;
+                it.x += ((player.x - it.x) / dist) * spd;
+                it.y += ((player.y - it.y) / dist) * spd;
+            }
+        }
+        // ----------------------------------------------------------------
+
+        if (dist < player.radius + 15) {
+            if (it.type === 'xp') { player.xp += it.value; checkLevelUp(); }
+            else if (it.type === 'coin') { player.coins += it.value; updateCoinUI(); }
+            else if (it.type === 'chest') { openChest(); }
+            else if (it.type === 'skill_book') { acquireActiveSkill(); }
+            items.splice(i, 1);
+        }
     }
 
-    for (let i = katanaEffects.length - 1; i >= 0; i--) {
-        katanaEffects[i].life--;
-        if(katanaEffects[i].life <= 0) katanaEffects.splice(i, 1);
+    for (let i = aoeEffects.length - 1; i >= 0; i--) {
+        let aoe = aoeEffects[i];
+        aoe.life--;
+        const dist = Math.hypot(player.x - aoe.x, player.y - aoe.y);
+        if (aoe.type === 'poison') {
+            if (dist < player.radius + aoe.radius) { player.hp -= 0.05; player.slowed = true; }
+        } else if (aoe.type === 'smash_warn' && aoe.life <= 0) {
+            if (dist < player.radius + aoe.radius) { player.hp -= 30; }
+            aoe.type = 'smash_blast'; aoe.life = 15; 
+        }
+        if (aoe.life <= 0 && aoe.type !== 'smash_warn') aoeEffects.splice(i, 1);
+        if (player.hp <= 0) gameOver();
     }
 
     for (let i = enemies.length - 1; i >= 0; i--) {
@@ -366,10 +238,36 @@ function update() {
         const dx = player.x - e.x; const dy = player.y - e.y;
         const dist = Math.hypot(dx, dy);
         
-        if (dist > 0) {
-            e.x += (dx / dist) * e.speed + e.vx; e.y += (dy / dist) * e.speed + e.vy;
+        if (e.type === 'ranged') {
+            if (dist < 150) { e.vx -= (dx / dist) * e.speed * 0.1; e.vy -= (dy / dist) * e.speed * 0.1; }
+            else if (dist > 250) { e.vx += (dx / dist) * e.speed * 0.1; e.vy += (dy / dist) * e.speed * 0.1; }
+            if (!e.lastFire) e.lastFire = frameCount;
+            if (frameCount - e.lastFire > e.fireRate) {
+                if (e.isBoss && e.skill === 'bullet_hell') {
+                    for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
+                        enemyBullets.push({x: e.x, y: e.y, vx: Math.cos(a)*3, vy: Math.sin(a)*3, radius: 6, dmg: e.dmg, life: 180});
+                    }
+                } else {
+                    const angle = Math.atan2(dy, dx);
+                    enemyBullets.push({x: e.x, y: e.y, vx: Math.cos(angle)*4, vy: Math.sin(angle)*4, radius: 5, dmg: e.dmg, life: 120});
+                }
+                e.lastFire = frameCount;
+            }
+        } else {
+            if (dist > 0) { e.vx += (dx / dist) * e.speed * 0.1; e.vy += (dy / dist) * e.speed * 0.1; }
         }
-        e.vx *= 0.8; e.vy *= 0.8;
+        
+        if (e.isBoss) {
+            if (e.skill === 'slime_trail' && frameCount % 45 === 0) {
+                aoeEffects.push({x: e.x, y: e.y, radius: 45, type: 'poison', life: 300}); 
+            } else if (e.skill === 'smash' && frameCount % 180 === 0) {
+                aoeEffects.push({x: player.x, y: player.y, radius: 80, type: 'smash_warn', life: 60}); 
+                e.vx = 0; e.vy = 0; 
+            }
+        }
+
+        e.x += e.vx; e.y += e.vy;
+        e.vx *= 0.9; e.vy *= 0.9; 
 
         if (dist < player.radius + e.radius) {
             player.hp -= e.dmg / 60; 
@@ -379,18 +277,16 @@ function update() {
         for (let j = bullets.length - 1; j >= 0; j--) {
             let b = bullets[j];
             if (Math.hypot(b.x - e.x, b.y - e.y) < e.radius + b.radius) {
-                damageEnemy(e, i, b.dmg, b.vx * b.kb, b.vy * b.kb);
-                if(!b.pierce) bullets.splice(j, 1);
+                damageEnemy(e, i, b.dmg, b.vx * 0.5, b.vy * 0.5);
+                bullets.splice(j, 1);
             }
         }
 
         if (player.levels.shuriken > 0) {
             const count = player.levels.shuriken;
-            const distShuriken = 60;
             for(let k=0; k<count; k++){
                 const angle = player.shurikenAngle + (Math.PI * 2 / count) * k;
-                const sx = player.x + Math.cos(angle) * distShuriken;
-                const sy = player.y + Math.sin(angle) * distShuriken;
+                const sx = player.x + Math.cos(angle) * 60; const sy = player.y + Math.sin(angle) * 60;
                 if(Math.hypot(sx - e.x, sy - e.y) < e.radius + 15){
                     if(Math.random() < 0.2) damageEnemy(e, i, 5 + player.levels.damage*2, 0, 0);
                 }
@@ -398,37 +294,58 @@ function update() {
         }
     }
 
-    for(let i = damageTexts.length -1; i>=0; i--){
-        damageTexts[i].y -= 1; damageTexts[i].life--;
-        if(damageTexts[i].life <= 0) damageTexts.splice(i, 1);
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        let b = enemyBullets[i];
+        if (Math.hypot(player.x - b.x, player.y - b.y) < player.radius + b.radius) {
+            player.hp -= b.dmg;
+            enemyBullets.splice(i, 1);
+            if (player.hp <= 0) gameOver();
+        }
     }
 
-    const spawnRate = Math.max(10, 180 - Math.floor(player.level));
+    const spawnRate = Math.max(15, 120 - Math.floor(player.level*1.5));
     if (frameCount % spawnRate === 0) spawnEnemy();
+
+    updateActiveSkillUI(); 
+}
+
+function spawnEnemy() {
+    if (player.level % 5 === 0 && spawnedBossLevel !== player.level) {
+        spawnBoss(); spawnedBossLevel = player.level; return;
+    }
+    const hpScale = 1 + (player.level * 0.2);
+    const angle = Math.random() * Math.PI * 2; const dist = Math.max(canvas.width, canvas.height) / 2 + 50;
+    const type = ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
+    enemies.push({
+        x: player.x + Math.cos(angle) * dist, y: player.y + Math.sin(angle) * dist,
+        hp: type.hp * hpScale, maxHp: type.hp * hpScale, speed: type.speed, dmg: type.dmg, radius: type.radius, xp: type.xp,
+        emoji: type.emoji, isBoss: false, type: type.type, fireRate: type.fireRate, vx: 0, vy: 0
+    });
+}
+
+function spawnBoss() {
+    const type = BOSS_TYPES[Math.floor(Math.random() * BOSS_TYPES.length)];
+    const angle = Math.random() * Math.PI * 2; const dist = Math.max(canvas.width, canvas.height) / 2 + 100;
+    enemies.push({
+        x: player.x + Math.cos(angle) * dist, y: player.y + Math.sin(angle) * dist,
+        hp: type.hp * (1 + player.level*0.2), maxHp: type.hp * (1 + player.level*0.2), speed: type.speed, dmg: type.dmg, radius: type.radius, xp: type.xp,
+        emoji: type.emoji, isBoss: true, name: type.name, skill: type.skill, type: type.type, fireRate: type.fireRate, vx: 0, vy: 0
+    });
 }
 
 function fireGun() {
     if (enemies.length === 0) return;
     let target = null; let minDist = Infinity;
-    enemies.forEach(e => {
-        const dist = Math.hypot(player.x - e.x, player.y - e.y);
-        if (dist < minDist) { minDist = dist; target = e; }
-    });
+    enemies.forEach(e => { const dist = Math.hypot(player.x - e.x, player.y - e.y); if (dist < minDist) { minDist = dist; target = e; } });
 
     if (target) {
         const baseAngle = Math.atan2(target.y - player.y, target.x - player.x);
         const dmg = 10 + (player.levels.damage * 5);
-        const kb = 0.5 + (player.levels.knockback * 0.5);
-        const spreadCount = 1 + player.levels.spread;
-        
+        const spreadCount = 1 + player.levels.spread * 2;
         for(let i=0; i<spreadCount; i++){
             const offset = spreadCount > 1 ? (i - (spreadCount-1)/2) * 0.2 : 0;
             const angle = baseAngle + offset;
-            bullets.push({
-                x: player.x, y: player.y,
-                vx: Math.cos(angle) * 12, vy: Math.sin(angle) * 12,
-                radius: 6, dmg: dmg, kb: kb, life: 60, pierce: false
-            });
+            bullets.push({ x: player.x, y: player.y, vx: Math.cos(angle) * 12, vy: Math.sin(angle) * 12, radius: 6, dmg: dmg, life: 60 });
         }
         player.lastShot = frameCount;
     }
@@ -437,14 +354,11 @@ function fireGun() {
 function fireKatana() {
     const radius = 80 + (player.levels.katana * 10);
     const dmg = 15 + (player.levels.katana * 10) + (player.levels.damage * 5);
-    const kb = 5 + (player.levels.knockback * 1);
-    
     katanaEffects.push({x: player.x, y: player.y, radius: radius, life: 15});
-
     enemies.forEach((e, index) => {
         if (Math.hypot(player.x - e.x, player.y - e.y) < radius + e.radius) {
             const angle = Math.atan2(e.y - player.y, e.x - player.x);
-            damageEnemy(e, index, dmg, Math.cos(angle)*kb, Math.sin(angle)*kb);
+            damageEnemy(e, index, dmg, Math.cos(angle)*10, Math.sin(angle)*10);
         }
     });
     player.lastKatana = frameCount;
@@ -452,62 +366,131 @@ function fireKatana() {
 
 function damageEnemy(e, index, amount, kbx, kby) {
     if(!e) return;
-    e.hp -= amount;
-    e.vx += kbx; e.vy += kby; 
-    
+    e.hp -= amount; e.vx += kbx; e.vy += kby; 
     damageTexts.push({x: e.x + Math.random()*20-10, y: e.y - 20, text: Math.floor(amount), life: 30});
-
     if (e.hp <= 0) {
-        player.xp += e.xp * player.level;
+        items.push({x: e.x, y: e.y, type: 'xp', value: e.xp * (player.level ** 0.5)});
+        if(Math.random() < 0.2) items.push({x: e.x + Math.random()*20-10, y: e.y + Math.random()*20-10, type: 'coin', value: 1}); 
+        if (e.isBoss) {
+            items.push({x: e.x, y: e.y, type: 'chest'});
+            items.push({x: e.x + 30, y: e.y, type: 'skill_book'}); 
+        }
         enemies.splice(index, 1);
-        checkLevelUp();
     }
 }
 
 function checkLevelUp() {
     if (player.xp >= player.needXp) {
-        player.xp -= player.needXp;
-        player.level++;
-        player.needXp = Math.floor(player.level * 15);
+        player.xp -= player.needXp; player.level++; player.needXp = Math.floor(player.level * 15);
         showLevelUpScreen();
     }
 }
 
 function showLevelUpScreen() {
     isPlaying = false;
-    const container = document.getElementById('optionsContainer');
-    container.innerHTML = '';
-    
+    const container = document.getElementById('optionsContainer'); container.innerHTML = '';
     const skillKeys = Object.keys(SKILLS);
     const shuffled = skillKeys.sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, 3);
-
     selected.forEach(key => {
-        const skill = SKILLS[key];
-        const currentLv = player.levels[key];
-        const btn = document.createElement('div');
-        btn.className = 'skill-btn';
-        btn.innerHTML = `
-            <div class="skill-icon">${skill.icon}</div>
-            <div class="skill-info">
-                <span class="skill-name">${skill.name} <span class="skill-level">Lv.${currentLv} &rarr; ${currentLv+1}</span></span>
-                <span class="skill-desc">${skill.desc}</span>
-            </div>
-        `;
+        const skill = SKILLS[key]; const currentLv = player.levels[key];
+        const btn = document.createElement('div'); btn.className = 'panel-btn';
+        btn.innerHTML = `<div class="item-icon">${skill.icon}</div><div class="item-info"><span class="item-name">${skill.name} <span style="color:#f1c40f;font-size:14px;">Lv.${currentLv} &rarr; ${currentLv+1}</span></span><span class="item-desc">${skill.desc}</span></div>`;
         btn.onclick = () => {
             player.levels[key]++;
-            if(key === 'maxHp') {
-                player.maxHp += 20; player.hp = player.maxHp;
-            }
+            if(key === 'maxHp') { player.maxHp += 20; player.hp = player.maxHp; }
             document.getElementById('levelUpScreen').style.display = 'none';
-            isPlaying = true;
-            
-            // レベルアップ時にもオートセーブするようにおまけ追加
-            saveGame();
+            isPlaying = true; saveGame(); 
         };
         container.appendChild(btn);
     });
     document.getElementById('levelUpScreen').style.display = 'flex';
+}
+
+function openChest() {
+    isPlaying = false;
+    const container = document.getElementById('chestContainer'); container.innerHTML = '';
+    const keys = Object.keys(SKILLS);
+    for(let i=0; i<3; i++) {
+        const key = keys[Math.floor(Math.random()*keys.length)];
+        player.levels[key]++;
+        if(key === 'maxHp') { player.maxHp += 20; player.hp = player.maxHp; }
+        const skill = SKILLS[key];
+        const div = document.createElement('div');
+        div.style.marginBottom = '10px'; div.style.fontSize = '18px';
+        div.innerHTML = `${skill.icon} ${skill.name} のレベルが上がった！ (Lv.${player.levels[key]})`;
+        container.appendChild(div);
+    }
+    document.getElementById('chestScreen').style.display = 'flex';
+}
+
+function acquireActiveSkill() {
+    const keys = Object.keys(ACTIVE_SKILLS_DB);
+    const unacquired = keys.filter(k => !player.activeSkills.includes(k));
+    if (unacquired.length === 0) {
+        player.coins += 50; updateCoinUI(); 
+        return;
+    }
+    const skillId = unacquired[Math.floor(Math.random()*unacquired.length)];
+    player.activeSkills.push(skillId);
+    createActiveSkillBtn(skillId);
+}
+
+function createActiveSkillBtn(id) {
+    const skill = ACTIVE_SKILLS_DB[id];
+    const container = document.getElementById('activeSkillsUI');
+    const btn = document.createElement('div');
+    btn.className = 'skill-icon-btn';
+    btn.id = 'skillBtn_' + id;
+    btn.innerHTML = `${skill.icon}<div class="cd-cover" id="cdCover_${id}"></div>`;
+    btn.onclick = () => useActiveSkill(id);
+    container.appendChild(btn);
+}
+
+function useActiveSkill(id) {
+    const skill = ACTIVE_SKILLS_DB[id];
+    if (frameCount - skill.lastUse < skill.cd) return; 
+    skill.lastUse = frameCount;
+    if (id === 'meteor') {
+        enemies.forEach((e, i) => damageEnemy(e, i, 150 + player.levels.damage*20, 0, 0));
+        player.hp = Math.min(player.maxHp, player.hp + 20); 
+    } else if (id === 'heal') {
+        player.hp = Math.min(player.maxHp, player.hp + player.maxHp * 0.5);
+    } else if (id === 'quake') {
+        enemies.forEach((e, i) => { e.vx = 0; e.vy = 0; damageEnemy(e, i, 50, 0, 0); });
+        player.slowed = false; 
+    }
+}
+
+function updateActiveSkillUI() {
+    player.activeSkills.forEach(id => {
+        const skill = ACTIVE_SKILLS_DB[id];
+        const cover = document.getElementById('cdCover_' + id);
+        if(!cover) return;
+        const elapsed = frameCount - skill.lastUse;
+        if (elapsed >= skill.cd) { cover.style.height = '0%'; } 
+        else { cover.style.height = `${100 - (elapsed / skill.cd) * 100}%`; }
+    });
+}
+
+function updateCoinUI() { document.getElementById('coinDisplay').innerText = player.coins; }
+
+function resumeGame(screenId) {
+    document.getElementById(screenId).style.display = 'none';
+    isPlaying = true;
+}
+
+document.getElementById('shopOpenBtn').onclick = () => {
+    isPlaying = false;
+    document.getElementById('shopCoinDisplay').innerText = player.coins;
+    document.getElementById('shopScreen').style.display = 'flex';
+};
+
+function buyPotion() {
+    if (player.coins >= 30) {
+        player.coins -= 30; updateCoinUI(); document.getElementById('shopCoinDisplay').innerText = player.coins;
+        player.hp = player.maxHp;
+    }
 }
 
 function gameOver() {
@@ -516,121 +499,108 @@ function gameOver() {
     document.getElementById('gameOverScreen').style.display = 'flex';
 }
 
-// --- 描画ロジック ---
 function draw() {
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const camX = player.x - canvas.width / 2;
-    const camY = player.y - canvas.height / 2;
-
-    ctx.save();
-    ctx.translate(-camX, -camY);
+    ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const camX = player.x - canvas.width / 2; const camY = player.y - canvas.height / 2;
+    ctx.save(); ctx.translate(-camX, -camY);
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
-    const gridSize = 80;
-    const startX = Math.floor(camX / gridSize) * gridSize;
-    const startY = Math.floor(camY / gridSize) * gridSize;
+    const gridSize = 80; const startX = Math.floor(camX / gridSize) * gridSize; const startY = Math.floor(camY / gridSize) * gridSize;
     for (let x = startX; x < startX + canvas.width + gridSize; x += gridSize) {
         for (let y = startY; y < startY + canvas.height + gridSize; y += gridSize) {
             ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI*2); ctx.fill();
         }
     }
 
-    katanaEffects.forEach(k => {
-        ctx.beginPath();
-        ctx.arc(k.x, k.y, k.radius, 0, Math.PI*2);
-        ctx.strokeStyle = `rgba(52, 152, 219, ${k.life / 15})`;
-        ctx.lineWidth = 4;
-        ctx.stroke();
+    aoeEffects.forEach(aoe => {
+        ctx.beginPath(); ctx.arc(aoe.x, aoe.y, aoe.radius, 0, Math.PI*2);
+        if (aoe.type === 'poison') { ctx.fillStyle = 'rgba(46, 204, 113, 0.3)'; ctx.fill(); } 
+        else if (aoe.type === 'smash_warn') {
+            ctx.fillStyle = `rgba(231, 76, 60, ${0.1 + (60 - aoe.life)/60 * 0.4})`; ctx.fill(); ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 2; ctx.stroke();
+        } else if (aoe.type === 'smash_blast') { ctx.fillStyle = `rgba(231, 76, 60, ${aoe.life / 15})`; ctx.fill(); }
     });
 
-    bullets.forEach(b => {
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#f1c40f';
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowBlur = 0; 
+    ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    items.forEach(it => {
+        if(it.type === 'xp') { ctx.fillStyle = '#3498db'; ctx.beginPath(); ctx.arc(it.x, it.y, 4, 0, Math.PI*2); ctx.fill(); }
+        else if(it.type === 'coin') { ctx.fillText('🟡', it.x, it.y); }
+        else if(it.type === 'chest') { ctx.fillText('🎁', it.x, it.y); }
+        else if(it.type === 'skill_book') { ctx.fillText('📕', it.x, it.y); }
     });
+
+    katanaEffects.forEach(k => {
+        ctx.beginPath(); ctx.arc(k.x, k.y, k.radius, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(52, 152, 219, ${k.life / 15})`; ctx.lineWidth = 4; ctx.stroke();
+    });
+
+    ctx.shadowBlur = 10; ctx.shadowColor = '#f1c40f'; ctx.fillStyle = '#fff';
+    bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill(); });
+    ctx.shadowColor = '#e74c3c'; ctx.fillStyle = '#ff7675';
+    enemyBullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill(); });
+    ctx.shadowBlur = 0; 
 
     if (player.levels.shuriken > 0) {
         ctx.font = '24px sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         const count = player.levels.shuriken;
-        const distShuriken = 60;
         for(let k=0; k<count; k++){
             const angle = player.shurikenAngle + (Math.PI * 2 / count) * k;
-            const sx = player.x + Math.cos(angle) * distShuriken;
-            const sy = player.y + Math.sin(angle) * distShuriken;
-            ctx.fillText('🌀', sx, sy);
+            ctx.fillText('🌀', player.x + Math.cos(angle) * 60, player.y + Math.sin(angle) * 60);
         }
     }
 
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     enemies.forEach(e => {
-        ctx.font = `${e.radius * 2}px sans-serif`;
-        ctx.fillText(e.emoji, e.x, e.y);
-        
-        const hpPct = Math.max(0, e.hp / e.maxHp);
-        const barWidth = e.radius * 2;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(e.x - barWidth/2, e.y - e.radius - 12, barWidth, 6);
-        ctx.fillStyle = e.isBoss ? '#e74c3c' : '#2ecc71';
-        ctx.fillRect(e.x - barWidth/2, e.y - e.radius - 12, barWidth * hpPct, 6);
-        
-        if(e.isBoss) {
-            ctx.fillStyle = '#e74c3c'; ctx.font = '12px DotGothic16';
-            ctx.fillText(e.name, e.x, e.y - e.radius - 25);
-        }
+        ctx.font = `${e.radius * 2}px sans-serif`; ctx.fillText(e.emoji, e.x, e.y);
+        const hpPct = Math.max(0, e.hp / e.maxHp); const barWidth = e.radius * 2;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; ctx.fillRect(e.x - barWidth/2, e.y - e.radius - 12, barWidth, 6);
+        ctx.fillStyle = e.isBoss ? '#e74c3c' : '#2ecc71'; ctx.fillRect(e.x - barWidth/2, e.y - e.radius - 12, barWidth * hpPct, 6);
+        if(e.isBoss) { ctx.fillStyle = '#e74c3c'; ctx.font = '14px DotGothic16'; ctx.fillText(e.name, e.x, e.y - e.radius - 25); }
     });
 
-    ctx.font = '30px sans-serif';
-    ctx.fillText(player.emoji, player.x, player.y);
-    
+    ctx.font = '30px sans-serif'; ctx.fillText(player.emoji, player.x, player.y);
     ctx.font = 'bold 16px DotGothic16';
-    damageTexts.forEach(t => {
-        ctx.fillStyle = `rgba(255, 255, 255, ${t.life / 30})`;
-        ctx.fillText(t.text, t.x, t.y);
-    });
-
+    damageTexts.forEach(t => { ctx.fillStyle = `rgba(255, 255, 255, ${t.life / 30})`; ctx.fillText(t.text, t.x, t.y); });
     ctx.restore(); 
 
-    // --- UI（画面固定）描画 ---
-    
     const xpPct = player.xp / player.needXp;
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, canvas.width, 15);
     ctx.fillStyle = '#3498db'; ctx.fillRect(0, 0, canvas.width * xpPct, 15);
-    
-    ctx.fillStyle = 'white'; ctx.font = '18px DotGothic16'; ctx.textAlign = 'left';
-    ctx.fillText(`Lv. ${player.level}`, 15, 40);
+    ctx.fillStyle = 'white'; ctx.font = '18px DotGothic16'; ctx.textAlign = 'left'; ctx.fillText(`Lv. ${player.level}`, 15, 40);
 
     const phpPct = Math.max(0, player.hp / player.maxHp);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.beginPath(); ctx.roundRect(15, 55, 200, 20, 10); ctx.fill();
-    ctx.fillStyle = '#e74c3c';
-    ctx.beginPath(); ctx.roundRect(15, 55, 200 * phpPct, 20, 10); ctx.fill();
-    ctx.fillStyle = 'white'; ctx.font = '14px DotGothic16'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(`${Math.floor(player.hp)} / ${player.maxHp}`, 15 + 100, 55 + 10);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; ctx.beginPath(); ctx.roundRect(15, 55, 200, 20, 10); ctx.fill();
+    ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.roundRect(15, 55, 200 * phpPct, 20, 10); ctx.fill();
+    ctx.fillStyle = 'white'; ctx.font = '14px DotGothic16'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`${Math.floor(player.hp)} / ${player.maxHp}`, 115, 65);
 
     if (joystick.active) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 2;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(joystick.startX, joystick.startY, 50, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        
-        ctx.fillStyle = 'rgba(52, 152, 219, 0.8)';
-        ctx.beginPath(); ctx.arc(joystick.currentX, joystick.currentY, 20, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.8)'; ctx.beginPath(); ctx.arc(joystick.currentX, joystick.currentY, 20, 0, Math.PI * 2); ctx.fill();
     }
 }
 
-// --- メインループ ---
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
+function loop() { update(); draw(); requestAnimationFrame(loop); }
 
-// ゲーム開始時にセーブデータを読み込む
+const SAVE_KEY = 'survivorGameSave';
+function saveGame() {
+    if (!isPlaying || player.hp <= 0) return;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({player, frameCount, spawnedBossLevel, activeSkills: player.activeSkills}));
+    const btn = document.getElementById('saveBtn'); btn.innerText = "完了!"; setTimeout(() => btn.innerText = "セーブ", 1000);
+}
+function loadGame() {
+    const data = localStorage.getItem(SAVE_KEY);
+    if (data) {
+        try {
+            const parsed = JSON.parse(data); Object.assign(player, parsed.player);
+            frameCount = parsed.frameCount || 0; spawnedBossLevel = parsed.spawnedBossLevel || 0;
+            updateCoinUI();
+            player.activeSkills.forEach(id => createActiveSkillBtn(id));
+        } catch (e) { console.error("Load failed", e); }
+    }
+}
+document.getElementById('saveBtn').onclick = saveGame;
+document.getElementById('deleteBtn').onclick = () => { localStorage.removeItem(SAVE_KEY); location.reload(); };
+document.getElementById('restartBtn').onclick = () => { localStorage.removeItem(SAVE_KEY); location.reload(); };
+
 loadGame();
 loop();
 </script>
