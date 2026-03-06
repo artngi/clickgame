@@ -369,7 +369,7 @@ function damageEnemy(e, index, amount, kbx, kby) {
     e.hp -= amount; e.vx += kbx; e.vy += kby; 
     damageTexts.push({x: e.x + Math.random()*20-10, y: e.y - 20, text: Math.floor(amount), life: 30});
     if (e.hp <= 0) {
-        items.push({x: e.x, y: e.y, type: 'xp', value: e.xp * (player.level ** 0.5)});
+        items.push({x: e.x, y: e.y, type: 'xp', value: e.xp * (player.level)});
         if(Math.random() < 0.2) items.push({x: e.x + Math.random()*20-10, y: e.y + Math.random()*20-10, type: 'coin', value: 1}); 
         if (e.isBoss) {
             items.push({x: e.x, y: e.y, type: 'chest'});
@@ -381,7 +381,7 @@ function damageEnemy(e, index, amount, kbx, kby) {
 
 function checkLevelUp() {
     if (player.xp >= player.needXp) {
-        player.xp -= player.needXp; player.level++; player.needXp = Math.floor(player.level * 15);
+        player.xp -= player.needXp; player.level++; player.needXp = Math.floor((player.level ** 1.1) * 15);
         showLevelUpScreen();
     }
 }
