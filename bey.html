@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>HTML5 ベイブレード風ゲーム</title>
+<style>
+    body {
+        margin: 0; padding: 0; background-color: #222; color: #fff;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        display: flex; justify-content: center; align-items: center; height: 100vh;
+        overflow: hidden;
+    }
+    #game-container {
+        position: relative; width: 600px; height: 600px;
+        background: #333; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        overflow: hidden;
+    }
+    canvas { display: block; }
+    /* 画面振動エフェクト */
+    @keyframes shake {
+        0% { transform: translate(2px, 1px) rotate(0deg); }
+        10% { transform: translate(-1px, -2px) rotate(-1deg); }
+        20% { transform: translate(-3px, 0px) rotate(1deg); }
+        30% { transform: translate(0px, 2px) rotate(0deg); }
+        40% { transform: translate(1px, -1px) rotate(1deg); }
+        50% { transform: translate(-1px, 2px) rotate(-1deg); }
+        60% { transform: translate(-3px, 1px) rotate(0deg); }
+        70% { transform: translate(2px, 1px) rotate(-1deg); }
+        80% { transform: translate(-1px, -1px) rotate(1deg); }
+        90% { transform: translate(2px, 2px) rotate(0deg); }
+        100% { transform: translate(1px, -2px) rotate(-1deg); }
+    }
+    .shake { animation: shake 0.2s; }
+
+    /* UIスクリーン共通 */
+    .screen {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.85); display: flex; flex-direction: column;
+        align-items: center; justify-content: flex-start; box-sizing: border-box; padding: 20px;
+        transition: opacity 0.3s;
+    }
+    .hidden { display: none !important; }
+
+    /* ホーム画面 */
+    #header { width: 100%; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #555; padding-bottom: 10px; margin-bottom: 20px;}
+    #header h1 { margin: 0; font-size: 24px; color: #4da6ff; }
+    #points-display { font-size: 20px; font-weight: bold; color: #ffcc00; }
+    
+    /* スクロールを許可して画面内に収めるための修正 */
+    .panel-container { 
+        display: flex; width: 100%; justify-content: space-between; gap: 20px;
+        max-height: 420px; overflow-y: auto; padding-right: 5px; /* ここを調整しました */
+    }
+    .customize-panel, .save-panel { background: #444; padding: 15px; border-radius: 8px; flex: 1;}
+    .customize-panel h2, .save-panel h2 { margin-top: 0; font-size: 18px; text-align: center; border-bottom: 1px solid #777; padding-bottom: 5px;}
+    
+    .part-select { margin-bottom: 10px; }
+    .part-select label { display: block; font-size: 14px; margin-bottom: 5px; }
+    select, input[type="text"] { width: 100%; padding: 8px; border-radius: 4px; border: none; background: #222; color: #fff; margin-bottom: 10px;}
+    
+    .btn { padding: 10px 15px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 5px;}
+    .btn-primary { background: #4da6ff; color: #000; }
+    .btn-primary:hover { background: #3388dd; }
+    .btn-success { background: #4dff4d; color: #000; }
+    .btn-danger { background: #ff4d4d; color: #000; }
+    
+    .save-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; }
+    .save-list li { background: #222; padding: 8px; margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;}
+    .save-list button { background: #ff4d4d; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 3px 8px;}
+    .save-list button.load-btn { background: #4da6ff; margin-right: 5px;}
+
+    #play-btn { position: absolute; bottom: 30px; right: 30px; font-size: 24px; padding: 15px 40px; background: #ffcc00; color: #000; box-shadow: 0 4px 10px rgba(255,204,0,0.5); border-radius: 30px;}
+    #play-btn:hover { background: #e6b800; transform: scale(1.05); }
+
+    /* 結果画面 */
+    #result-screen { justify-content: center; text-align: center; }
+    #result-title { font-size: 40px; margin-bottom: 20px; font-weight: bold; color: #ffeb3b; text-shadow: 0 0 10px rgba(255,235,59,0.8); }
+    #result-desc { font-size: 20px; margin-bottom: 30px; }
+    .btn-large { font-size: 20px; padding: 15px 30px; margin: 10px; border-radius: 8px;}
+    
+    /* ステータスHUD */
+    #hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; pointer-events: none; z-index: 10; font-family: monospace; font-size: 14px; text-shadow: 1px 1px 2px #000; }
+    .hud-box { background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 8px; border: 1px solid #555; width: 160px; }
+    .hud-name { font-weight: bold; color: #fff; margin-bottom: 5px; text-align: center;}
+    .bar-bg { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin-top: 4px;}
+    .bar-hp { height: 100%; background: #4dff4d; width: 100%; transition: width 0.1s; }
+    .bar-rp { height: 100%; background: #4da6ff; width: 100%; transition: width 0.1s; }
+
+    .stats-preview { background: #222; padding: 10px; border-radius: 5px; font-size: 12px; line-height: 1.6; margin-top: 10px; color: #ccc;}
+    .stats-preview span { font-weight: bold; color: #fff; }
+
+    /* 敵カスタマイズ用のスタイル */
+    .cpu-config-area { margin-top: 10px; border-top: 1px dashed #666; padding-top: 10px; }
+    .cpu-config-toggle { font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px; margin-bottom: 10px; color: #ff9999; }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+    
+    <div id="hud" class="hidden">
+        <div class="hud-box">
+            <div class="hud-name" id="hud-player-name">PLAYER</div>
+            <div>HP: <div class="bar-bg"><div id="player-hp-bar" class="bar-hp"></div></div></div>
+            <div>RP: <div class="bar-bg"><div id="player-rp-bar" class="bar-rp"></div></div></div>
+        </div>
+        <div class="hud-box" style="text-align: right;">
+            <div class="hud-name" id="hud-cpu-name">CPU</div>
+            <div><div class="bar-bg"><div id="cpu-hp-bar" class="bar-hp"></div></div> :HP</div>
+            <div><div class="bar-bg"><div id="cpu-rp-bar" class="bar-rp"></div></div> :RP</div>
+        </div>
+    </div>
+
+    <div id="home-screen" class="screen">
+        <div id="header">
+            <h1>BeyBattle Arena</h1>
+            <div id="points-display">Points: <span id="points-val">0</span></div>
+        </div>
+        
+        <div class="panel-container">
+            <div class="customize-panel">
+                <h2>ベイ組み立て</h2>
+                <div class="part-select">
+                    <label>ブレード (ダメージ・防御)</label>
+                    <select id="sel-blade" onchange="updatePreview()">
+                        <option value="attack">アタック (ダメージ大/HP少)</option>
+                        <option value="defense">ディフェンス (ダメージ小/HP大)</option>
+                        <option value="stamina">スタミナ (ダメージ普/HP普)</option>
+                    </select>
+                </div>
+                <div class="part-select">
+                    <label>ドライバー (機動力・中央力)</label>
+                    <select id="sel-driver" onchange="updatePreview()">
+                        <option value="attack">アタック (機動力高/中央引力弱)</option>
+                        <option value="defense">ディフェンス (機動力低/中央引力強)</option>
+                        <option value="stamina">スタミナ (機動力普/中央引力普)</option>
+                    </select>
+                </div>
+                <div class="part-select">
+                    <label>シャーシ (総合補正)</label>
+                    <select id="sel-chassis" onchange="updatePreview()">
+                        <option value="attack">アタック (RP低/ダメージ補正)</option>
+                        <option value="defense">ディフェンス (RP普/HP補正)</option>
+                        <option value="stamina">スタミナ (RP高/RP維持力)</option>
+                    </select>
+                </div>
+                
+                <div class="stats-preview" id="stats-preview"></div>
+
+                <div class="cpu-config-area">
+                    <label class="cpu-config-toggle">
+                        <input type="checkbox" id="cpu-custom-enable" onchange="toggleCpuPanel()"> 敵をカスタマイズする
+                    </label>
+                    <div id="cpu-parts-selectors" class="hidden">
+                        <div class="part-select">
+                            <label style="font-size: 11px; color: #ff9999;">敵ブレード</label>
+                            <select id="sel-cpu-blade" style="padding: 4px; font-size: 12px;">
+                                <option value="attack">アタック</option>
+                                <option value="defense">ディフェンス</option>
+                                <option value="stamina">スタミナ</option>
+                            </select>
+                        </div>
+                        <div class="part-select">
+                            <label style="font-size: 11px; color: #ff9999;">敵ドライバー</label>
+                            <select id="sel-cpu-driver" style="padding: 4px; font-size: 12px;">
+                                <option value="attack">アタック</option>
+                                <option value="defense">ディフェンス</option>
+                                <option value="stamina">スタミナ</option>
+                            </select>
+                        </div>
+                        <div class="part-select">
+                            <label style="font-size: 11px; color: #ff9999;">敵シャーシ</label>
+                            <select id="sel-cpu-chassis" style="padding: 4px; font-size: 12px;">
+                                <option value="attack">アタック</option>
+                                <option value="defense">ディフェンス</option>
+                                <option value="stamina">スタミナ</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="save-panel">
+                <h2>セーブデータ</h2>
+                <input type="text" id="save-name" placeholder="カスタマイズ名を入力">
+                <button class="btn btn-success" style="width: 100%; margin-bottom: 10px;" onclick="saveBey()">組み合わせを保存</button>
+                
+                <ul id="save-list" class="save-list">
+                    </ul>
+                <button class="btn btn-danger" style="width: 100%; margin-top: 15px;" onclick="clearAllData()">全データ削除</button>
+            </div>
+        </div>
+        
+        <button id="play-btn" class="btn btn-primary" onclick="startGame()">BATTLE START</button>
+    </div>
+
+    <div id="result-screen" class="screen hidden">
+        <div id="result-title">YOU WIN!</div>
+        <div id="result-desc">バーストフィニッシュ</div>
+        <button class="btn btn-primary btn-large" onclick="returnToHome()">ホームに戻る</button>
+        <button class="btn btn-success btn-large" onclick="startGame()">もう一度バトル</button>
+    </div>
+</div>
+
+<script>
+/**
+ * データ構造と初期化
+ */
+const PART_STATS = {
+    blade: {
+        attack:  { hp: 100, damage: 30, color: '#ff3333' },
+        defense: { hp: 200, damage: 10, color: '#3366ff' },
+        stamina: { hp: 150, damage: 15, color: '#33cc33' }
+    },
+    driver: {
+        attack:  { speed: 6, centerPull: 0.05, color: '#ff9999' },
+        defense: { speed: 3, centerPull: 0.15, color: '#99b3ff' },
+        stamina: { speed: 4.5, centerPull: 0.1, color: '#99ff99' }
+    },
+    chassis: {
+        attack:  { rp: 80,  weight: 1.2, color: '#cc0000' },
+        defense: { rp: 100, weight: 1.5, color: '#0033cc' },
+        stamina: { rp: 150, weight: 1.0, color: '#009900' }
+    }
+};
+
+let saveData = { points: 0, savedBeys: [] };
+
+// DOM要素
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('game-container');
+const homeScreen = document.getElementById('home-screen');
+const resultScreen = document.getElementById('result-screen');
+const hud = document.getElementById('hud');
+
+// ゲーム状態
+let gameState = 'home'; // 'home', 'playing', 'result'
+let animationId;
+let beys = [];
+let particles = [];
+let holes = [
+    { x: 300, y: 50, r: 40 },
+    { x: 300, y: 550, r: 40 }
+];
+
+// 初期化
+function init() {
+    loadData();
+    updateUI();
+    updatePreview();
+}
+
+/**
+ * 敵カスタマイズパネルの表示切り替え
+ */
+function toggleCpuPanel() {
+    const isEnabled = document.getElementById('cpu-custom-enable').checked;
+    const panel = document.getElementById('cpu-parts-selectors');
+    if (isEnabled) {
+        panel.classList.remove('hidden');
+    } else {
+        panel.classList.add('hidden');
+    }
+}
+
+/**
+ * セーブ・ロード機能
+ */
+function loadData() {
+    const data = localStorage.getItem('bey_game_data');
+    if (data) {
+        saveData = JSON.parse(data);
+    }
+}
+function saveDataToStorage() {
+    localStorage.setItem('bey_game_data', JSON.stringify(saveData));
+    updateUI();
+}
+function saveBey() {
+    const name = document.getElementById('save-name').value.trim();
+    if (!name) return alert('名前を入力してください');
+    
+    const combo = {
+        name: name,
+        blade: document.getElementById('sel-blade').value,
+        driver: document.getElementById('sel-driver').value,
+        chassis: document.getElementById('sel-chassis').value
+    };
+    saveData.savedBeys.push(combo);
+    saveDataToStorage();
+    document.getElementById('save-name').value = '';
+}
+function loadBey(index) {
+    const combo = saveData.savedBeys[index];
+    document.getElementById('sel-blade').value = combo.blade;
+    document.getElementById('sel-driver').value = combo.driver;
+    document.getElementById('sel-chassis').value = combo.chassis;
+    updatePreview();
+}
+function deleteBey(index) {
+    saveData.savedBeys.splice(index, 1);
+    saveDataToStorage();
+}
+function clearAllData() {
+    if(confirm('本当に全てのデータを削除しますか？ポイントも0になります。')) {
+        saveData = { points: 0, savedBeys: [] };
+        saveDataToStorage();
+    }
+}
+function updateUI() {
+    document.getElementById('points-val').innerText = saveData.points;
+    const list = document.getElementById('save-list');
+    list.innerHTML = '';
+    saveData.savedBeys.forEach((bey, idx) => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span>${bey.name}</span>
+            <div>
+                <button class="load-btn" onclick="loadBey(${idx})">読込</button>
+                <button onclick="deleteBey(${idx})">削除</button>
+            </div>
+        `;
+        list.appendChild(li);
+    });
+}
+function updatePreview() {
+    const b = PART_STATS.blade[document.getElementById('sel-blade').value];
+    const d = PART_STATS.driver[document.getElementById('sel-driver').value];
+    const c = PART_STATS.chassis[document.getElementById('sel-chassis').value];
+    
+    document.getElementById('stats-preview').innerHTML = `
+        HP: <span>${b.hp}</span><br>
+        RP: <span>${c.rp}</span><br>
+        攻撃力: <span>${b.damage}</span><br>
+        最高速度: <span>${d.speed}</span><br>
+        重さ(吹き飛びにくさ): <span>${c.weight}</span>
+    `;
+}
+
+/**
+ * ベイブレード クラス
+ */
+class Bey {
+    constructor(isPlayer, x, y, combo) {
+        this.isPlayer = isPlayer;
+        this.x = x;
+        this.y = y;
+        this.r = 25; // サイズ
+        this.angle = 0;
+        this.active = true;
+        
+        // ステータス構築
+        const b = PART_STATS.blade[combo.blade];
+        const d = PART_STATS.driver[combo.driver];
+        const c = PART_STATS.chassis[combo.chassis];
+        
+        this.colors = { blade: b.color, driver: d.color, chassis: c.color };
+        this.maxHp = b.hp;
+        this.hp = this.maxHp;
+        this.maxRp = c.rp;
+        this.rp = this.maxRp;
+        this.damage = b.damage;
+        this.speed = d.speed;
+        this.centerPull = d.centerPull;
+        this.weight = c.weight;
+        
+        // 初期ベクトル
+        this.vx = (Math.random() - 0.5) * this.speed * 2;
+        this.vy = (Math.random() - 0.5) * this.speed * 2;
+    }
+
+    update() {
+        if (!this.active) return;
+        
+        // RPによる減衰（RPが低いほど遅い）
+        const rpRatio = Math.max(0.2, this.rp / this.maxRp);
+        
+        // スタジアム中央(300,300)へ向かう傾向（ドライバーの性質依存）
+        const dx = 300 - this.x;
+        const dy = 300 - this.y;
+        this.vx += dx * this.centerPull * 0.005 * rpRatio;
+        this.vy += dy * this.centerPull * 0.005 * rpRatio;
+        
+        // 摩擦
+        this.vx *= 0.99;
+        this.vy *= 0.99;
+
+        // 速度制限
+        const currentSpeed = Math.hypot(this.vx, this.vy);
+        if (currentSpeed > this.speed * rpRatio) {
+            this.vx = (this.vx / currentSpeed) * (this.speed * rpRatio);
+            this.vy = (this.vy / currentSpeed) * (this.speed * rpRatio);
+        }
+
+        this.x += this.vx;
+        this.y += this.vy;
+        
+        // 壁でのバウンド (スタジアム半径 280)
+        const distFromCenter = Math.hypot(300 - this.x, 300 - this.y);
+        if (distFromCenter + this.r > 280) {
+            // 壁に当たった
+            const angleFromCenter = Math.atan2(this.y - 300, this.x - 300);
+            this.x = 300 + (280 - this.r) * Math.cos(angleFromCenter);
+            this.y = 300 + (280 - this.r) * Math.sin(angleFromCenter);
+            
+            // 跳ね返りベクトル計算
+            const nx = Math.cos(angleFromCenter);
+            const ny = Math.sin(angleFromCenter);
+            const dotProduct = this.vx * nx + this.vy * ny;
+            this.vx = (this.vx - 2 * dotProduct * nx) * 0.8;
+            this.vy = (this.vy - 2 * dotProduct * ny) * 0.8;
+            
+            this.rp -= 0.5; // 壁にぶつかっても少しRP減少
+        }
+
+        // 穴（オーバーフィニッシュ）チェック
+        for (let hole of holes) {
+            if (Math.hypot(hole.x - this.x, hole.y - this.y) < hole.r) {
+                this.hp = 0;
+                this.active = false;
+                return 'over'; // 穴に落ちた
+            }
+        }
+
+        // 自然なRP減少
+        this.rp -= 0.05;
+        if (this.rp <= 0) {
+            this.rp = 0;
+            this.active = false;
+            return 'spin'; // 回転力切れ
+        }
+        
+        // 回転アニメーション用角度更新 (RPが早いほど速く回る)
+        this.angle += 0.1 * rpRatio + 0.05;
+        
+        return null;
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+        
+        ctx.save();
+        
+        // ベイの現在位置に移動
+        ctx.translate(this.x, this.y);
+
+        // --- ここからベイ自体の回転描画 ---
+        ctx.save();
+        ctx.rotate(this.angle);
+
+        // ブレード (一番外側で目立つ)
+        ctx.beginPath();
+        ctx.arc(0, 0, this.r, 0, Math.PI * 2);
+        ctx.fillStyle = this.colors.blade;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#222';
+        ctx.stroke();
+        
+        // ブレードのギザギザ表現
+        for (let i = 0; i < 6; i++) {
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(this.r, 0);
+            ctx.stroke();
+            ctx.rotate(Math.PI / 3);
+        }
+
+        // シャーシ (中間)
+        ctx.beginPath();
+        ctx.arc(0, 0, this.r * 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = this.colors.chassis;
+        ctx.fill();
+        ctx.stroke();
+
+        // ドライバー (中心)
+        ctx.beginPath();
+        ctx.arc(0, 0, this.r * 0.3, 0, Math.PI * 2);
+        ctx.fillStyle = this.colors.driver;
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore(); 
+        // --- 回転描画ここまで ---
+
+        // --- ここからプレイヤー/CPU名の描画 (回転させない) ---
+        ctx.fillStyle = this.isPlayer ? '#4dff4d' : '#ff4d4d'; // Playerは緑、CPUは赤
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        // ベイの少し下側に表示
+        ctx.fillText(this.isPlayer ? '↑ PLAYER' : '↑ CPU', 0, this.r + 18);
+
+        ctx.restore();
+    }
+}
+
+/**
+ * ゲームロジック
+ */
+function startGame() {
+    homeScreen.classList.add('hidden');
+    resultScreen.classList.add('hidden');
+    hud.classList.remove('hidden');
+    gameState = 'playing';
+    particles = [];
+
+    // プレイヤーのコンボを取得
+    const pCombo = {
+        blade: document.getElementById('sel-blade').value,
+        driver: document.getElementById('sel-driver').value,
+        chassis: document.getElementById('sel-chassis').value
+    };
+
+    // CPUのコンボ設定
+    let cCombo;
+    const isCpuCustom = document.getElementById('cpu-custom-enable').checked;
+
+    if (isCpuCustom) {
+        cCombo = {
+            blade: document.getElementById('sel-cpu-blade').value,
+            driver: document.getElementById('sel-cpu-driver').value,
+            chassis: document.getElementById('sel-cpu-chassis').value
+        };
+    } else {
+        const types = ['attack', 'defense', 'stamina'];
+        cCombo = {
+            blade: types[Math.floor(Math.random() * 3)],
+            driver: types[Math.floor(Math.random() * 3)],
+            chassis: types[Math.floor(Math.random() * 3)]
+        };
+    }
+
+    beys = [
+        new Bey(true, 150, 300, pCombo),
+        new Bey(false, 450, 300, cCombo)
+    ];
+
+    updateHUD();
+    cancelAnimationFrame(animationId);
+    gameLoop();
+}
+
+function gameLoop() {
+    if (gameState !== 'playing') return;
+
+    ctx.clearRect(0, 0, 600, 600);
+    drawStadium();
+
+    let p1Res = beys[0].update();
+    let p2Res = beys[1].update();
+
+    checkCollision(beys[0], beys[1]);
+
+    beys[0].draw(ctx);
+    beys[1].draw(ctx);
+    drawParticles();
+
+    updateHUD();
+
+    if (!beys[0].active || !beys[1].active || beys[0].hp <= 0 || beys[1].hp <= 0) {
+        endGame(p1Res, p2Res);
+        return;
+    }
+
+    animationId = requestAnimationFrame(gameLoop);
+}
+
+function drawStadium() {
+    ctx.beginPath();
+    ctx.arc(300, 300, 280, 0, Math.PI * 2);
+    ctx.fillStyle = '#444';
+    ctx.fill();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#666';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(300, 300, 50, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.stroke();
+
+    holes.forEach(h => {
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#111';
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.stroke();
+    });
+}
+
+function checkCollision(b1, b2) {
+    const dx = b2.x - b1.x;
+    const dy = b2.y - b1.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < b1.r + b2.r) {
+        // 重なり解消
+        const overlap = (b1.r + b2.r) - dist;
+        const nx = dx / dist; // 法線ベクトル X
+        const ny = dy / dist; // 法線ベクトル Y
+        
+        // 垂直ベクトル（接線ベクトル）
+        const tx = -ny;
+        const ty = nx;
+
+        b1.x -= nx * overlap / 2;
+        b1.y -= ny * overlap / 2;
+        b2.x += nx * overlap / 2;
+        b2.y += ny * overlap / 2;
+
+        container.classList.remove('shake');
+        void container.offsetWidth;
+        container.classList.add('shake');
+        createSparks((b1.x + b2.x)/2, (b1.y + b2.y)/2);
+
+        // 基本パワー計算
+        const p1Power = b1.damage * (b1.rp / b1.maxRp) * 0.5;
+        const p2Power = b2.damage * (b2.rp / b2.maxRp) * 0.5;
+
+        // 回転による反発力（スピンキック）の追加
+        // 両者の回転速度を合計し、接線方向に飛ばす力を計算
+        const s1 = 0.1 * (b1.rp / b1.maxRp) + 0.05;
+        const s2 = 0.1 * (b2.rp / b2.maxRp) + 0.05;
+        const spinKick = (s1 + s2) * 25; // 25は弾き飛ばし強度の調整用係数
+
+        b1.hp -= p2Power;
+        b2.hp -= p1Power;
+        
+        b1.rp -= p2Power * 0.2;
+        b2.rp -= p1Power * 0.2;
+
+        const b1Knockback = (1 + (1 - Math.max(0, b1.hp) / b1.maxHp) * 2) / b1.weight;
+        const b2Knockback = (1 + (1 - Math.max(0, b2.hp) / b2.maxHp) * 2) / b2.weight;
+
+        // 通常の法線方向の跳ね返り + 接線方向（スピン）の吹っ飛び
+        b1.vx = (b1.vx - nx * p2Power - tx * spinKick) * b1Knockback * 0.5;
+        b1.vy = (b1.vy - ny * p2Power - ty * spinKick) * b1Knockback * 0.5;
+        
+        b2.vx = (b2.vx + nx * p1Power + tx * spinKick) * b2Knockback * 0.5;
+        b2.vy = (b2.vy + ny * p1Power + ty * spinKick) * b2Knockback * 0.5;
+    }
+}
+
+function createSparks(x, y) {
+    for (let i = 0; i < 15; i++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random() - 0.5) * 10,
+            vy: (Math.random() - 0.5) * 10,
+            life: 20,
+            color: Math.random() > 0.5 ? '#ffeb3b' : '#ff9800'
+        });
+    }
+}
+function drawParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life--;
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life / 20;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1.0;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+}
+
+function updateHUD() {
+    const p1 = beys[0], p2 = beys[1];
+    document.getElementById('player-hp-bar').style.width = Math.max(0, (p1.hp / p1.maxHp) * 100) + '%';
+    document.getElementById('player-rp-bar').style.width = Math.max(0, (p1.rp / p1.maxRp) * 100) + '%';
+    document.getElementById('cpu-hp-bar').style.width = Math.max(0, (p2.hp / p2.maxHp) * 100) + '%';
+    document.getElementById('cpu-rp-bar').style.width = Math.max(0, (p2.rp / p2.maxRp) * 100) + '%';
+}
+
+function endGame(p1Res, p2Res) {
+    gameState = 'result';
+    hud.classList.add('hidden');
+    
+    let winner = '';
+    let reason = '';
+    
+    const p1Dead = beys[0].hp <= 0 || p1Res;
+    const p2Dead = beys[1].hp <= 0 || p2Res;
+
+    if (p1Dead && !p2Dead) {
+        winner = 'CPUの勝利...';
+        reason = getReason(beys[0], p1Res);
+    } else if (!p1Dead && p2Dead) {
+        winner = 'プレイヤーの勝利！';
+        reason = getReason(beys[1], p2Res);
+        saveData.points += 100;
+        saveDataToStorage();
+    } else {
+        winner = 'ドロー！';
+        reason = '同時フィニッシュ';
+    }
+
+    document.getElementById('result-title').innerText = winner;
+    document.getElementById('result-desc').innerText = reason;
+    document.getElementById('result-title').style.color = winner.includes('プレイヤー') ? '#4dff4d' : '#ff4d4d';
+    
+    setTimeout(() => {
+        resultScreen.classList.remove('hidden');
+    }, 500);
+}
+
+function getReason(bey, res) {
+    if (res === 'over') return 'オーバーフィニッシュ';
+    if (bey.hp <= 0) return 'バーストフィニッシュ';
+    if (res === 'spin' || bey.rp <= 0) return 'スピンフィニッシュ';
+    return 'クラッシュ';
+}
+
+function returnToHome() {
+    resultScreen.classList.add('hidden');
+    homeScreen.classList.remove('hidden');
+    updateUI();
+}
+
+init();
+</script>
+</body>
+</html>
