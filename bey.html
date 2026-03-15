@@ -49,7 +49,7 @@
     /* スクロールを許可して画面内に収めるための修正 */
     .panel-container { 
         display: flex; width: 100%; justify-content: space-between; gap: 20px;
-        max-height: 420px; overflow-y: auto; padding-right: 5px; /* ここを調整しました */
+        max-height: 420px; overflow-y: auto; padding-right: 5px;
     }
     .customize-panel, .save-panel { background: #444; padding: 15px; border-radius: 8px; flex: 1;}
     .customize-panel h2, .save-panel h2 { margin-top: 0; font-size: 18px; text-align: center; border-bottom: 1px solid #777; padding-bottom: 5px;}
@@ -244,6 +244,10 @@ let holes = [
     { x: 300, y: 50, r: 40 },
     { x: 300, y: 550, r: 40 }
 ];
+
+// 変更点：FPS制御用の変数を追加
+let lastTime = 0;
+const fpsInterval = 1000 / 60; // 60FPS（1フレームあたり約16.6ms）
 
 // 初期化
 function init() {
@@ -539,29 +543,43 @@ function startGame() {
 
     updateHUD();
     cancelAnimationFrame(animationId);
-    gameLoop();
+    
+    // 変更点：開始時間を記録してからループ起動
+    lastTime = performance.now();
+    animationId = requestAnimationFrame(gameLoop);
 }
 
-function gameLoop() {
+// 変更点：FPS固定用のロジックで全体をラップ
+function gameLoop(timestamp) {
     if (gameState !== 'playing') return;
 
-    ctx.clearRect(0, 0, 600, 600);
-    drawStadium();
+    // timestampが未定義の場合はperformance.now()で代用
+    if (!timestamp) timestamp = performance.now();
+    const elapsed = timestamp - lastTime;
 
-    let p1Res = beys[0].update();
-    let p2Res = beys[1].update();
+    // 指定のインターバル（60FPSなら約16.6ms）経過している場合のみ処理を実行
+    if (elapsed >= fpsInterval) {
+        // 次回の計算のために余剰時間を引いて保存
+        lastTime = timestamp - (elapsed % fpsInterval);
 
-    checkCollision(beys[0], beys[1]);
+        ctx.clearRect(0, 0, 600, 600);
+        drawStadium();
 
-    beys[0].draw(ctx);
-    beys[1].draw(ctx);
-    drawParticles();
+        let p1Res = beys[0].update();
+        let p2Res = beys[1].update();
 
-    updateHUD();
+        checkCollision(beys[0], beys[1]);
 
-    if (!beys[0].active || !beys[1].active || beys[0].hp <= 0 || beys[1].hp <= 0) {
-        endGame(p1Res, p2Res);
-        return;
+        beys[0].draw(ctx);
+        beys[1].draw(ctx);
+        drawParticles();
+
+        updateHUD();
+
+        if (!beys[0].active || !beys[1].active || beys[0].hp <= 0 || beys[1].hp <= 0) {
+            endGame(p1Res, p2Res);
+            return;
+        }
     }
 
     animationId = requestAnimationFrame(gameLoop);
