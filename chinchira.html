@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>極・ちんちらざむらい</title>
+    <style>
+        :root {
+            --bg-color: #0d0d0d;
+            --container-bg: #1a1a1a;
+            --accent-gold: #d4af37;
+            --accent-red: #e63946;
+            --text-color: #f1f1f1;
+            --neon-blue: #00f2ff;
+        }
+
+        body {
+            font-family: 'Hiragino Mincho ProN', 'MS PMincho', serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--container-bg);
+            padding: 30px;
+            border-radius: 4px;
+            border: 2px solid var(--accent-gold);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.2), inset 0 0 10px rgba(0,0,0,1);
+            position: relative;
+        }
+
+        h1 {
+            font-size: 28px;
+            letter-spacing: 0.5em;
+            color: var(--accent-gold);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            border-bottom: 1px solid var(--accent-gold);
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        #status-bar {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: var(--accent-gold);
+            font-size: 14px;
+        }
+
+        #chinchilla-area {
+            font-size: 80px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));
+        }
+
+        #message-area {
+            font-size: 20px;
+            font-weight: bold;
+            height: 40px;
+            margin: 10px 0;
+            color: var(--neon-blue);
+            text-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        #log-container {
+            background: rgba(0, 0, 0, 0.8);
+            color: #ccc;
+            text-align: left;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            height: 140px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .log-player { color: var(--neon-blue); }
+        .log-cpu { color: var(--accent-red); }
+
+        #timer-container {
+            width: 100%;
+            height: 12px;
+            background-color: #333;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            border: 1px solid var(--accent-gold);
+        }
+
+        #timer-bar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, var(--accent-gold), var(--accent-red));
+            box-shadow: 0 0 10px var(--accent-red);
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        button {
+            padding: 15px 5px;
+            font-size: 15px;
+            font-family: inherit;
+            font-weight: bold;
+            border: 1px solid var(--accent-gold);
+            background: rgba(212, 175, 55, 0.1);
+            color: var(--accent-gold);
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button:hover {
+            background: var(--accent-gold);
+            color: black;
+        }
+
+        button:active {
+            transform: translateY(2px);
+        }
+
+        #retry-btn {
+            background: var(--accent-red);
+            color: white;
+            border: none;
+            width: 100%;
+            margin-top: 20px;
+            display: none;
+            font-size: 18px;
+            letter-spacing: 0.2em;
+        }
+
+        #result-area {
+            display: none;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border: 2px double var(--accent-gold);
+            margin-bottom: 20px;
+            animation: fadeIn 1s;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .shake {
+            animation: shake 0.2s ease-in-out 0s 2;
+        }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(5px); }
+            50% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+            100% { transform: translateX(0); }
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <h1>ちんちらざむらい</h1>
+    
+    <div id="status-bar">
+        <span id="level-display">級数: 1</span>
+        <span id="target-display"></span>
+    </div>
+
+    <div id="result-area">
+        <h2 style="color:var(--accent-gold)">【 勝利・免許皆伝 】</h2>
+        <p>総所要時間: <span id="res-total-time" style="color:var(--neon-blue)">0</span> 秒</p>
+        <p>平均反射速度: <span id="res-avg-time" style="color:var(--neon-blue)">0</span> 秒</p>
+    </div>
+
+    <div id="chinchilla-area">🐭</div>
+    <div id="message-area">いざ、尋常に…</div>
+
+    <div id="log-container"></div>
+
+    <div id="timer-container" class="hidden">
+        <div id="timer-bar"></div>
+    </div>
+
+    <div id="action-area" class="btn-grid hidden">
+        <button onclick="playerAttack('chinchilla')">ちんちら</button>
+        <button onclick="playerAttack('ochinchilla')">おちんちら</button>
+        <button onclick="playerAttack('samurai')">さむらい</button>
+        <button onclick="playerAttack('chinsamu')">ちんちらざむらい</button>
+    </div>
+
+    <div id="defend-area" class="btn-grid hidden">
+        <button onclick="playerDefend('none')">回答しない</button>
+        <button onclick="playerDefend('biroon')">びろーん</button>
+        <button onclick="playerDefend('shakiin')">シャキーン</button>
+        <button onclick="playerDefend('chinsamu')">ちんちらざむらい</button>
+    </div>
+
+    <button id="retry-btn" onclick="initGame()">不撓不屈（もう一度）</button>
+</div>
+
+<script>
+    const attacks = {
+        'chinchilla': { attackName: 'ちんちら', defendId: 'none', defendName: '（静寂）' },
+        'ochinchilla': { attackName: 'おちんちら', defendId: 'biroon', defendName: 'びろーん' },
+        'samurai': { attackName: 'さむらい', defendId: 'shakiin', defendName: 'シャキーン' },
+        'chinsamu': { attackName: 'ちんちらざむらい！ちんちらざむらい！', defendId: 'chinsamu', defendName: 'ちんちらざむらい！' }
+    };
+
+    let level = 1;
+    let finalLevelSurviveCount = 0;
+    let logs = [];
+    let reactionTimes = [];
+    let gameStartTime = 0;
+    let currentEnemyAttack = '';
+    let timeLimit = 10;
+    let turnStartTime = 0;
+    let timerInterval = null;
+    let isGameOver = false;
+
+    const elLevel = document.getElementById('level-display');
+    const elTarget = document.getElementById('target-display');
+    const elMessage = document.getElementById('message-area');
+    const elChinchilla = document.getElementById('chinchilla-area');
+    const elLog = document.getElementById('log-container');
+    const elTimerContainer = document.getElementById('timer-container');
+    const elTimerBar = document.getElementById('timer-bar');
+    const elActionArea = document.getElementById('action-area');
+    const elDefendArea = document.getElementById('defend-area');
+    const elRetryBtn = document.getElementById('retry-btn');
+    const elResultArea = document.getElementById('result-area');
+
+    function initGame() {
+        level = 1;
+        finalLevelSurviveCount = 0;
+        logs = [];
+        reactionTimes = [];
+        isGameOver = false;
+        gameStartTime = performance.now();
+
+        elChinchilla.style.opacity = '1';
+        elChinchilla.style.transform = 'scale(1)';
+        elChinchilla.innerText = '🐭';
+        elResultArea.style.display = 'none';
+        elRetryBtn.style.display = 'none';
+        
+        updateStatus();
+        elLog.innerHTML = "";
+        addLog("⚔️ 果たし合い開始 ⚔️");
+        startPlayerTurn();
+    }
+
+    function updateStatus() {
+        elLevel.innerText = `級数: ${level === 10 ? '皆伝' : level}`;
+        if (level === 10) {
+            elTarget.innerText = `残り殺陣: ${10 - finalLevelSurviveCount}`;
+            elTarget.style.color = 'var(--accent-red)';
+        } else {
+            elTarget.innerText = "";
+        }
+    }
+
+    function addLog(text, type = '') {
+        const spanClass = type === 'player' ? 'log-player' : (type === 'cpu' ? 'log-cpu' : '');
+        logs.push(`<span class="${spanClass}">${text}</span>`);
+        if (logs.length > 7) logs.shift();
+        elLog.innerHTML = logs.join('<br>');
+    }
+
+    function startPlayerTurn() {
+        if (isGameOver) return;
+        elTimerContainer.classList.add('hidden');
+        elDefendArea.classList.add('hidden');
+        elActionArea.classList.remove('hidden');
+        elMessage.innerText = "仕掛けよ！";
+        elMessage.style.color = varName('--neon-blue');
+    }
+
+    function playerAttack(attackId) {
+        if (isGameOver) return;
+        elActionArea.classList.add('hidden');
+        
+        // 「ちんちらざむらい」と自身で宣言する演出
+        const attackName = attacks[attackId].attackName;
+        elMessage.innerText = attackName + "！！";
+        elMessage.style.color = "white";
+        document.body.classList.add('shake');
+        setTimeout(() => document.body.classList.remove('shake'), 200);
+
+        addLog(`あなた: ${attackName}`, 'player');
+        
+        // 最強CPUの即座の正解
+        setTimeout(() => {
+            if (isGameOver) return;
+            addLog(`最強CPU: ${attacks[attackId].defendName}`, 'cpu');
+            setTimeout(startEnemyTurn, 600);
+        }, 500);
+    }
+
+    function startEnemyTurn() {
+        if (isGameOver) return;
+        const keys = Object.keys(attacks);
+        currentEnemyAttack = keys[Math.floor(Math.random() * keys.length)];
+        
+        addLog(`最強CPU: ${attacks[currentEnemyAttack].attackName}`, 'cpu');
+        startPlayerDefend();
+    }
+
+    function startPlayerDefend() {
+        if (isGameOver) return;
+        elActionArea.classList.add('hidden');
+        elDefendArea.classList.remove('hidden');
+        elTimerContainer.classList.remove('hidden');
+        
+        elMessage.innerText = "応じよ！";
+        elMessage.style.color = varName('--accent-red');
+
+        timeLimit = Math.max(1, 11 - level);
+        turnStartTime = performance.now();
+        
+        if (timerInterval) cancelAnimationFrame(timerInterval);
+        timerInterval = requestAnimationFrame(updateTimer);
+    }
+
+    function updateTimer() {
+        if (isGameOver) return;
+        const now = performance.now();
+        const elapsed = (now - turnStartTime) / 1000;
+        const remaining = Math.max(0, timeLimit - elapsed);
+        const percent = (remaining / timeLimit) * 100;
+        
+        elTimerBar.style.width = `${percent}%`;
+
+        if (remaining <= 0) {
+            triggerGameOver("反応が遅い！");
+        } else {
+            timerInterval = requestAnimationFrame(updateTimer);
+        }
+    }
+
+    function playerDefend(defendId) {
+        if (isGameOver) return;
+        cancelAnimationFrame(timerInterval);
+        
+        const reactTime = (performance.now() - turnStartTime) / 1000;
+        reactionTimes.push(reactTime);
+
+        const correctDefendId = attacks[currentEnemyAttack].defendId;
+        const chosenDefendName = Object.values(attacks).find(a => a.defendId === defendId)?.defendName || "無言";
+
+        // 回答の宣言
+        elMessage.innerText = chosenDefendName + "！！";
+
+        if (defendId === correctDefendId) {
+            addLog(`あなた: ${chosenDefendName}`, 'player');
+            if (level < 10) level++;
+            else finalLevelSurviveCount++;
+            
+            updateStatus();
+            if (level === 10 && finalLevelSurviveCount >= 10) {
+                triggerGameClear();
+            } else {
+                setTimeout(startPlayerTurn, 600);
+            }
+        } else {
+            addLog(`あなた: ${chosenDefendName}`, 'player');
+            triggerGameOver("見切られた！");
+        }
+    }
+
+    function triggerGameOver(reason) {
+        isGameOver = true;
+        cancelAnimationFrame(timerInterval);
+        elActionArea.classList.add('hidden');
+        elDefendArea.classList.add('hidden');
+        elTimerContainer.classList.add('hidden');
+
+        addLog(`―― 終焉 ――`);
+        elMessage.innerText = "🐭「切腹じゃ...」";
+        elMessage.style.color = "white";
+        elRetryBtn.style.display = 'block';
+    }
+
+    function triggerGameClear() {
+        isGameOver = true;
+        elActionArea.classList.add('hidden');
+        elDefendArea.classList.add('hidden');
+        elTimerContainer.classList.add('hidden');
+
+        addLog("⚔️ 決着 ⚔️");
+        elMessage.innerText = "🐭「かたじけない...」";
+        elMessage.style.color = varName('--accent-gold');
+        
+        elChinchilla.style.transform = 'scale(0) rotate(720deg)';
+        elChinchilla.style.opacity = '0';
+
+        setTimeout(() => {
+            const totalTime = ((performance.now() - gameStartTime) / 1000).toFixed(2);
+            const avgTime = (reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length).toFixed(2);
+            document.getElementById('res-total-time').innerText = totalTime;
+            document.getElementById('res-avg-time').innerText = avgTime;
+            elResultArea.style.display = 'block';
+            elRetryBtn.style.display = 'block';
+        }, 1000);
+    }
+
+    function varName(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name.replace('var(','').replace(')','')).trim();
+    }
+
+    initGame();
+</script>
+
+</body>
+</html>
