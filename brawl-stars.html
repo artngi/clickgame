@@ -548,7 +548,7 @@ class Ghost extends Entity {
                 let target = Game.findClosestEnemy(this, 500);
                 if (target) {
                     let angle = Math.atan2(target.y - this.y, target.x - this.x);
-                    let b = new Bullet(this.owner, angle, 16, 500, 500, 10, 'normal');/*gusgoust*/
+                    let b = new Bullet(this.owner, angle, 16, 500, 1800, 10, 'normal');/*gusgoust*/
                     b.x = this.x; b.y = this.y;
                     b.isGhostAttack = true; 
                     Game.bullets.push(b);
