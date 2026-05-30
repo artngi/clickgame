@@ -204,7 +204,7 @@
 const CHAR_DATA = {
     shelly: {
         name: 'シェリー', color: '#8e44ad', type: 'shotgun',
-        hp: 9200, speed: 3.6, reload: 90, ammo: 3, range: 250, attackWidth: 0.6,
+        hp: 9200, speed: 3.6, reload: 70, ammo: 3, range: 250, attackWidth: 0.6,
         superChargeRate: 1.0,
         gadgets: [
             { id: 'dash', name: '全速前進 (エイム方向へダッシュ)' },
@@ -218,7 +218,7 @@ const CHAR_DATA = {
     },
     colt: {
         name: 'コルト', color: '#e74c3c', type: 'shooter',
-        hp: 8400, speed: 3.1, reload: 100, ammo: 3, range: 450, attackWidth: 0.1,
+        hp: 8400, speed: 3.1, reload: 60, ammo: 3, range: 450, attackWidth: 0.1,
         superChargeRate: 0.6,
         gadgets: [
             { id: 'one', name: 'ワンショット (1発の大ダメージ弾)' },
@@ -232,7 +232,7 @@ const CHAR_DATA = {
     },
     primo: {
         name: 'エル・プリモ', color: '#2980b9', type: 'melee',
-        hp: 16000, speed: 4.3, reload: 48, ammo: 3, range: 140, attackWidth: 0.8,
+        hp: 16000, speed: 4.3, reload: 58, ammo: 3, range: 140, attackWidth: 0.8,
         superChargeRate: 1.0,
         gadgets: [
             { id: 'lariat', name: 'ラリアット (ダッシュ攻撃)' },
@@ -246,7 +246,7 @@ const CHAR_DATA = {
     },
     gus: {
         name: 'ガス', color: '#f1c40f', type: 'shooter',
-        hp: 6400, speed: 3.4, reload: 64, ammo: 3, range: 500, attackWidth: 0.15,
+        hp: 6400, speed: 3.4, reload: 74, ammo: 3, range: 500, attackWidth: 0.15,
         superChargeRate: 1.0,
         gadgets: [
             { id: 'cracker', name: 'ゴーストクラッカー (ゴースト爆発)' },
@@ -875,7 +875,7 @@ class Character extends Entity {
             } else if (type === 'gadget') {
                 if (this.gadget === 'spinner') {
                     Game.entities.forEach(e => {
-                        if (e !== this && e.team !== this.team && e.hp > 0 && dist(this.x, this.y, e.x, e.y) < this.r * 2 + e.r) {
+                        if (e !== this && e.team !== this.team && e.hp > 0 && dist(this.x, this.y, e.x, e.y) < this.r * 4 + e.r) {
                             e.takeDamage(3000 * dmgMult, this);
                         }
                     });
@@ -1853,6 +1853,12 @@ const Game = {
                             ctx.strokeRect(0, -9, range, 18);
                         } else if (key === 'super') {
                             ctx.beginPath(); ctx.arc(0, 0, 150, 0, Math.PI*2); ctx.stroke(); 
+                        } else if (key === 'gadget') {
+                            if (player.gadget === 'cracker') {
+                                // ゴースト爆発範囲の円を表示
+                                ctx.beginPath(); ctx.arc(0, 0, 110, 0, Math.PI*2); ctx.stroke();
+                            }
+                            // summonerはエイム不要なのでなし
                         }
                     }
                     else if (player.type === 'mortis') {
@@ -1865,7 +1871,7 @@ const Game = {
                             ctx.fillRect(0, -15, 600, 30); ctx.strokeRect(0, -15, 600, 30);
                         } else if (key === 'gadget') {
                             if (player.gadget === 'spinner') {
-                                ctx.beginPath(); ctx.arc(0, 0, player.r * 2, 0, Math.PI*2); ctx.stroke();
+                                ctx.beginPath(); ctx.arc(0, 0, player.r * 4, 0, Math.PI*2); ctx.stroke();
                             } else if (player.gadget === 'batmove') {
                                 ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(150,0); ctx.stroke();
                             }
