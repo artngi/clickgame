@@ -1,0 +1,2904 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ブロスタ風 2Dアクション プロ版 3.2.1 (チェスター調整)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght=800;900&display=swap');
+        
+        :root {
+            --bg-dark: #12121c;
+            --panel-bg: #22223b;
+            --btn-blue: #3498db; --btn-blue-shadow: #217dbb;
+            --btn-yellow: #f1c40f; --btn-yellow-shadow: #c29d0b;
+            --text-main: #ffffff;
+            --font-main: 'Nunito', sans-serif;
+        }
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: none; margin: 0; padding: 0; }
+        body, html {
+            width: 100%; height: 100%; background-color: var(--bg-dark); color: var(--text-main);
+            font-family: var(--font-main); overflow: hidden; overscroll-behavior: none;
+        }
+        
+        /* キャンバスとUIレイヤー */
+        #gameCanvas { display: none; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+        #uiLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+        
+        /* メニュー画面 */
+        #menu {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #2b2b45 0%, #12121c 100%);
+            background-size: 20px 20px;
+            background-image: radial-gradient(#ffffff11 1px, transparent 1px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20;
+        }
+        h1 {
+            font-size: 3rem; margin-bottom: 10px; color: #f1c40f; letter-spacing: 2px;
+            text-shadow: 0 4px 0 #c29d0b, 0 8px 10px rgba(0,0,0,0.5);
+            -webkit-text-stroke: 2px #222;
+        }
+        .menu-board {
+            display: flex; flex-wrap: wrap; gap: 20px; background: rgba(34, 34, 59, 0.9);
+            padding: 20px 30px; border-radius: 20px; border: 4px solid #4a4a6a;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.6); max-width: 95%; justify-content: center;
+        }
+        .panel { display: flex; flex-direction: column; gap: 12px; min-width: 250px; }
+        label { font-size: 1.1rem; color: #00d2d3; text-shadow: 1px 1px 0 #000; margin-bottom: -5px; }
+        select {
+            appearance: none; padding: 12px; border-radius: 12px; border: 3px solid #00d2d3;
+            background: #1e1e2f; color: #fff; font-size: 1rem; font-family: var(--font-main); font-weight: bold;
+            outline: none; cursor: pointer; box-shadow: 0 4px 0 #008f8f; transition: transform 0.1s;
+        }
+        select:active { transform: translateY(4px); box-shadow: 0 0 0 #008f8f; }
+        
+        .btn-start {
+            margin-top: 15px; padding: 15px; border-radius: 15px; border: none;
+            background: var(--btn-yellow); color: #222; font-size: 1.5rem; font-weight: 900;
+            font-family: var(--font-main); cursor: pointer;
+            box-shadow: 0 6px 0 var(--btn-yellow-shadow), 0 10px 15px rgba(0,0,0,0.4);
+            text-transform: uppercase; transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .btn-start:active { transform: translateY(6px); box-shadow: 0 0 0 var(--btn-yellow-shadow); }
+
+        /* ゲーム内HUD */
+        #hud-top {
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; gap: 5px; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.65); padding: 8px 30px; border-radius: 20px; border: 2px solid rgba(255,255,255,0.2);
+            font-size: 1.3rem; font-weight: 900; text-shadow: 2px 2px 0 #000;
+            min-width: 260px; text-align: center;
+        }
+        .score-blue { color: #3498db; } .score-red { color: #e74c3c; }
+        #kill-log {
+            position: absolute; top: 20px; right: 20px; font-size: 0.9rem; font-weight: bold;
+            text-align: right; text-shadow: 1px 1px 2px #000; display: flex; flex-direction: column; gap: 5px;
+        }
+        .log-item { background: rgba(0,0,0,0.4); padding: 5px 10px; border-radius: 10px; animation: fadeOut 4s forwards; }
+        @keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 80% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }
+
+        /* リザルトスコアボード画面 */
+        #resultsScreen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(18, 18, 28, 0.95);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 30; padding: 20px; overflow-y: auto;
+        }
+        #resultsScreen h2 {
+            font-size: 2.5rem; color: #f1c40f; text-shadow: 0 3px 0 #c29d0b;
+            margin-bottom: 15px; text-align: center; -webkit-text-stroke: 1px #000;
+        }
+        .results-container {
+            width: 100%; max-width: 700px; background: #22223b;
+            border-radius: 15px; border: 3px solid #4a4a6a;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5); overflow: hidden;
+            margin-bottom: 15px;
+        }
+        .results-table {
+            width: 100%; border-collapse: collapse; text-align: left;
+        }
+        .results-table th, .results-table td {
+            padding: 10px 15px; border-bottom: 1.5px solid #2d2d44; font-size: 0.95rem;
+        }
+        .results-table th {
+            background-color: #1a1a2e; color: #00d2d3; font-weight: 900; font-size: 1rem;
+        }
+        .results-table tr.highlight {
+            background-color: rgba(241, 196, 15, 0.15); font-weight: bold;
+        }
+        .results-table tr.highlight td:first-child {
+            color: #f1c40f;
+        }
+        .btn-close-results {
+            padding: 12px 35px; border-radius: 12px; border: none;
+            background: var(--btn-blue); color: #fff; font-size: 1.2rem; font-weight: 900;
+            font-family: var(--font-main); cursor: pointer;
+            box-shadow: 0 4px 0 var(--btn-blue-shadow);
+            transition: transform 0.1s;
+        }
+        .btn-close-results:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-blue-shadow); }
+
+        /* 画面回転警告 */
+        #rotatePrompt {
+            position: absolute; top:0; left:0; width:100%; height:100%; background: var(--bg-dark);
+            display: none; z-index: 100; align-items: center; justify-content: center; text-align: center;
+        }
+        #rotatePrompt h2 { color: #fff; font-size: 2rem; }
+        @media screen and (orientation: portrait) {
+            #rotatePrompt { display: flex; flex-direction: column; }
+            #menu, #gameCanvas, #uiLayer, #resultsScreen { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="rotatePrompt">
+        <h2>📱 スマホを横向きにしてください</h2><p>Please rotate your device.</p>
+    </div>
+
+    <!-- メニュー画面 -->
+    <div id="menu">
+        <h1>BRAWL CLONE</h1>
+        <div class="menu-board">
+            <div class="panel">
+                <label>モード (MODE)</label>
+                <select id="selMode">
+                    <option value="gemgrab">💎 エメラルドハント (3v3)</option>
+                    <option value="wipeout">⚔️ 殲滅 (3v3)</option>
+                    <option value="knockout">💀 ノックアウト (3v3 / 3ラウンド2本先取)</option>
+                    <option value="showdown">🏜️ ソロバトル (1v11)</option>
+                </select>
+
+                <label>キャラクター (BRAWLER)</label>
+                <select id="selChar">
+                    <option value="shelly">🟣 シェリー (ショットガン)</option>
+                    <option value="colt">🔴 コルト (二丁拳銃)</option>
+                    <option value="primo">🔵 エル・プリモ (パンチ)</option>
+                    <option value="gus">🎈 ガス (シールド＆ゴースト)</option>
+                    <option value="mortis">🦇 モーティス (移動攻撃)</option>
+                    <option value="kit">🐱 キット (近接＆ジャンプ拘束)</option>
+                    <option value="chester">🃏 チェスター (ランダム必殺技)</option>
+                </select>
+            </div>
+            <div class="panel" id="skillsPanel">
+                <label>ガジェット (GADGET)</label>
+                <select id="selGadget"></select>
+
+                <label>スターパワー (STAR POWER)</label>
+                <select id="selSp"></select>
+                
+                <button class="btn-start" id="btnStart">PLAY!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- リザルト画面 -->
+    <div id="resultsScreen">
+        <h2 id="resultsTitle">🎉 BATTLE RESULTS</h2>
+        <div class="results-container">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>キャラクター</th>
+                        <th>チーム / 所属</th>
+                        <th>キル数 (KILLS)</th>
+                        <th>デス数 (DEATHS)</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsTableBody">
+                    <!-- JavaScriptで動的に挿入されます -->
+                </tbody>
+            </table>
+        </div>
+        <button class="btn-close-results" id="btnCloseResults">メニューに戻る</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+    <div id="uiLayer">
+        <div id="hud-top"></div>
+        <div id="kill-log"></div>
+    </div>
+
+<script>
+/** ==========================================
+ * 設定データ
+ * ========================================== */
+const CHAR_DATA = {
+    shelly: {
+        name: 'シェリー', color: '#8e44ad', type: 'shotgun',
+        hp: 9200, speed: 2.9, reload: 70, ammo: 3, range: 250, attackWidth: 0.6,
+        superChargeRate: 1.0,
+        gadgets: [
+            { id: 'dash', name: '全速前進 (エイム方向へダッシュ)' },
+            { id: 'sharp', name: 'シャープショット (細く長射程・スロー)' }
+        ],
+        sps: [
+            { id: 'hyper', name: 'ハイパーショット (弾MAX時射程UP)' },
+            { id: 'combo', name: '連続ショット (リロード4枠)' }
+        ],
+        hcName: 'ハイパーチャージ (リロード3倍, 被ダメ半減)'
+    },
+    colt: {
+        name: 'コルト', color: '#e74c3c', type: 'shooter',
+        hp: 8400, speed: 2.8, reload: 60, ammo: 3, range: 450, attackWidth: 0.1,
+        superChargeRate: 0.6,
+        gadgets: [
+            { id: 'one', name: 'ワンショット (1発の大ダメージ弾)' },
+            { id: 'slow', name: 'スローダウン (壁貫通・ダメージ無・スロー)' }
+        ],
+        sps: [
+            { id: 'million', name: 'ミリオンショット (弾数増加)' },
+            { id: 'big', name: 'ビックショット (弾サイズ増加)' }
+        ],
+        hcName: 'ハイパーチャージ (遠くへ飛ぶほど弾巨大化)'
+    },
+    primo: {
+        name: 'エル・プリモ', color: '#2980b9', type: 'melee',
+        hp: 16000, speed: 3.2, reload: 58, ammo: 3, range: 140, attackWidth: 0.8,
+        superChargeRate: 1.0,
+        gadgets: [
+            { id: 'lariat', name: 'ラリアット (ダッシュ攻撃)' },
+            { id: 'catch', name: 'キャッチザエネミー (敵を引き寄せる)' }
+        ],
+        sps: [
+            { id: 'speed', name: 'スピードスター (攻撃Hitで加速)' },
+            { id: 'shock', name: 'ビッグショック (必殺範囲増加)' }
+        ],
+        hcName: 'ハイパーチャージ (通常射程・サイズ増加)'
+    },
+    gus: {
+        name: 'ガス', color: '#f1c40f', type: 'shooter',
+        hp: 6400, speed: 2.8, reload: 74, ammo: 3, range: 500, attackWidth: 0.15,
+        superChargeRate: 0.34,
+        gadgets: [
+            { id: 'cracker', name: 'ゴーストクラッカー (ゴースト爆発)' },
+            { id: 'summoner', name: 'ゴーストサモナー (ゲージMAX)' }
+        ],
+        sps: [
+            { id: 'master', name: 'ゴーストマスター (1発でゲージMAX)' },
+            { id: 'health', name: 'ゴーストヘルス (回復量33%UP)' }
+        ],
+        hcName: 'ハイパーチャージ (ゲージ常時MAX＆ゴーストから攻撃)'
+    },
+    mortis: {
+        name: 'モーティス', color: '#2c3e50', type: 'melee',
+        hp: 7600, speed: 3.0, reload: 84, ammo: 3, range: 150, attackWidth: 0.6,
+        superChargeRate: 0.5,
+        gadgets: [
+            { id: 'spinner', name: 'コンボスピナー (周囲攻撃)' },
+            { id: 'batmove', name: 'バットムーブ (無敵移動)' }
+        ],
+        sps: [
+            { id: 'longdash', name: 'ロングダッシュ (射程伸び速度2倍)' },
+            { id: 'vampire', name: 'ヴァンパイア (攻撃ヒットで500回復)' }
+        ],
+        hcName: 'ハイパーチャージ (通常攻撃中無敵)'
+    },
+    kit: {
+        name: 'キット', color: '#f39c12', type: 'melee',
+        hp: 7600, speed: 3.0, reload: 50, ammo: 3, range: 140, attackWidth: 1.047,
+        superChargeRate: 1.0,
+        gadgets: [
+            { id: 'cardboard', name: '段ボール箱 (3秒間透明化する)' },
+            { id: 'fastfood', name: 'ファストフード (自分を1000回復)' }
+        ],
+        sps: [
+            { id: 'fastcharge', name: 'ファストチャージ (時間チャージ速度1.5倍)' },
+            { id: 'speedcat', name: 'スピードキャット (移動速度が1.1倍)' }
+        ],
+        hcName: 'ハイパーチャージ (周囲を1秒気絶、自身は乗らない)'
+    },
+    chester: {
+        name: 'チェスター', color: '#d35400', type: 'shooter',
+        hp: 8000, speed: 2.9, reload: 65, ammo: 3, range: 380, attackWidth: 0.12,
+        superChargeRate: 0.8,
+        gadgets: [
+            { id: 'candy', name: 'キャンディードロップ (ランダム強化バフ3秒)' },
+            { id: 'redraw', name: '引き直し (必殺技をランダムに変更)' }
+        ],
+        sps: [
+            { id: 'firststrike', name: '最初の一撃 (ゲージ0時威力/太さ/弾速UP)' },
+            { id: 'reveal', name: '種明かし (必殺技が事前からわかる)' }
+        ],
+        hcName: 'ハイパーチャージ (通常攻撃ゲージが常時満タン)'
+    }
+};
+
+const selChar = document.getElementById('selChar');
+const selGadget = document.getElementById('selGadget');
+const selSp = document.getElementById('selSp');
+
+function updateSkillOptions() {
+    const c = CHAR_DATA[selChar.value];
+    selGadget.innerHTML = c.gadgets.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+    selSp.innerHTML = c.sps.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+}
+selChar.addEventListener('change', updateSkillOptions);
+updateSkillOptions();
+
+
+/** ==========================================
+ * 基盤システム・ユーティリティ & デルタタイム定義
+ * ========================================== */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let cw, ch;
+function resize() { cw = canvas.width = window.innerWidth; ch = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+function dist(x1,y1,x2,y2) { return Math.hypot(x1-x2, y1-y2); }
+
+function circleRectCollide(cx, cy, r, rx, ry, rw, rh) {
+    let testX = cx, testY = cy;
+    if (cx < rx) testX = rx; else if (cx > rx + rw) testX = rx + rw;
+    if (cy < ry) testY = ry; else if (cy > ry + rh) testY = ry + rh;
+    let dx = cx - testX, dy = cy - testY;
+    return (dx*dx + dy*dy) <= r*r;
+}
+
+function lineRectCollide(x1, y1, x2, y2, rx, ry, rw, rh) {
+    let left = rx, right = rx+rw, top = ry, bottom = ry+rh;
+    let minX = Math.min(x1,x2), maxX = Math.max(x1,x2), minY = Math.min(y1,y2), maxY = Math.max(y1,y2);
+    if(maxX < left || minX > right || maxY < top || minY > bottom) return false;
+    return true; 
+}
+
+function getSafeLandingSpot(startX, startY, angle, jumpDist, characterRadius) {
+    let rawDestX = startX + Math.cos(angle) * jumpDist;
+    let rawDestY = startY + Math.sin(angle) * jumpDist;
+    
+    const margin = 25;
+    rawDestX = Math.max(margin + characterRadius, Math.min(rawDestX, Game.mapW - margin - characterRadius));
+    rawDestY = Math.max(margin + characterRadius, Math.min(rawDestY, Game.mapH - margin - characterRadius));
+    
+    function isLocationSafe(x, y, r) {
+        if (x - r < margin || x + r > Game.mapW - margin) return false;
+        if (y - r < margin || y + r > Game.mapH - margin) return false;
+        for (let w of Game.map) {
+            if (circleRectCollide(x, y, r * 0.8, w.x, w.y, w.w, w.h)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    if (isLocationSafe(rawDestX, rawDestY, characterRadius)) {
+        return { x: rawDestX, y: rawDestY };
+    }
+    
+    let stepAngle = Math.PI / 8;
+    let radiusStep = 10;
+    let maxRadius = 300;
+    
+    for (let searchR = radiusStep; searchR <= maxRadius; searchR += radiusStep) {
+        for (let a = 0; a < Math.PI * 2; a += stepAngle) {
+            let checkX = rawDestX + Math.cos(a) * searchR;
+            let checkY = rawDestY + Math.sin(a) * searchR;
+            if (isLocationSafe(checkX, checkY, characterRadius)) {
+                return { x: checkX, y: checkY };
+            }
+        }
+    }
+    return { x: rawDestX, y: rawDestY };
+}
+
+
+/** ==========================================
+ * 入力管理 (ジョイスティック＆高精度オートエイム)
+ * ========================================== */
+const Input = {
+    leftJoy: { active: false, id: null, ox:0, oy:0, x:0, y:0, nx:0, ny:0, mag:0 },
+    btns: {
+        attack: { type:'normal', id:null, cx:0, cy:0, x:0, y:0, angle:0, mag:0, r:60, color:'#e74c3c', icon:'💥', dragged:false, startTime:0, startX:0, startY:0 },
+        super:  { type:'super',  id:null, cx:0, cy:0, x:0, y:0, angle:0, mag:0, r:45, color:'#f1c40f', icon:'💀', dragged:false, startTime:0, startX:0, startY:0 },
+        gadget: { type:'gadget', id:null, cx:0, cy:0, x:0, y:0, angle:0, mag:0, r:35, color:'#2ecc71', icon:'🔧', dragged:false, startTime:0, startX:0, startY:0 },
+        hc:     { type:'hc',     id:null, cx:0, cy:0, x:0, y:0, angle:0, mag:0, r:40, color:'#9b59b6', icon:'🔥', tapOnly:true, dragged:false, startTime:0, startX:0, startY:0 }
+    },
+    initLayout() {
+        const rx = cw - 150, by = ch - 120;
+        this.btns.attack.cx = rx;       this.btns.attack.cy = by;
+        this.btns.super.cx  = rx - 110; this.btns.super.cy  = by - 20;
+        this.btns.gadget.cx = rx - 50;  this.btns.gadget.cy = by - 120;
+        this.btns.hc.cx     = rx + 70;  this.btns.hc.cy     = by - 100;
+    }
+};
+
+canvas.addEventListener('touchstart', handleTouch, {passive: false});
+canvas.addEventListener('touchmove', handleTouch, {passive: false});
+canvas.addEventListener('touchend', handleTouchEnd, {passive: false});
+canvas.addEventListener('touchcancel', handleTouchEnd, {passive: false});
+
+function handleTouch(e) {
+    e.preventDefault();
+    Input.initLayout();
+    for (let i=0; i<e.touches.length; i++) {
+        const t = e.touches[i];
+        if (t.clientX < cw / 2) {
+            if (!Input.leftJoy.active) {
+                Input.leftJoy.active = true; Input.leftJoy.id = t.identifier;
+                Input.leftJoy.ox = t.clientX; Input.leftJoy.oy = t.clientY;
+            }
+            if (Input.leftJoy.id === t.identifier) {
+                let dx = t.clientX - Input.leftJoy.ox, dy = t.clientY - Input.leftJoy.oy;
+                let distVal = Math.hypot(dx, dy);
+                Input.leftJoy.mag = Math.min(distVal / 60, 1);
+                if (distVal > 0) { Input.leftJoy.nx = dx/distVal; Input.leftJoy.ny = dy/distVal; }
+                Input.leftJoy.x = t.clientX; Input.leftJoy.y = t.clientY;
+            }
+        } 
+        else {
+            let assigned = false;
+            for(let key in Input.btns) {
+                let b = Input.btns[key];
+                if(b.id === t.identifier) {
+                    assigned = true;
+                    b.x = t.clientX; b.y = t.clientY;
+                    b.angle = Math.atan2(b.y - b.cy, b.x - b.cx);
+                    b.mag = Math.min(Math.hypot(b.x - b.cx, b.y - b.cy) / b.r, 1);
+                    
+                    let dragDist = Math.hypot(b.x - b.startX, b.y - b.startY);
+                    if (dragDist > 15 || b.mag > 0.3) {
+                        b.dragged = true;
+                    }
+                    break;
+                }
+            }
+            if(!assigned) {
+                for(let key in Input.btns) {
+                    let b = Input.btns[key];
+                    if(b.id === null && Math.hypot(t.clientX - b.cx, t.clientY - b.cy) < b.r * 1.5) {
+                        b.id = t.identifier; b.x = t.clientX; b.y = t.clientY;
+                        b.angle = Math.atan2(b.y - b.cy, b.x - b.cx);
+                        b.mag = Math.min(Math.hypot(b.x - b.cx, b.y - b.cy) / b.r, 1);
+                        b.dragged = false; 
+                        b.startTime = Date.now();
+                        b.startX = t.clientX;
+                        b.startY = t.clientY;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+function handleTouchEnd(e) {
+    e.preventDefault();
+    let currentIds = Array.from(e.touches).map(t => t.identifier);
+    
+    if (Input.leftJoy.active && !currentIds.includes(Input.leftJoy.id)) {
+        Input.leftJoy.active = false; Input.leftJoy.id = null;
+        Input.leftJoy.nx = Input.leftJoy.ny = Input.leftJoy.mag = 0;
+    }
+    for(let key in Input.btns) {
+        let b = Input.btns[key];
+        if (b.id !== null && !currentIds.includes(b.id)) {
+            if (player && Game.state === 'playing') {
+                if (player.hp > 0) {
+                    if (key === 'hc') {
+                        player.activateHC();
+                    } else {
+                        let pressDuration = Date.now() - b.startTime;
+                        let totalDragDist = Math.hypot(b.x - b.startX, b.y - b.startY);
+
+                        if (!b.dragged || (totalDragDist < 20 && pressDuration < 220) || b.mag < 0.3) {
+                            let target = Game.findClosestEnemy(player, player.data.range * 3.5);
+                            let finalAngle = target ? Math.atan2(target.y - player.y, target.x - player.x) : player.facing;
+                            
+                            if ((player.type === 'primo' || player.type === 'kit' || (player.type === 'chester' && player.chesterSuperType === 'explode')) && b.type === 'super' && target) {
+                                player.autoAimTargetDist = dist(player.x, player.y, target.x, target.y);
+                            } else {
+                                player.autoAimTargetDist = null;
+                            }
+                            player.requestAttack(finalAngle, b.type);
+                        } else {
+                            if (b.mag < 0.35) {
+                                Game.uiEffects.push(new FloatingText(player.x, player.y - 60, "CANCEL", '#ff4d4d', 16));
+                            } else {
+                                player.autoAimTargetDist = null; 
+                                player.requestAttack(b.angle, b.type);
+                            }
+                        }
+                    }
+                }
+            }
+            b.id = null; b.mag = 0; b.dragged = false;
+        }
+    }
+}
+
+
+/** ==========================================
+ * エフェクト・描画クラス
+ * ========================================== */
+class Particle {
+    constructor(x, y, color, size, vx, vy, life) {
+        this.x=x; this.y=y; this.color=color; this.size=size;
+        this.vx=vx; this.vy=vy; this.life=life; this.maxLife=life;
+    }
+    update() { 
+        this.x += this.vx * Game.timeScale; 
+        this.y += this.vy * Game.timeScale; 
+        this.vx *= Math.pow(0.9, Game.timeScale); 
+        this.vy *= Math.pow(0.9, Game.timeScale); 
+        this.life -= Game.timeScale; 
+    }
+    draw(ctx) {
+        if (this.life <= 0) return;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, this.life / this.maxLife));
+        ctx.fillStyle = this.color;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+}
+
+class FloatingText {
+    constructor(x, y, text, color, size=20) {
+        this.x=x; this.y=y; this.text=text; this.color=color; this.size=size;
+        this.life = 40; this.maxLife = 40; this.vy = -1.5;
+    }
+    update() { 
+        this.y += this.vy * Game.timeScale; 
+        this.life -= Game.timeScale; 
+    }
+    draw(ctx) {
+        if (this.life <= 0) return;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, this.life / this.maxLife));
+        ctx.font = `900 ${this.size}px ${getComputedStyle(document.documentElement).getPropertyValue('--font-main')}`;
+        ctx.fillStyle = this.color; ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+        ctx.strokeText(this.text, this.x, this.y); ctx.fillText(this.text, this.x, this.y);
+        ctx.restore();
+    }
+}
+
+
+/** ==========================================
+ * エンティティクラス
+ * ========================================== */
+class Entity {
+    constructor(x, y, r) { this.x=x; this.y=y; this.r=r; this.remove=false; }
+}
+
+class Ghost extends Entity {
+    constructor(x, y, owner) {
+        super(x, y, 20);
+        this.owner = owner;
+        this.life = 10000;
+        this.remove = false;
+        this.team = owner.team;
+    }
+    update() {
+        if (this.owner.hcActive) {
+            this.attackTimer = (this.attackTimer || 0) + Game.timeScale;
+            if (this.attackTimer >= 90) {
+                let target = Game.findClosestEnemy(this, 500);
+                if (target) {
+                    let angle = Math.atan2(target.y - this.y, target.x - this.x);
+                    let b = new Bullet(this.owner, angle, 16, 500, 1800, 10, 'normal');
+                    b.x = this.x; b.y = this.y;
+                    b.isGhostAttack = true; 
+                    Game.bullets.push(b);
+                }
+                this.attackTimer = 0;
+            }
+        }
+
+        Game.entities.forEach(e => {
+            if (e.hp > 0 && e.team === this.team && dist(this.x, this.y, e.x, e.y) < this.r + e.r) {
+                let healAmt = this.owner.sp === 'health' ? 3990 : 3000;
+                e.hp = Math.min(e.maxHp, e.hp + healAmt);
+                Game.uiEffects.push(new FloatingText(e.x, e.y - 45, `+${healAmt}`, '#2ecc71', 16));
+                this.remove = true;
+            }
+        });
+    }
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y + Math.sin(Date.now()*0.005)*5);
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#bdc3c7';
+        ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(-5, -5, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(5, -5, 3, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+}
+
+class AreaEffect extends Entity {
+    constructor(x, y, r, owner, type) {
+        super(x, y, r);
+        this.owner = owner;
+        this.type = type;
+        this.life = type === 'ice_zone' ? 600 : 180; // 氷エリアは10秒間(600フレーム)、その他は3秒(180フレーム)
+    }
+    update() {
+        this.life -= Game.timeScale;
+        if (this.life <= 0) {
+            this.remove = true;
+            return;
+        }
+        
+        let prevSec = Math.floor((this.life + Game.timeScale) / 60);
+        let currSec = Math.floor(this.life / 60);
+        if (currSec < prevSec) {
+            Game.entities.forEach(e => {
+                if (e.hp > 0 && e.team !== this.owner.team && dist(this.x, this.y, e.x, e.y) < this.r + e.r) {
+                    if (this.type === 'ice_zone') {
+                        let dmgMult = this.owner.hcActive ? 1.25 : 1;
+                        if (this.owner.cubes > 0) dmgMult *= (1 + this.owner.cubes * 0.1);
+                        e.takeDamage(500 * dmgMult, this.owner);
+                        e.effects.push({ type: 'slow', time: 60 });
+                    }
+                }
+            });
+        }
+        
+        if (Math.random() < 0.3 * Game.timeScale) {
+            Game.particles.push(new Particle(
+                this.x + (Math.random() - 0.5) * this.r,
+                this.y + (Math.random() - 0.5) * this.r,
+                this.type === 'ice_zone' ? '#74b9ff' : '#00dec5',
+                Math.random() * 5 + 2, 0, -1, 20
+            ));
+        }
+    }
+    draw(ctx) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        if (this.type === 'ice_zone') {
+            ctx.fillStyle = 'rgba(116, 185, 255, 0.2)';
+            ctx.strokeStyle = 'rgba(116, 185, 255, 0.5)';
+        } else {
+            ctx.fillStyle = 'rgba(0, 222, 197, 0.2)';
+            ctx.strokeStyle = 'rgba(0, 222, 197, 0.5)';
+        }
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
+class Character extends Entity {
+    constructor(type, isPlayer, team, x, y) {
+        super(x, y, 22);
+        this.type = type; this.isPlayer = isPlayer; this.team = team;
+        this.data = CHAR_DATA[type];
+        this.hp = this.maxHp = this.data.hp;
+        this.baseSpeed = this.data.speed;
+        this.maxAmmo = this.data.ammo; this.ammo = this.maxAmmo;
+        this.reloadTime = this.data.reload; this.reloadTimer = 0;
+        
+        this.superCharge = 0; this.maxSuperCharge = 100;
+        this.hcCharge = 0; this.maxHcCharge = 250;
+        
+        this.gadgetCooldown = 0; this.hcActive = false; this.hcTimer = 0;
+        
+        this.effects = []; this.fireQueue = [];
+        this.dashTimer = 0; this.dashVx = 0; this.dashVy = 0;
+        this.invincible = false; this.z = 0;
+        this.gems = 0; this.cubes = 0;
+        
+        this.kills = 0; this.deaths = 0;
+        this.facing = 0; this.lastDamagedTimer = 0;
+        this.autoAimTargetDist = null;
+        
+        this.ghostGauge = 0;
+        this.shield = 0;
+        this.longDashGauge = 0;
+
+        // キット固有
+        this.invisibleTimer = 0;
+        this.ridingTarget = null;
+        this.ridingTimer = 0;
+        this.kitStunCooldown = 0;
+
+        // チェスター固有
+        this.chesterGauge = 0;
+        this.chesterSuperTypes = ['explode', 'stun', 'heal', 'poison', 'ice'];
+        this.chesterSuperType = this.chesterSuperTypes[Math.floor(Math.random() * this.chesterSuperTypes.length)];
+        this.candyBuffTimer = 0;
+        this.candyBuffType = '';
+
+        if(isPlayer) {
+            this.gadget = selGadget.value; this.sp = selSp.value;
+            this.name = "YOU";
+        } else {
+            this.gadget = this.data.gadgets[Math.floor(Math.random()*this.data.gadgets.length)].id;
+            this.sp = this.data.sps[Math.floor(Math.random()*this.data.sps.length)].id;
+            this.name = "Bot " + Math.floor(Math.random()*99);
+        }
+        if (this.sp === 'combo' && this.type === 'shelly') this.maxAmmo = 4;
+        if (this.sp === 'speedcat' && this.type === 'kit') this.baseSpeed = CHAR_DATA.kit.speed * 1.1;
+        
+        this.aiState = 'fight'; 
+        this.aiTarget = null;
+        this.moveAng = 0; this.aiTimer = 0;
+        this.stuckTimer = 0; 
+        this.lastX = x; this.lastY = y;
+    }
+    
+    getSpeed() {
+        if (this.ridingTarget) return 0;
+        if (this.effects.some(e => e.type === 'stun')) return 0;
+        let s = this.baseSpeed;
+        if(this.hcActive) s *= 1.25;
+        if(this.effects.some(e=>e.type==='speed')) s *= 1.3;
+        if(this.effects.some(e=>e.type==='slow')) s *= 0.6;
+        if(this.candyBuffTimer > 0 && this.candyBuffType === 'speed') s *= 1.35;
+        return s;
+    }
+    
+    takeDamage(dmg, attacker) {
+        if(this.invincible || this.hp <= 0) return;
+        if(this.hcActive && this.type === 'shelly') dmg *= 0.5; 
+        if(this.cubes > 0) dmg = dmg * (1 - Math.min(this.cubes*0.05, 0.5));
+        
+        if (this.shield && this.shield > 0) {
+            if (this.shield >= dmg) {
+                this.shield -= dmg;
+                dmg = 0;
+            } else {
+                dmg -= this.shield;
+                this.shield = 0;
+            }
+            Game.uiEffects.push(new FloatingText(this.x, this.y - 60, "BLOCKED", '#f1c40f', 14));
+        }
+
+        if (dmg <= 0) return;
+
+        let finalDmg = Math.floor(dmg);
+        this.hp -= finalDmg;
+        this.lastDamagedTimer = 0; 
+        
+        if (this.type === 'kit' && this.invisibleTimer > 0) {
+            this.invisibleTimer = 0;
+            Game.uiEffects.push(new FloatingText(this.x, this.y - 60, "REVEALED", '#ff4757', 15));
+        }
+        
+        if (this.isPlayer && navigator.vibrate) {
+            navigator.vibrate(100);
+        }
+        
+        Game.uiEffects.push(new FloatingText(this.x + (Math.random()-0.5)*20, this.y - 30, finalDmg, '#ff4757'));
+        
+        if(this.hp <= 0) this.die(attacker);
+        else this.chargeSuper(finalDmg * 0.015);
+    }
+    
+    chargeSuper(amt) {
+        let rate = this.data.superChargeRate || 1;
+        this.superCharge = Math.min(this.maxSuperCharge, this.superCharge + amt * rate);
+        this.hcCharge = Math.min(this.maxHcCharge, this.hcCharge + amt * rate * 0.6);
+    }
+    
+    die(attacker) {
+        this.hp = 0;
+        this.deaths++; 
+        
+        if (this.ridingTarget) {
+            this.ridingTarget.effects = this.ridingTarget.effects.filter(e => e.type !== 'stun');
+            this.ridingTarget = null;
+        }
+
+        Game.entities.forEach(e => {
+            if (e.type === 'kit' && e.ridingTarget === this) {
+                e.ridingTarget = null;
+                e.effects = e.effects.filter(eff => eff.type !== 'stun');
+                e.z = 0;
+            }
+        });
+        
+        if (attacker) {
+            attacker.kills++;
+            if (!Game.globalStats[attacker.name]) Game.globalStats[attacker.name] = { kills: 0, deaths: 0, brawler: attacker.data.name, team: attacker.team };
+            Game.globalStats[attacker.name].kills++;
+        }
+        
+        if (!Game.globalStats[this.name]) Game.globalStats[this.name] = { kills: 0, deaths: 0, brawler: this.data.name, team: this.team };
+        Game.globalStats[this.name].deaths++;
+        
+        Game.addLog(attacker ? attacker.name : "System", this.name, this.team);
+        
+        for(let i=0; i<15; i++) Game.particles.push(new Particle(this.x, this.y, this.team===1?'#3498db':'#e74c3c', Math.random()*6+2, (Math.random()-0.5)*10, (Math.random()-0.5)*10, 30));
+        
+        if(Game.mode === 'gemgrab' && this.gems > 0) {
+            for(let i=0; i<this.gems; i++) Game.items.push(new Item(this.x+(Math.random()-0.5)*50, this.y+(Math.random()-0.5)*50, 'gem'));
+            this.gems = 0;
+        } else if (Game.mode === 'showdown') {
+            let dropCount = 1 + Math.floor(this.cubes/2);
+            for(let i=0; i<dropCount; i++) Game.items.push(new Item(this.x+(Math.random()-0.5)*30, this.y+(Math.random()-0.5)*30, 'cube'));
+        }
+        
+        if(Game.mode === 'wipeout' && attacker) {
+            if(attacker.team === 1) Game.score.t1++; else Game.score.t2++;
+        }
+        
+        if(Game.mode === 'knockout' || Game.mode === 'showdown') {
+            this.remove = true;
+        } else {
+            setTimeout(() => {
+                if(Game.state === 'playing' && !this.remove) {
+                    this.hp = this.maxHp;
+                    let sp = Game.getSpawn(this.team);
+                    this.x = sp.x; this.y = sp.y; this.ammo = this.maxAmmo;
+                    this.invincible = true; setTimeout(()=>this.invincible=false, 3000);
+                }
+            }, 3000);
+        }
+    }
+
+    activateHC() {
+        if (this.hcCharge >= this.maxHcCharge) {
+            this.hcCharge = 0; this.hcActive = true; this.hcTimer = 300; 
+            Game.uiEffects.push(new FloatingText(this.x, this.y-50, "HYPER CHARGE!", '#9b59b6', 24));
+        }
+    }
+
+    requestAttack(angle, btnType) {
+        if(this.dashTimer > 0 || this.z > 0) return;
+        if (this.ridingTarget) return;
+        if (this.effects.some(e => e.type === 'stun')) return;
+        
+        this.facing = angle;
+        this.lastDamagedTimer = 0; 
+        
+        if(btnType === 'normal' && this.ammo >= 1) {
+            this.ammo--; this.executeAttack(angle, 'normal');
+        } else if (btnType === 'super' && this.superCharge >= this.maxSuperCharge) {
+            this.superCharge = 0; this.executeAttack(angle, 'super');
+        } else if (btnType === 'gadget' && this.gadgetCooldown <= 0) {
+            this.gadgetCooldown = 600; this.executeAttack(angle, 'gadget');
+        }
+    }
+
+    executeAttack(angle, type) {
+        let dmgMult = this.hcActive ? 1.25 : 1;
+        if(this.cubes > 0) dmgMult *= (1 + this.cubes*0.1); 
+        if(this.candyBuffTimer > 0 && this.candyBuffType === 'dmg_up') dmgMult *= 1.35;
+
+        if (this.type === 'kit' && type !== 'gadget' && this.invisibleTimer > 0) {
+            this.invisibleTimer = 0;
+        }
+        
+        if(this.type === 'shelly') {
+            let rangeMult = 1;
+            if(type === 'normal') {
+                if(this.sp === 'hyper' && this.ammo === this.maxAmmo -1) rangeMult = 1.3;
+                for(let i=0; i<5; i++) {
+                    let a = angle + (i - 2) * 0.12;
+                    Game.bullets.push(new Bullet(this, a, 13, this.data.range*rangeMult, 450*dmgMult, 6, 'normal')); 
+                }
+            } else if (type === 'super') {
+                for(let i=0; i<9; i++) {
+                    let a = angle + (i - 4) * 0.15;
+                    let b = new Bullet(this, a, 15, this.data.range*1.3, 480*dmgMult, 10, 'super'); 
+                    b.knockback = 15; b.wallBreak = true; Game.bullets.push(b);
+                }
+            } else if (type === 'gadget') {
+                if(this.gadget === 'dash') {
+                    this.dashTimer = 15; this.dashVx = Math.cos(angle)*13; this.dashVy = Math.sin(angle)*13; 
+                } else if(this.gadget === 'sharp') {
+                    let b = new Bullet(this, angle, 17, this.data.range*1.5, 600*dmgMult, 5, 'gadget'); 
+                    b.effects.push({type:'slow', time:150}); Game.bullets.push(b);
+                }
+            }
+        }
+        else if (this.type === 'colt') {
+            if(type === 'normal') {
+                let count = this.sp === 'million' ? 8 : 6;
+                let sizeMult = this.sp === 'big' ? 1.5 : 1;
+                for(let i=0; i<count; i++) {
+                    this.fireQueue.push({ delay: i*4, angle: angle+(Math.random()-0.5)*0.06, speed: 15, range: this.data.range, dmg: 280*dmgMult, size: 7*sizeMult, type:'normal', hcColt: this.hcActive }); 
+                }
+            } else if (type === 'super') {
+                for(let i=0; i<12; i++) {
+                    this.fireQueue.push({ delay: i*3, angle: angle+(Math.random()-0.5)*0.08, speed: 17, range: this.data.range*1.2, dmg: 280*dmgMult, size: 12, type:'super', pierce: true, wallBreak: true }); 
+                }
+            } else if (type === 'gadget') {
+                if(this.gadget === 'one') {
+                    Game.bullets.push(new Bullet(this, angle, 22, this.data.range*1.5, 250*6*0.33 * dmgMult, 12, 'gadget')); 
+                } else if (this.gadget === 'slow') {
+                    let b = new Bullet(this, angle, 15, this.data.range, 0, 10, 'gadget'); 
+                    b.pierce = true; b.effects.push({type:'slow', time:180}); Game.bullets.push(b);
+                }
+            }
+        }
+        else if (this.type === 'primo') {
+            if(type === 'normal') {
+                let rMult = this.hcActive ? 1.5 : 1; let sMult = this.hcActive ? 1.5 : 1;
+                for(let i=0; i<4; i++) {
+                    this.fireQueue.push({ delay: i*4, angle: angle, speed: 12, range: this.data.range*rMult, dmg: 550*dmgMult, size: 20*sMult, type:'normal', spSpeed: this.sp==='speed' }); 
+                }
+            } else if (type === 'super') {
+                let maxJumpDist = 400; let jumpDist = maxJumpDist;
+                if (this.isPlayer) {
+                    if (this.autoAimTargetDist !== null && this.autoAimTargetDist !== undefined) {
+                        jumpDist = Math.min(this.autoAimTargetDist, maxJumpDist);
+                        this.autoAimTargetDist = null;
+                    } else {
+                        let btn = Input.btns.super;
+                        jumpDist = btn.mag * maxJumpDist;
+                    }
+                } else {
+                    if (this.aiTarget) {
+                        let d = dist(this.x, this.y, this.aiTarget.x, this.aiTarget.y);
+                        jumpDist = Math.min(d, maxJumpDist);
+                    }
+                }
+                let landingSpot = getSafeLandingSpot(this.x, this.y, angle, jumpDist, this.r);
+                this.targetX = landingSpot.x; this.targetY = landingSpot.y;
+                this.dashTimer = 40; this.invincible = true; this.z = 1;
+            } else if (type === 'gadget') {
+                if(this.gadget === 'lariat') {
+                    this.dashTimer = 15; this.dashVx = Math.cos(angle)*15; this.dashVy = Math.sin(angle)*15; this.lariatDmg = 650 * dmgMult; 
+                } else if (this.gadget === 'catch') {
+                    let b = new Bullet(this, angle, 16, 300, 150, 20, 'gadget'); 
+                    b.pull = true; Game.bullets.push(b);
+                }
+            }
+        }
+        else if (this.type === 'gus') {
+            if (type === 'normal') {
+                let b = new Bullet(this, angle, 16, this.data.range, 2500 * dmgMult, 18, 'normal');
+                b.isGusAttack = true;
+                let maxGauge = this.sp === 'master' ? 1 : 2;
+                if (this.hcActive) this.ghostGauge = maxGauge;
+                if (this.ghostGauge >= maxGauge) {
+                    b.spawnGhost = true;
+                    this.ghostGauge = 0;
+                }
+                Game.bullets.push(b);
+            } else if (type === 'super') {
+                this.shield = 6000;
+                Game.entities.forEach(e => {
+                    if (e !== this && e.hp > 0 && e.team !== this.team && dist(this.x, this.y, e.x, e.y) < 150) {
+                        let ang = Math.atan2(e.y - this.y, e.x - this.x);
+                        e.x += Math.cos(ang) * 80;
+                        e.y += Math.sin(ang) * 80;
+                    }
+                });
+                Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "SHIELD!", '#f1c40f', 20));
+            } else if (type === 'gadget') {
+                if (this.gadget === 'cracker') {
+                    Game.ghosts.forEach(g => {
+                        if (g.owner === this) {
+                            g.remove = true;
+                            Game.entities.forEach(e => {
+                                if (e.team !== this.team && e.hp > 0 && dist(g.x, g.y, e.x, e.y) < e.r + 110) {
+                                    e.takeDamage(2500 * dmgMult, this);
+                                }
+                            });
+                            for(let i=0; i<15; i++) Game.particles.push(new Particle(g.x, g.y, '#f1c40f', 5, (Math.random()-0.5)*10, (Math.random()-0.5)*10, 20));
+                        }
+                    });
+                } else if (this.gadget === 'summoner') {
+                    this.ghostGauge = this.sp === 'master' ? 1 : 2;
+                    Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "GAUGE MAX!", '#2ecc71', 16));
+                }
+            }
+        }
+        else if (this.type === 'mortis') {
+            if (type === 'normal') {
+                let rangeMult = 1 + this.longDashGauge * 2; 
+                this.longDashGauge = 0;
+                let dashDist = 150 * rangeMult;
+                this.dashTimer = dashDist / 15;
+                this.dashVx = Math.cos(angle) * 15;
+                this.dashVy = Math.sin(angle) * 15;
+                this.mortisNormalDmg = 1500 * dmgMult;
+                this.mortisHitTargets = new Set();
+                this.isMortisHCInvincible = this.hcActive;
+            } else if (type === 'super') {
+                let b = new Bullet(this, angle, 16, 600, 2000 * dmgMult, 30, 'super');
+                b.pierce = true;
+                b.isMortisSuper = true;
+                Game.bullets.push(b);
+            } else if (type === 'gadget') {
+                if (this.gadget === 'spinner') {
+                    Game.entities.forEach(e => {
+                        if (e !== this && e.team !== this.team && e.hp > 0 && dist(this.x, this.y, e.x, e.y) < this.r * 4 + e.r) {
+                            e.takeDamage(3000 * dmgMult, this);
+                        }
+                    });
+                    for (let i = 0; i < Math.PI * 2; i += Math.PI / 4) {
+                        Game.particles.push(new Particle(this.x + Math.cos(i)*this.r*2, this.y + Math.sin(i)*this.r*2, '#2c3e50', 8, 0, 0, 15));
+                    }
+                } else if (this.gadget === 'batmove') {
+                    this.dashTimer = 120;
+                    this.dashVx = Math.cos(angle) * 8;
+                    this.dashVy = Math.sin(angle) * 8;
+                    this.invincible = true;
+                    this.isBatMove = true;
+                }
+            }
+        }
+        else if (this.type === 'kit') {
+            if (type === 'normal') {
+                Game.entities.forEach(e => {
+                    if (e !== this && e.team !== this.team && e.hp > 0 && e.z === 0) {
+                        let d = dist(this.x, this.y, e.x, e.y);
+                        if (d < this.data.range + e.r) {
+                            let angToEne = Math.atan2(e.y - this.y, e.x - this.x);
+                            let diff = Math.abs(angToEne - angle);
+                            if (diff > Math.PI) diff = Math.PI * 2 - diff;
+                            if (diff <= this.data.attackWidth) {
+                                e.takeDamage(1800 * dmgMult, this);
+                                this.chargeSuper(34);
+                                for(let k=0; k<6; k++) Game.particles.push(new Particle(e.x, e.y, '#f39c12', 4, (Math.random()-0.5)*8, (Math.random()-0.5)*8, 15));
+                            }
+                        }
+                    }
+                });
+                for (let a = -this.data.attackWidth; a <= this.data.attackWidth; a += 0.2) {
+                    let px = this.x + Math.cos(angle + a) * this.data.range;
+                    let py = this.y + Math.sin(angle + a) * this.data.range;
+                    Game.particles.push(new Particle(px, py, '#f39c12', 6, 0, 0, 10));
+                }
+            } else if (type === 'super') {
+                let maxJumpDist = 420; let jumpDist = maxJumpDist;
+                if (this.isPlayer) {
+                    if (this.autoAimTargetDist !== null && this.autoAimTargetDist !== undefined) {
+                        jumpDist = Math.min(this.autoAimTargetDist, maxJumpDist);
+                        this.autoAimTargetDist = null;
+                    } else {
+                        let btn = Input.btns.super;
+                        jumpDist = btn.mag * maxJumpDist;
+                    }
+                } else {
+                    if (this.aiTarget) {
+                        let d = dist(this.x, this.y, this.aiTarget.x, this.aiTarget.y);
+                        jumpDist = Math.min(d, maxJumpDist);
+                    }
+                }
+                let landingSpot = getSafeLandingSpot(this.x, this.y, angle, jumpDist, this.r);
+                this.targetX = landingSpot.x; this.targetY = landingSpot.y;
+                this.dashTimer = 25;
+                this.invincible = true; this.z = 1;
+            } else if (type === 'gadget') {
+                if (this.gadget === 'cardboard') {
+                    this.invisibleTimer = 180;
+                    Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "INVISIBLE", '#fff', 18));
+                } else if (this.gadget === 'fastfood') {
+                    this.hp = Math.min(this.maxHp, this.hp + 1000);
+                    Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "+1000", '#2ecc71', 18));
+                }
+            }
+        }
+        else if (this.type === 'chester') {
+            if (type === 'normal') {
+                let activeGauge = this.hcActive ? 3 : this.chesterGauge;
+                let numBullets = activeGauge + 1;
+
+                let baseDmg = 1000;
+                let baseSize = 8;
+                let baseSpeed = 15;
+
+                let isFirstStrike = (activeGauge === 0 && this.sp === 'firststrike');
+                if (isFirstStrike) {
+                    baseDmg = 1500;
+                    baseSize = 14;
+                    baseSpeed = 20;
+                }
+
+                let spread = 0.08;
+                for (let i = 0; i < numBullets; i++) {
+                    let a = angle;
+                    if (numBullets > 1) {
+                        a = angle + (i - (numBullets - 1) / 2) * spread;
+                    }
+                    let b = new Bullet(this, a, baseSpeed, this.data.range, baseDmg * dmgMult, baseSize, 'normal');
+                    Game.bullets.push(b);
+                }
+
+                if (!this.hcActive) {
+                    this.chesterGauge = (this.chesterGauge + 1) % 4;
+                }
+            } else if (type === 'super') {
+                let currentSuper = this.chesterSuperType;
+
+                if (currentSuper === 'explode') {
+                    let maxJumpDist = 450; let jumpDist = maxJumpDist;
+                    if (this.isPlayer) {
+                        if (this.autoAimTargetDist !== null && this.autoAimTargetDist !== undefined) {
+                            jumpDist = Math.min(this.autoAimTargetDist, maxJumpDist);
+                            this.autoAimTargetDist = null;
+                        } else {
+                            let btn = Input.btns.super;
+                            jumpDist = btn.mag * maxJumpDist;
+                        }
+                    } else {
+                        if (this.aiTarget) {
+                            let d = dist(this.x, this.y, this.aiTarget.x, this.aiTarget.y);
+                            jumpDist = Math.min(d, maxJumpDist);
+                        }
+                    }
+                    let bombX = this.x + Math.cos(angle) * jumpDist;
+                    let bombY = this.y + Math.sin(angle) * jumpDist;
+                    
+                    Game.entities.forEach(e => {
+                        if (e.hp > 0 && e.team !== this.team && dist(bombX, bombY, e.x, e.y) < 140) {
+                            e.takeDamage(2200 * dmgMult, this);
+                        }
+                    });
+                    for(let i=Game.map.length-1; i>=0; i--) {
+                        let w = Game.map[i];
+                        if (circleRectCollide(bombX, bombY, 120, w.x, w.y, w.w, w.h)) {
+                            Game.map.splice(i, 1);
+                        }
+                    }
+                    for(let i=0; i<15; i++) Game.particles.push(new Particle(bombX, bombY, '#d35400', Math.random()*8+4, (Math.random()-0.5)*12, (Math.random()-0.5)*12, 20));
+                    Game.uiEffects.push(new FloatingText(bombX, bombY, "BOOM!", '#d35400', 20));
+
+                } else if (currentSuper === 'stun') {
+                    let b = new Bullet(this, angle, 18, 500, 1600 * dmgMult, 18, 'super');
+                    b.effects.push({ type: 'stun', time: 60 });
+                    Game.bullets.push(b);
+
+                } else if (currentSuper === 'heal') {
+                    let healAmt = 3000 * (this.cubes > 0 ? (1 + this.cubes*0.1) : 1);
+                    this.hp = Math.min(this.maxHp, this.hp + healAmt);
+                    Game.uiEffects.push(new FloatingText(this.x, this.y - 50, `+${Math.floor(healAmt)}`, '#2ecc71', 22));
+
+                } else if (currentSuper === 'poison') {
+                    for (let i = -1; i <= 1; i++) {
+                        let b = new Bullet(this, angle + i * 0.2, 12, 350, 400 * dmgMult, 16, 'super');
+                        b.pierce = true;
+                        b.effects.push({ type: 'poison', time: 90 });
+                        Game.bullets.push(b);
+                    }
+
+                } else if (currentSuper === 'ice') {
+                    // 氷エリアの設置
+                    Game.items.push(new AreaEffect(this.x, this.y, 130, this, 'ice_zone'));
+                    Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "ICE ZONE!", '#74b9ff', 20));
+                }
+
+                this.chesterSuperType = this.chesterSuperTypes[Math.floor(Math.random() * this.chesterSuperTypes.length)];
+            } else if (type === 'gadget') {
+                if (this.gadget === 'candy') {
+                    let r = Math.random();
+                    if (r < 0.33) {
+                        this.candyBuffType = 'speed';
+                        Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "SPEED UP!", '#f1c40f', 18));
+                    } else if (r < 0.66) {
+                        this.candyBuffType = 'dmg_up';
+                        Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "POWER UP!", '#ff4757', 18));
+                    } else {
+                        this.candyBuffType = 'heal_regen';
+                        Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "REGEN!", '#2ecc71', 18));
+                    }
+                    this.candyBuffTimer = 180;
+                } else if (this.gadget === 'redraw') {
+                    this.chesterSuperType = this.chesterSuperTypes[Math.floor(Math.random() * this.chesterSuperTypes.length)];
+                    Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "REDRAW!", '#9b59b6', 18));
+                }
+            }
+        }
+    }
+
+    update() {
+        if(this.hp <= 0) return;
+
+        if (this.candyBuffTimer > 0) {
+            this.candyBuffTimer -= Game.timeScale;
+            if (this.candyBuffType === 'heal_regen') {
+                let prevSec = Math.floor((this.candyBuffTimer + Game.timeScale) / 60);
+                let currSec = Math.floor(this.candyBuffTimer / 60);
+                if (currSec < prevSec) {
+                    this.hp = Math.min(this.maxHp, this.hp + 500);
+                    Game.uiEffects.push(new FloatingText(this.x, this.y - 45, "+500", '#2ecc71', 14));
+                }
+            }
+            if (this.candyBuffTimer <= 0) this.candyBuffType = '';
+        }
+
+        if (this.effects.some(e => e.type === 'stun')) {
+            if (Math.random() < 0.25 * Game.timeScale) {
+                Game.particles.push(new Particle(this.x, this.y - 20, '#f1c40f', 4, (Math.random()-0.5)*4, (Math.random()-0.5)*4, 10));
+            }
+        }
+
+        this.effects.forEach(e => {
+            if (e.type === 'poison') {
+                let prevSec = Math.floor((e.time + Game.timeScale) / 30);
+                let currSec = Math.floor(e.time / 30);
+                if (currSec < prevSec) {
+                    this.takeDamage(400, null);
+                }
+                if (Math.random() < 0.25 * Game.timeScale) {
+                    Game.particles.push(new Particle(this.x, this.y - 15, '#2ecc71', 3, 0, -1.5, 12));
+                }
+            }
+        });
+
+        if (this.type === 'kit') {
+            if (this.kitStunCooldown > 0) this.kitStunCooldown -= Game.timeScale;
+            
+            if (this.superCharge < this.maxSuperCharge) {
+                let fillRate = this.sp === 'fastcharge' ? 0.25 : 0.167;
+                this.chargeSuper(fillRate * Game.timeScale);
+            }
+
+            if (this.ridingTarget) {
+                if (this.ridingTarget.hp <= 0 || this.ridingTarget.remove) {
+                    this.ridingTarget = null;
+                    this.effects = this.effects.filter(eff => eff.type !== 'stun');
+                    this.z = 0;
+                } else {
+                    this.ridingTimer -= Game.timeScale;
+                    this.x = this.ridingTarget.x;
+                    this.y = this.ridingTarget.y;
+                    this.z = 32;
+
+                    if (!this.ridingTarget.effects.some(eff => eff.type === 'stun')) {
+                        this.ridingTarget.effects.push({ type: 'stun', time: 10 });
+                    }
+
+                    let prevTick = Math.floor((this.ridingTimer + Game.timeScale) / 15);
+                    let currTick = Math.floor(this.ridingTimer / 15);
+                    if (currTick < prevTick) {
+                        let dmgMult = this.hcActive ? 1.25 : 1;
+                        if (this.cubes > 0) dmgMult *= (1 + this.cubes * 0.1);
+                        this.ridingTarget.takeDamage(350 * dmgMult, this);
+                    }
+
+                    if (this.ridingTimer <= 0) {
+                        let enemy = this.ridingTarget;
+                        this.ridingTarget = null;
+                        this.effects = this.effects.filter(eff => eff.type !== 'stun');
+                        this.z = 0;
+                        this.kitStunCooldown = 120;
+
+                        enemy.effects = enemy.effects.filter(eff => eff.type !== 'stun');
+                        enemy.effects.push({ type: 'stun', time: 30 });
+
+                        this.x += (Math.random() - 0.5) * 50;
+                        this.y += (Math.random() - 0.5) * 50;
+                    }
+                }
+            }
+        }
+
+        if (this.invisibleTimer > 0) {
+            this.invisibleTimer -= Game.timeScale;
+        }
+
+        this.lastDamagedTimer += Game.timeScale;
+        if(this.lastDamagedTimer > 240 && this.hp < this.maxHp) { 
+            let prevSeconds = Math.floor((this.lastDamagedTimer - Game.timeScale) / 60);
+            let currSeconds = Math.floor(this.lastDamagedTimer / 60);
+            if(currSeconds > prevSeconds) {
+                let healAmt = Math.floor(this.maxHp * 0.1);
+                this.hp = Math.min(this.maxHp, this.hp + healAmt);
+                Game.uiEffects.push(new FloatingText(this.x, this.y - 45, `+${healAmt}`, '#2ecc71', 15));
+            }
+        }
+
+        if (this.shield > 0) {
+            this.shield -= (600 / 60) * Game.timeScale;
+            if (this.shield < 0) this.shield = 0;
+        }
+
+        if (this.type === 'mortis') {
+            if (this.ammo >= this.maxAmmo) {
+                let chargeTime = this.sp === 'longdash' ? 90 : 180;
+                this.longDashGauge = Math.min(1, this.longDashGauge + Game.timeScale / chargeTime);
+            } else {
+                this.longDashGauge = 0;
+            }
+        }
+
+        for(let i=this.effects.length-1; i>=0; i--) {
+            this.effects[i].time -= Game.timeScale;
+            if(this.effects[i].time <= 0) this.effects.splice(i, 1);
+        }
+        if(this.gadgetCooldown > 0) this.gadgetCooldown = Math.max(0, this.gadgetCooldown - Game.timeScale);
+        if(this.hcTimer > 0) { 
+            this.hcTimer = Math.max(0, this.hcTimer - Game.timeScale); 
+            if(this.hcTimer <= 0) this.hcActive = false; 
+        }
+
+        let curReload = this.reloadTime;
+        if(this.type === 'shelly' && this.hcActive) curReload /= 3;
+        
+        let stunActive = this.effects.some(e => e.type === 'stun');
+        let shouldReload = true;
+        if (stunActive && !this.ridingTarget) {
+            shouldReload = false;
+        }
+
+        if(shouldReload && this.ammo < this.maxAmmo) {
+            this.reloadTimer += Game.timeScale;
+            if(this.reloadTimer >= curReload) { this.ammo++; this.reloadTimer = 0; }
+        } else { this.reloadTimer = 0; }
+
+        for(let i=this.fireQueue.length-1; i>=0; i--) {
+            let f = this.fireQueue[i];
+            f.delay -= Game.timeScale;
+            if(f.delay <= 0) {
+                let b = new Bullet(this, f.angle, f.speed, f.range, f.dmg, f.size, f.type);
+                if(f.pierce) b.pierce = true; if(f.wallBreak) b.wallBreak = true;
+                if(f.spSpeed) b.onHit = () => { this.effects.push({type:'speed', time:180}); };
+                if(f.hcColt) b.hcColt = true;
+                Game.bullets.push(b); this.fireQueue.splice(i, 1);
+            }
+        }
+
+        let dx=0, dy=0;
+        if(this.dashTimer > 0) {
+            this.dashTimer = Math.max(0, this.dashTimer - Game.timeScale);
+            if(this.z > 0) { 
+                this.x += ((this.targetX - this.x) / (this.dashTimer+1)) * Game.timeScale;
+                this.y += ((this.targetY - this.y) / (this.dashTimer+1)) * Game.timeScale;
+                
+                let totalJumpF = this.type === 'kit' ? 25 : 40;
+                this.z = Math.sin((1 - this.dashTimer/totalJumpF) * Math.PI) * 120; 
+                
+                if(this.dashTimer <= 0) {
+                    this.z = 0; this.invincible = false;
+                    
+                    if (this.type === 'kit') {
+                        if (this.hcActive) {
+                            Game.entities.forEach(e => {
+                                if (e !== this && e.hp > 0 && e.team !== this.team && dist(this.x, this.y, e.x, e.y) < 140) {
+                                    e.takeDamage(1800 * 1.25, this);
+                                    e.effects.push({ type: 'stun', time: 60 });
+                                }
+                            });
+                            for(let i=0; i<15; i++) Game.particles.push(new Particle(this.x, this.y, '#9b59b6', Math.random()*8+4, (Math.random()-0.5)*15, (Math.random()-0.5)*15, 20));
+                        } else {
+                            let target = Game.findClosestEnemy(this, 120);
+                            if (target && this.kitStunCooldown <= 0) {
+                                target.takeDamage(1800, this);
+                                this.ridingTarget = target;
+                                this.ridingTimer = 90;
+                                
+                                this.effects.push({ type: 'stun', time: 90 });
+                                target.effects.push({ type: 'stun', time: 90 });
+                                Game.uiEffects.push(new FloatingText(target.x, target.y - 60, "CLING!", '#f1c40f', 22));
+                            } else {
+                                for(let i=0; i<10; i++) Game.particles.push(new Particle(this.x, this.y, '#95a5a6', Math.random()*6+2, (Math.random()-0.5)*10, (Math.random()-0.5)*10, 15));
+                            }
+                        }
+                    } else {
+                        let r = this.sp === 'shock' ? 140 : 100;
+                        Game.entities.forEach(e => {
+                            if(e !== this && e.hp > 0 && e.team !== this.team && dist(this.x, this.y, e.x, e.y) < r) {
+                                e.takeDamage(1000 * (this.hcActive?1.25:1), this); 
+                                if (this.type !== 'primo') {
+                                    let kbDist = 60; 
+                                    let ang = Math.atan2(e.y - this.y, e.x - this.x);
+                                    let subStep = 2;
+                                    for (let s = 0; s < kbDist; s += subStep) {
+                                        let nextX = e.x + Math.cos(ang) * subStep;
+                                        let nextY = e.y + Math.sin(ang) * subStep;
+                                        let colX = false, colY = false;
+                                        for (let w of Game.map) {
+                                            if (circleRectCollide(nextX, e.y, e.r, w.x, w.y, w.w, w.h)) colX = true;
+                                            if (circleRectCollide(e.x, nextY, e.r, w.x, w.y, w.w, w.h)) colY = true;
+                                        }
+                                        const margin = 25;
+                                        if(nextX - e.r < margin || nextX + e.r > Game.mapW - margin) colX = true;
+                                        if(nextY - e.r < margin || nextY + e.r > Game.mapH - margin) colY = true;
+                                        if (!colX) e.x = nextX;
+                                        if (!colY) e.y = nextY;
+                                        if (colX && colY) break;
+                                    }
+                                }
+                            }
+                        });
+                        for(let i=0; i<20; i++) Game.particles.push(new Particle(this.x, this.y, '#95a5a6', Math.random()*8+4, (Math.random()-0.5)*15, (Math.random()-0.5)*15, 20));
+                    }
+                }
+            } else { 
+                dx = this.dashVx * Game.timeScale; dy = this.dashVy * Game.timeScale;
+                if(this.gadget === 'lariat' && this.lariatDmg) {
+                    Game.entities.forEach(e => {
+                        if(e !== this && e.hp > 0 && e.team !== this.team && dist(this.x, this.y, e.x, e.y) < this.r + e.r) {
+                            e.takeDamage(this.lariatDmg, this); this.lariatDmg = 0;
+                        }
+                    });
+                }
+                
+                if (this.type === 'mortis' && this.mortisNormalDmg) {
+                    if (this.isMortisHCInvincible) this.invincible = true;
+                    Game.entities.forEach(e => {
+                        if (e !== this && e.team !== this.team && e.hp > 0 && !this.mortisHitTargets.has(e)) {
+                            if (dist(this.x, this.y, e.x, e.y) < this.r + e.r + 30) {
+                                e.takeDamage(this.mortisNormalDmg, this);
+                                this.mortisHitTargets.add(e);
+                                if (this.sp === 'vampire') {
+                                    this.hp = Math.min(this.maxHp, this.hp + 500);
+                                    Game.uiEffects.push(new FloatingText(this.x, this.y - 45, "+500", '#2ecc71', 15));
+                                }
+                                this.chargeSuper(this.mortisNormalDmg * 0.05);
+                            }
+                        }
+                    });
+                }
+
+                if(this.dashTimer <= 0) {
+                    if (this.type === 'mortis') {
+                        this.mortisNormalDmg = 0;
+                        if (this.isMortisHCInvincible || this.isBatMove) {
+                            this.invincible = false;
+                        }
+                        this.isBatMove = false;
+                    }
+                }
+            }
+        } else {
+            if(this.isPlayer) {
+                if(Input.leftJoy.active) {
+                    let speed = this.getSpeed() * Input.leftJoy.mag;
+                    dx = Input.leftJoy.nx * speed * Game.timeScale; dy = Input.leftJoy.ny * speed * Game.timeScale;
+                    if(Input.leftJoy.mag > 0.1) this.facing = Math.atan2(dy, dx);
+                }
+            } else {
+                this.updateBotAI();
+                if(this.aiMoving) {
+                    let speed = this.getSpeed();
+                    dx = Math.cos(this.moveAng) * speed * Game.timeScale; dy = Math.sin(this.moveAng) * speed * Game.timeScale;
+                    this.facing = this.moveAng;
+                }
+            }
+        }
+
+        if(this.z === 0) {
+            let newX = this.x + dx, newY = this.y + dy;
+            let colX = false, colY = false;
+            
+            for(let w of Game.map) {
+                if(circleRectCollide(newX, this.y, this.r, w.x, w.y, w.w, w.h)) colX = true;
+                if(circleRectCollide(this.x, newY, this.r, w.x, w.y, w.w, w.h)) colY = true;
+            }
+
+            const margin = 25;
+            if(newX - this.r < margin || newX + this.r > Game.mapW - margin) colX = true;
+            if(newY - this.r < margin || newY + this.r > Game.mapH - margin) colY = true;
+
+            if(!colX) this.x = newX; 
+            if(!colY) this.y = newY;
+            
+            this.x = Math.max(margin + this.r, Math.min(this.x, Game.mapW - margin - this.r));
+            this.y = Math.max(margin + this.r, Math.min(this.y, Game.mapH - margin - this.r));
+
+            if((dx!==0 || dy!==0) && Math.random()<0.2 * Game.timeScale) Game.particles.push(new Particle(this.x, this.y+10, '#ecf0f1', 3, 0, 0, 15));
+        }
+
+        for(let i=Game.items.length-1; i>=0; i--) {
+            let it = Game.items[i];
+            if(dist(this.x, this.y, it.x, it.y) < this.r + it.r) {
+                if(it.type === 'gem') { this.gems++; Game.items.splice(i, 1); }
+                else if(it.type === 'cube') {
+                    this.cubes++; this.maxHp += 400; this.hp += 400; Game.items.splice(i, 1);
+                    Game.uiEffects.push(new FloatingText(this.x, this.y-30, "+Power", '#2ecc71', 16));
+                }
+            }
+        }
+    }
+
+    /**
+     * 高性能ボットAIルーチン (弾よけ・状況判断強化)
+     */
+    updateBotAI() {
+        this.aiTimer -= Game.timeScale;
+        
+        if(dist(this.x, this.y, this.lastX, this.lastY) < 0.2 && this.aiMoving) {
+            this.stuckTimer += Game.timeScale;
+        } else {
+            this.stuckTimer = 0;
+        }
+        this.lastX = this.x; this.lastY = this.y;
+
+        // -------------------------------------------------------------
+        // 1. 周辺状況の解析 (敵、アイテム、毒ガス、迫り来る弾)
+        // -------------------------------------------------------------
+        let closestEnemy = null;
+        let minDistEnemy = Infinity;
+        Game.entities.forEach(e => {
+            if (e !== this && e.hp > 0 && e.team !== this.team) {
+                if (e.type === 'kit' && e.invisibleTimer > 0) return;
+                
+                let d = dist(this.x, this.y, e.x, e.y);
+                if (d < minDistEnemy) {
+                    minDistEnemy = d;
+                    closestEnemy = e;
+                }
+            }
+        });
+
+        let closestItem = null;
+        let minDistItem = Infinity;
+        
+        if(Game.mode === 'gemgrab' || Game.mode === 'showdown') {
+            Game.items.forEach(it => {
+                let d = dist(this.x, this.y, it.x, it.y);
+                if(d < minDistItem) { minDistItem = d; closestItem = it; }
+            });
+        }
+
+        let distToEne = closestEnemy ? dist(this.x, this.y, closestEnemy.x, closestEnemy.y) : Infinity;
+        let distToCenter = dist(this.x, this.y, Game.mapW / 2, Game.mapH / 2);
+        let nearPoison = (Game.mode === 'showdown' && distToCenter > Game.poisonRadius - 220);
+
+        // -------------------------------------------------------------
+        // 2. 基本ステートの決定 (HP割合に基づくフェーズ移行)
+        // -------------------------------------------------------------
+        if (nearPoison) {
+            this.aiState = 'escape_poison';
+        } else if(this.hp < this.maxHp * 0.45) {
+            this.aiState = 'heal';
+        } else if(this.hp >= this.maxHp * 0.85) {
+            this.aiState = 'fight'; 
+        }
+
+        // -------------------------------------------------------------
+        // 3. 回避対象となる「危険な弾」の選別＆回避ベクトル算出
+        // -------------------------------------------------------------
+        let dodgeDx = 0;
+        let dodgeDy = 0;
+        let incomingBulletCount = 0;
+
+        Game.bullets.forEach(b => {
+            if (b.owner && b.owner.team !== this.team) {
+                let dToBullet = dist(this.x, this.y, b.x, b.y);
+                if (dToBullet < 300) {
+                    let bVelMag = Math.hypot(b.vx, b.vy);
+                    if (bVelMag > 0) {
+                        let bDirX = b.vx / bVelMag;
+                        let bDirY = b.vy / bVelMag;
+                        let relX = this.x - b.x;
+                        let relY = this.y - b.y;
+                        let dot = relX * bDirX + relY * bDirY;
+                        
+                        if (dot > 0) {
+                            let projX = b.x + bDirX * dot;
+                            let projY = b.y + bDirY * dot;
+                            let minDistanceToTrajectory = dist(this.x, this.y, projX, projY);
+                            
+                            if (minDistanceToTrajectory < (this.r + b.r + 35)) {
+                                let perpX1 = -bDirY;
+                                let perpY1 = bDirX;
+                                let perpX2 = bDirY;
+                                let perpY2 = -bDirX;
+                                let dot1 = (this.x - projX) * perpX1 + (this.y - projY) * perpY1;
+                                let usePerpX = dot1 >= 0 ? perpX1 : perpX2;
+                                let usePerpY = dot1 >= 0 ? perpY1 : perpY2;
+                                
+                                dodgeDx += usePerpX;
+                                dodgeDy += usePerpY;
+                                incomingBulletCount++;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        let needToDodge = false;
+        let dodgeAng = 0;
+        if (incomingBulletCount > 0) {
+            let len = Math.hypot(dodgeDx, dodgeDy);
+            if (len > 0) {
+                dodgeAng = Math.atan2(dodgeDy, dodgeDx);
+                needToDodge = true;
+            }
+        }
+
+        // -------------------------------------------------------------
+        // 4. 移動意志の決定 (AIのタイマー間隔、または弾よけ割込み)
+        // -------------------------------------------------------------
+        let targetAng = 0;
+        let hasTarget = false;
+
+        if(this.stuckTimer > 15) {
+            this.moveAng = this.facing + Math.PI/2 + (Math.random()-0.5);
+            this.aiMoving = true;
+            this.aiTimer = 30; 
+            this.stuckTimer = 0;
+            return;
+        }
+
+        if (needToDodge) {
+            targetAng = dodgeAng;
+            hasTarget = true;
+            this.aiTimer = 5; 
+        } 
+        else if (this.aiTimer <= 0) {
+            this.aiTimer = 10; 
+
+            if (this.aiState === 'escape_poison') {
+                targetAng = Math.atan2(Game.mapH/2 - this.y, Game.mapW/2 - this.x);
+                hasTarget = true;
+            } 
+            else if (this.aiState === 'heal') {
+                let canDashEscape = false;
+                let escapeAngle = 0;
+
+                if (closestEnemy) {
+                    escapeAngle = Math.atan2(this.y - closestEnemy.y, this.x - closestEnemy.x);
+                } else {
+                    escapeAngle = Math.atan2(Game.mapH/2 - this.y, Game.mapW/2 - this.x);
+                }
+
+                if (closestEnemy && distToEne < 320) {
+                    if (this.type === 'mortis' && this.ammo >= 1) {
+                        this.requestAttack(escapeAngle, 'normal');
+                        canDashEscape = true;
+                    }
+                    else if (this.gadgetCooldown <= 0) {
+                        if (this.type === 'shelly' && this.gadget === 'dash') {
+                            this.requestAttack(escapeAngle, 'gadget');
+                            canDashEscape = true;
+                        } else if (this.type === 'primo' && this.gadget === 'lariat') {
+                            this.requestAttack(escapeAngle, 'gadget');
+                            canDashEscape = true;
+                        }
+                    }
+                }
+
+                if (!canDashEscape) {
+                    targetAng = escapeAngle;
+                    hasTarget = true;
+                }
+            } 
+            else {
+                if(closestItem && (minDistItem < 300 || !closestEnemy)) {
+                    targetAng = Math.atan2(closestItem.y - this.y, closestItem.x - this.x);
+                    hasTarget = true;
+                } else if (closestEnemy) {
+                    let idealDist = 330;
+                    if (this.type === 'primo' || this.type === 'mortis' || this.type === 'kit') {
+                        idealDist = 60;
+                    } else if (this.type === 'shelly') {
+                        idealDist = 180;
+                    }
+                    
+                    let angToEne = Math.atan2(closestEnemy.y - this.y, closestEnemy.x - this.x);
+                    
+                    if(distToEne > idealDist + 40) {
+                        targetAng = angToEne; 
+                    } else if(distToEne < idealDist - 40 && this.type !== 'primo' && this.type !== 'mortis' && this.type !== 'kit') {
+                        targetAng = angToEne + Math.PI; 
+                    } else {
+                        targetAng = angToEne + (this.stuckTimer > 0 ? Math.PI/2 : (Math.random() > 0.5 ? Math.PI/2 : -Math.PI/2)); 
+                    }
+                    hasTarget = true;
+                }
+            }
+
+            if (hasTarget) {
+                let lookAheadX = this.x + Math.cos(targetAng) * 60;
+                let lookAheadY = this.y + Math.sin(targetAng) * 60;
+                for (let w of Game.map) {
+                    if (circleRectCollide(lookAheadX, lookAheadY, this.r + 5, w.x, w.y, w.w, w.h)) {
+                        targetAng += (this.x < w.x + w.w/2) ? -Math.PI/3 : Math.PI/3;
+                        break;
+                    }
+                }
+                this.moveAng = targetAng;
+                this.aiMoving = true;
+            } else {
+                this.moveAng = Math.atan2(Game.mapH/2 - this.y, Game.mapW/2 - this.x);
+                this.aiMoving = true;
+            }
+        }
+
+        if (needToDodge) {
+            this.moveAng = dodgeAng;
+            this.aiMoving = true;
+        }
+
+        // -------------------------------------------------------------
+        // 5. 攻撃の意志・戦闘ロジック
+        // -------------------------------------------------------------
+        if(closestEnemy && distToEne <= this.data.range * 1.15) {
+            let angToEne = Math.atan2(closestEnemy.y - this.y, closestEnemy.x - this.x);
+            let wallInWay = false;
+            for(let w of Game.map) {
+                if(lineRectCollide(this.x, this.y, closestEnemy.x, closestEnemy.y, w.x, w.y, w.w, w.h)) {
+                    wallInWay = true; break;
+                }
+            }
+
+            let shouldAttack = false;
+
+            if (this.aiState === 'heal') {
+                let extremelyCloseAndDying = (distToEne < 220 && this.hp < this.maxHp * 0.2);
+                let counterAttackChance = (this.ammo >= this.maxAmmo && closestEnemy.hp < this.maxHp * 0.3);
+
+                if (extremelyCloseAndDying || counterAttackChance) {
+                    shouldAttack = true;
+                    if (this.superCharge >= this.maxSuperCharge && !wallInWay) {
+                        this.requestAttack(angToEne, 'super');
+                    }
+                }
+            } else {
+                if (!wallInWay || this.type === 'primo' || this.type === 'mortis' || this.type === 'kit' || this.superCharge >= this.maxSuperCharge) {
+                    shouldAttack = true;
+                }
+            }
+
+            if(shouldAttack && this.ammo >= 1) {
+                this.facing = angToEne;
+
+                if(this.hcCharge >= this.maxHcCharge && distToEne < this.data.range * 0.9) {
+                    this.activateHC();
+                }
+                else if(this.superCharge >= this.maxSuperCharge) {
+                    if(this.type === 'primo' && distToEne < 380) {
+                        this.requestAttack(angToEne, 'super');
+                    } else if (this.type === 'gus' && this.hp < this.maxHp * 0.5) { 
+                        this.requestAttack(angToEne, 'super');
+                    } else if (this.type === 'mortis' && distToEne < 600) {
+                        this.requestAttack(angToEne, 'super');
+                    } else if (this.type === 'kit' && distToEne < 380) {
+                        this.requestAttack(angToEne, 'super');
+                    } else if (this.type === 'chester') {
+                        if (this.chesterSuperType === 'heal') {
+                            if (this.hp < this.maxHp * 0.7) this.requestAttack(angToEne, 'super');
+                        } else if (this.chesterSuperType === 'ice') {
+                            if (distToEne < 130) this.requestAttack(angToEne, 'super');
+                        } else {
+                            this.requestAttack(angToEne, 'super');
+                        }
+                    } else if(distToEne < this.data.range && this.type !== 'gus' && this.type !== 'mortis') {
+                        this.requestAttack(angToEne, 'super');
+                    }
+                } 
+                else if(this.gadgetCooldown <= 0 && Math.random() < 0.25) {
+                    if(this.type === 'shelly') {
+                        if(this.gadget === 'dash' && distToEne < 160) this.requestAttack(angToEne, 'gadget'); 
+                        else if(this.gadget === 'sharp' && distToEne > 220) this.requestAttack(angToEne, 'gadget'); 
+                    } else if(this.type === 'colt') {
+                        if(this.gadget === 'one' && !wallInWay) this.requestAttack(angToEne, 'gadget'); 
+                        else if(this.gadget === 'slow' && wallInWay) this.requestAttack(angToEne, 'gadget'); 
+                    } else if(this.type === 'primo') {
+                        if(this.gadget === 'lariat' && distToEne > 100 && distToEne < 220) this.requestAttack(angToEne, 'gadget'); 
+                        else if(this.gadget === 'catch' && distToEne > 150) this.requestAttack(angToEne, 'gadget'); 
+                    } else if (this.type === 'gus') {
+                        if (this.gadget === 'cracker' && Game.ghosts.some(g => g.owner===this && dist(g.x,g.y,closestEnemy.x,closestEnemy.y)<110)) {
+                            this.requestAttack(angToEne, 'gadget');
+                        } else if (this.gadget === 'summoner' && this.ghostGauge === 0) {
+                            this.requestAttack(angToEne, 'gadget');
+                        }
+                    } else if (this.type === 'mortis') {
+                        if (this.gadget === 'spinner' && distToEne < this.r*2) {
+                            this.requestAttack(angToEne, 'gadget');
+                        } else if (this.gadget === 'batmove' && this.hp < this.maxHp * 0.3) {
+                            this.requestAttack(angToEne + Math.PI, 'gadget');
+                        }
+                    } else if (this.type === 'kit') {
+                        if (this.gadget === 'cardboard' && distToEne > 250) {
+                            this.requestAttack(angToEne, 'gadget');
+                        } else if (this.gadget === 'fastfood' && this.hp < this.maxHp * 0.6) {
+                            this.requestAttack(angToEne, 'gadget');
+                        }
+                    } else if (this.type === 'chester') {
+                        if (this.gadget === 'candy') {
+                            this.requestAttack(angToEne, 'gadget');
+                        } else if (this.gadget === 'redraw') {
+                            if (this.chesterSuperType === 'heal' && this.hp > this.maxHp * 0.8) {
+                                this.requestAttack(angToEne, 'gadget');
+                            } else if (this.chesterSuperType === 'ice' && distToEne > 250) {
+                                this.requestAttack(angToEne, 'gadget');
+                            }
+                        }
+                    }
+                }
+                else if(Math.random() < 0.7) {
+                    this.requestAttack(angToEne, 'normal');
+                }
+            }
+        }
+    }
+
+    draw(ctx) {
+        if(this.hp <= 0 && this.z === 0) return;
+        
+        ctx.save(); ctx.translate(this.x, this.y - this.z);
+        
+        if (this.type === 'kit' && this.invisibleTimer > 0) {
+            if (this.isPlayer) {
+                ctx.globalAlpha = 0.4;
+            } else {
+                ctx.globalAlpha = 0;
+            }
+        }
+
+        if(this.z === 0) {
+            ctx.beginPath();
+            ctx.ellipse(0, 20, 25, 10, 0, 0, Math.PI*2);
+            if (this.isPlayer) {
+                ctx.fillStyle = 'rgba(46, 204, 113, 0.4)'; 
+            } else if (Game.mode !== 'showdown' && this.team === 1) {
+                ctx.fillStyle = 'rgba(52, 152, 219, 0.4)';  
+            } else {
+                ctx.fillStyle = 'rgba(231, 76, 60, 0.4)';   
+            }
+            ctx.fill();
+        }
+
+        if (this.invincible) {
+            ctx.save(); ctx.beginPath(); ctx.arc(0, 0, this.r + 10, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)'; ctx.lineWidth = 3.5; ctx.stroke();
+            ctx.restore();
+        }
+
+        if(this.hcActive) {
+            ctx.beginPath(); ctx.arc(0, 0, this.r+10, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(155, 89, 182, 0.4)'; ctx.fill();
+            if(Math.random()<0.3) Game.particles.push(new Particle(this.x+(Math.random()-0.5)*30, this.y-this.z+(Math.random()-0.5)*30, '#9b59b6', 4, 0, -2, 15));
+        }
+        if(this.invincible) ctx.globalAlpha = 0.55;
+
+        ctx.save();
+        ctx.rotate(this.facing);
+        
+        ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI*2);
+        ctx.fillStyle = this.data.color; ctx.fill();
+        ctx.lineWidth = 3; ctx.strokeStyle = '#1e272e'; ctx.stroke();
+        
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(8, -6, 5, 0, Math.PI*2); ctx.arc(8, 6, 5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(10, -6, 2, 0, Math.PI*2); ctx.arc(10, 6, 2, 0, Math.PI*2); ctx.fill();
+        
+        if(this.type === 'shelly') {
+            ctx.fillStyle = '#7f8c8d'; ctx.fillRect(10, 4, 20, 6); 
+            ctx.fillStyle = '#8e44ad'; ctx.beginPath(); ctx.arc(-5, 0, 18, Math.PI/2, Math.PI*1.5); ctx.fill(); 
+        } else if (this.type === 'colt') {
+            ctx.fillStyle = '#95a5a6'; ctx.fillRect(10, -12, 15, 5); ctx.fillRect(10, 7, 15, 5); 
+            ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.arc(-5, 0, 16, Math.PI/2, Math.PI*1.5); ctx.fill(); 
+        } else if (this.type === 'primo') {
+            ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.arc(8, 0, 4, 0, Math.PI*2); ctx.fill(); 
+        } else if (this.type === 'gus') {
+            ctx.fillStyle = '#bdc3c7'; ctx.beginPath(); ctx.arc(-5, -5, 10, 0, Math.PI*2); ctx.fill();
+        } else if (this.type === 'mortis') {
+            ctx.fillStyle = '#7f8c8d'; ctx.fillRect(10, -2, 25, 4); 
+            ctx.fillStyle = '#1e272e'; ctx.beginPath(); ctx.arc(0, 0, 18, Math.PI/2, Math.PI*1.5); ctx.fill(); 
+        } else if (this.type === 'kit') {
+            ctx.fillStyle = '#f39c12';
+            ctx.beginPath(); ctx.moveTo(-15, -15); ctx.lineTo(-22, -28); ctx.lineTo(-2, -20); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(-15, 15); ctx.lineTo(-22, 28); ctx.lineTo(-2, 20); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(10, -2); ctx.lineTo(18, -4); ctx.moveTo(10, 0); ctx.lineTo(20, 0); ctx.moveTo(10, 2); ctx.lineTo(18, 4); ctx.stroke();
+        } else if (this.type === 'chester') {
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath(); ctx.moveTo(-10, -18); ctx.lineTo(-24, -30); ctx.lineTo(0, -20); ctx.fill();
+            ctx.fillStyle = '#f1c40f';
+            ctx.beginPath(); ctx.arc(-24, -30, 4, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#3498db';
+            ctx.beginPath(); ctx.moveTo(-10, 18); ctx.lineTo(-24, 30); ctx.lineTo(0, 20); ctx.fill();
+            ctx.fillStyle = '#f1c40f';
+            ctx.beginPath(); ctx.arc(-24, 30, 4, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
+
+        ctx.globalAlpha = 1.0;
+        let barW = 50;
+        
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Nunito'; ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+        ctx.strokeText(this.name, 0, -35); ctx.fillText(this.name, 0, -35);
+        
+        ctx.fillStyle = '#1e272e'; ctx.fillRect(-barW/2, -28, barW, 8);
+        ctx.fillStyle = (this.isPlayer || (Game.mode !== 'showdown' && this.team === 1)) ? '#2ecc71' : '#e74c3c';
+        ctx.fillRect(-barW/2, -28, barW * (this.hp/this.maxHp), 8);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(-barW/2, -28, barW, 8);
+        
+        let aRatio = this.ammo / this.maxAmmo;
+        if(this.ammo < this.maxAmmo) aRatio += (this.reloadTimer / (this.type==='shelly'&&this.hcActive ? this.reloadTime/3 : this.reloadTime)) * (1/this.maxAmmo);
+        ctx.fillStyle = '#1e272e'; ctx.fillRect(-barW/2, -18, barW, 4);
+        ctx.fillStyle = '#f39c12'; ctx.fillRect(-barW/2, -18, barW * aRatio, 4);
+
+        if (this.type === 'gus') {
+            let maxGauge = this.sp === 'master' ? 1 : 2;
+            ctx.fillStyle = '#1e272e'; ctx.fillRect(-barW/2, -13, barW, 4);
+            ctx.fillStyle = '#bdc3c7'; ctx.fillRect(-barW/2, -13, barW * (this.ghostGauge / maxGauge), 4);
+            
+            if (this.shield > 0) {
+                ctx.fillStyle = '#1e272e'; ctx.fillRect(-barW/2, -33, barW, 4);
+                ctx.fillStyle = '#f1c40f'; ctx.fillRect(-barW/2, -33, barW * (this.shield / 6000), 4);
+            }
+        } else if (this.type === 'mortis') {
+            ctx.fillStyle = '#1e272e'; ctx.fillRect(-barW/2, -13, barW, 4);
+            ctx.fillStyle = '#e74c3c'; ctx.fillRect(-barW/2, -13, barW * this.longDashGauge, 4);
+        } else if (this.type === 'chester') {
+            let maxG = this.chesterGauge;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(-20, -53, 40, 10);
+            ctx.strokeStyle = '#fff';
+            ctx.strokeRect(-20, -53, 40, 10);
+            ctx.fillStyle = '#e67e22';
+            ctx.font = '900 9px Nunito';
+            ctx.strokeText(`弾数: ${maxG+1}`, 0, -45);
+            ctx.fillText(`弾数: ${maxG+1}`, 0, -45);
+        } else if (this.type === 'kit' && this.invisibleTimer > 0) {
+            ctx.fillStyle = '#9b59b6';
+            ctx.font = '900 11px Nunito';
+            ctx.strokeText(`透明中`, 0, -50);
+            ctx.fillText(`透明中`, 0, -50);
+        }
+
+        if(this.gems > 0 || this.cubes > 0) {
+            ctx.fillStyle = this.gems > 0 ? '#9b59b6' : '#2ecc71';
+            ctx.font = '900 16px Nunito';
+            let txt = this.gems > 0 ? `💎${this.gems}` : `🟩${this.cubes}`;
+            ctx.strokeText(txt, 0, -45); ctx.fillText(txt, 0, -45);
+        }
+        
+        ctx.restore();
+    }
+}
+
+class Bullet extends Entity {
+    constructor(owner, angle, speed, range, dmg, size, type) {
+        super(owner.x, owner.y, size);
+        this.owner = owner; this.angle = angle;
+        this.vx = Math.cos(angle)*speed; this.vy = Math.sin(angle)*speed;
+        this.range = range; this.dmg = dmg; this.type = type;
+        this.traveled = 0; this.pierce = false; this.wallBreak = false;
+        this.pull = false; this.knockback = 0; this.effects = [];
+        this.hcColt = false; this.hitTargets = new Set();
+    }
+    update() {
+        let dx = this.vx * Game.timeScale;
+        let dy = this.vy * Game.timeScale;
+        this.x += dx; this.y += dy;
+        let step = Math.hypot(dx, dy);
+        this.traveled += step;
+        
+        if(this.hcColt) this.r += 0.3 * Game.timeScale;
+        
+        if(Math.random()<0.5 * Game.timeScale) Game.particles.push(new Particle(this.x, this.y, this.type==='super'?'#f1c40f':'#ff7675', this.r*0.5, 0,0, 10));
+
+        if(this.traveled >= this.range) this.remove = true;
+        
+        if(!this.pierce) {
+            for(let i=Game.map.length-1; i>=0; i--) {
+                let w = Game.map[i];
+                if(circleRectCollide(this.x, this.y, this.r, w.x, w.y, w.w, w.h)) {
+                    if(this.wallBreak) {
+                        Game.map.splice(i, 1);
+                        for(let k=0; k<10; k++) Game.particles.push(new Particle(this.x, this.y, '#7f8c8d', 5, (Math.random()-0.5)*5, (Math.random()-0.5)*5, 20));
+                    } else {
+                        this.remove = true; break;
+                    }
+                }
+            }
+        }
+        
+        if(!this.remove) {
+            Game.entities.forEach(e => {
+                if(e !== this.owner && e.hp > 0 && e.team !== this.owner.team && e.z === 0) {
+                    if (this.owner.type === 'kit' && this.owner.ridingTarget === e) return;
+                    
+                    if(!this.hitTargets.has(e) && dist(this.x, this.y, e.x, e.y) < this.r + e.r) {
+                        e.takeDamage(this.dmg, this.owner);
+                        if (!this.isGhostAttack) {
+                            this.owner.chargeSuper(this.dmg * 0.05);
+                        }
+                        
+                        if (this.isGusAttack && !this.isGhostAttack) {
+                            if (this.spawnGhost) {
+                                Game.ghosts.push(new Ghost(e.x, e.y, this.owner));
+                            } else {
+                                let maxGauge = this.owner.sp === 'master' ? 1 : 2;
+                                this.owner.ghostGauge = Math.min(maxGauge, this.owner.ghostGauge + 1);
+                            }
+                        }
+
+                        if (this.isMortisSuper) {
+                            this.owner.hp = Math.min(this.owner.maxHp, this.owner.hp + this.dmg);
+                            Game.uiEffects.push(new FloatingText(this.owner.x, this.owner.y - 45, `+${this.dmg}`, '#2ecc71', 15));
+                        }
+                        
+                        if (this.owner.isPlayer && navigator.vibrate) {
+                            navigator.vibrate(30);
+                        }
+                        
+                        for(let k=0; k<8; k++) Game.particles.push(new Particle(e.x, e.y, '#f39c12', 4, (Math.random()-0.5)*8, (Math.random()-0.5)*8, 15));
+
+                        if(this.onHit) this.onHit();
+                        
+                        this.effects.forEach(eff => {
+                            if (!e.effects.some(existing => existing.type === eff.type)) {
+                                e.effects.push({...eff});
+                            } else {
+                                e.effects.forEach(existing => {
+                                    if (existing.type === eff.type) existing.time = Math.max(existing.time, eff.time);
+                                });
+                            }
+                        });
+                        
+                        if(this.knockback > 0) { e.x += Math.cos(this.angle)*this.knockback; e.y += Math.sin(this.angle)*this.knockback; }
+                        if(this.pull) { e.x += (this.owner.x - e.x)*0.5; e.y += (this.owner.y - e.y)*0.5; }
+                        
+                        if(!this.pierce) this.remove = true;
+                        else this.hitTargets.add(e);
+                    }
+                }
+            });
+        }
+    }
+    draw(ctx) {
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+        if(this.type === 'super') ctx.fillStyle = '#f1c40f';
+        else if(this.type === 'gadget') ctx.fillStyle = '#2ecc71';
+        else ctx.fillStyle = (this.owner.isPlayer || (Game.mode !== 'showdown' && this.owner.team === 1)) ? '#3498db' : '#e74c3c';
+        ctx.fill();
+    }
+}
+
+class Item extends Entity {
+    constructor(x, y, type) { super(x, y, 15); this.type = type; this.anim = Math.random()*Math.PI; }
+    update() { 
+        this.anim += 0.08 * Game.timeScale; 
+        
+        for (let w of Game.map) {
+            if (circleRectCollide(this.x, this.y, this.r, w.x, w.y, w.w, w.h)) {
+                let leftDist = this.x - w.x;
+                let rightDist = (w.x + w.w) - this.x;
+                let topDist = this.y - w.y;
+                let bottomDist = (w.y + w.h) - this.y;
+                
+                let minDist = Math.min(leftDist, rightDist, topDist, bottomDist);
+                if (minDist === leftDist) {
+                    this.x = w.x - this.r - 2;
+                } else if (minDist === rightDist) {
+                    this.x = w.x + w.w + this.r + 2;
+                } else if (minDist === topDist) {
+                    this.y = w.y - this.r - 2;
+                } else {
+                    this.y = w.y + w.h + this.r + 2;
+                }
+            }
+        }
+        
+        const margin = 25;
+        this.x = Math.max(margin + this.r, Math.min(this.x, Game.mapW - margin - this.r));
+        this.y = Math.max(margin + this.r, Math.min(this.y, Game.mapH - margin - this.r));
+    }
+    draw(ctx) {
+        ctx.save(); ctx.translate(this.x, this.y + Math.sin(this.anim)*8);
+        if(this.type === 'gem') {
+            ctx.fillStyle = '#9b59b6'; ctx.beginPath();
+            ctx.moveTo(0, -15); ctx.lineTo(15, 0); ctx.lineTo(0, 15); ctx.lineTo(-15, 0); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth=2; ctx.stroke();
+        } else {
+            ctx.fillStyle = '#2ecc71'; ctx.fillRect(-12, -12, 24, 24);
+            ctx.strokeStyle = '#fff'; ctx.lineWidth=3; ctx.strokeRect(-12, -12, 24, 24);
+            ctx.fillStyle='#fff'; ctx.fillRect(-4,-4,8,8);
+        }
+        ctx.restore();
+    }
+}
+
+
+/** ==========================================
+ * ゲーム管理
+ * ========================================== */
+let player = null;
+const Game = {
+    state: 'menu', mode: 'gemgrab', mapW: 2000, mapH: 1600, 
+    entities: [], bullets: [], items: [], ghosts: [], particles: [], uiEffects: [], map: [],
+    score: { t1: 0, t2: 0, cd: -1 }, gemTimer: 0, poisonRadius: 2000,
+    
+    spectateX: 0, spectateY: 0,
+    
+    koRound: 1,
+    koWinsT1: 0,
+    koWinsT2: 0,
+    koRoundOverTimer: 0,
+    koRestarting: false,
+    
+    globalStats: {},
+    
+    lastTime: 0,
+    timeScale: 1.0, 
+
+    init(mode, charType) {
+        this.mode = mode; this.state = 'playing';
+        this.entities=[]; this.bullets=[]; this.items=[]; this.ghosts=[]; this.particles=[]; this.uiEffects=[]; this.map=[];
+        this.score = { t1: 0, t2: 0, cd: -1 };
+        this.spectateX = 0; this.spectateY = 0;
+        
+        this.globalStats = {};
+        this.lastTime = performance.now();
+        this.timeScale = 1.0;
+        
+        this.koRound = 1;
+        this.koWinsT1 = 0;
+        this.koWinsT2 = 0;
+        this.koRoundOverTimer = 0;
+        this.koRestarting = false;
+        
+        if(mode === 'showdown') { this.mapW=3200; this.mapH=3200; this.poisonRadius=2400; }
+        else { this.mapW=2000; this.mapH=1600; }
+        
+        this.generateMap();
+        this.setupRound(charType);
+        
+        document.getElementById('uiLayer').style.display = 'block';
+        document.getElementById('kill-log').innerHTML = '';
+        document.getElementById('resultsScreen').style.display = 'none';
+    },
+    
+    setupRound(playerCharType) {
+        this.entities.forEach(e => {
+            if (!this.globalStats[e.name]) {
+                this.globalStats[e.name] = { kills: e.kills, deaths: e.deaths, brawler: e.data.name, team: e.team };
+            } else {
+                this.globalStats[e.name].kills = e.kills;
+                this.globalStats[e.name].deaths = e.deaths;
+            }
+        });
+
+        this.entities = [];
+        this.bullets = [];
+        this.items = [];
+        this.ghosts = [];
+        
+        let pSpawn = this.getSpawn(1);
+        
+        let prevKills = player ? player.kills : 0;
+        let prevDeaths = player ? player.deaths : 0;
+        player = new Character(playerCharType, true, 1, pSpawn.x, pSpawn.y);
+        player.kills = prevKills;
+        player.deaths = prevDeaths;
+        this.entities.push(player);
+        this.spectateX = player.x;
+        this.spectateY = player.y;
+        
+        let botCount = this.mode === 'showdown' ? 11 : 5;
+        let keys = Object.keys(CHAR_DATA);
+        for(let i=0; i<botCount; i++) {
+            let team = this.mode === 'showdown' ? i+2 : (i<2 ? 1 : 2);
+            let spawn = this.getSpawn(team);
+            this.entities.push(new Character(keys[Math.floor(Math.random()*keys.length)], false, team, spawn.x, spawn.y));
+        }
+    },
+    
+    generateMap() {
+        let mw = this.mapW, mh = this.mapH; let bs = 60;
+        this.map = [];
+        this.map.push({x: mw/2 - bs*2, y: mh/2 - bs, w: bs*4, h: bs*2}); 
+        this.map.push({x: mw/4, y: mh/4, w: bs*1.5, h: bs*3});
+        this.map.push({x: mw*3/4 - bs*1.5, y: mh*3/4 - bs*3, w: bs*1.5, h: bs*3});
+        this.map.push({x: mw/2 - bs, y: bs*2, w: bs*2, h: bs});
+        this.map.push({x: mw/2 - bs, y: mh - bs*3, w: bs*2, h: bs});
+    },
+    
+    getSpawn(team) {
+        if(this.mode === 'showdown') return { x: 300+Math.random()*(this.mapW-600), y: 300+Math.random()*(this.mapH-600) };
+        if(team === 1) return { x: 250+Math.random()*150, y: this.mapH/2 + (Math.random()-0.5)*500 };
+        return { x: this.mapW - 400+Math.random()*150, y: this.mapH/2 + (Math.random()-0.5)*500 };
+    },
+
+    findClosestEnemy(source, maxDist) {
+        let closest = null; let minDist = maxDist;
+        this.entities.forEach(e => {
+            if(e !== source && e.hp > 0 && e.team !== source.team) {
+                if (e.type === 'kit' && e.invisibleTimer > 0) return;
+                
+                let d = dist(source.x, source.y, e.x, e.y);
+                if(d < minDist) { minDist = d; closest = e; }
+            }
+        });
+        return closest;
+    },
+    
+    update() {
+        if(this.state !== 'playing') return;
+        
+        if(this.mode === 'gemgrab') {
+            this.gemTimer += this.timeScale;
+            if(this.gemTimer > 300) {
+                this.items.push(new Item(this.mapW/2+(Math.random()-0.5)*60, this.mapH/2+(Math.random()-0.5)*60, 'gem'));
+                this.gemTimer = 0;
+            }
+            let t1g = this.entities.filter(e=>e.team===1).reduce((a,b)=>a+b.gems, 0);
+            let t2g = this.entities.filter(e=>e.team===2).reduce((a,b)=>a+b.gems, 0);
+            if(t1g >= 10 || t2g >= 10) {
+                if(this.score.cd < 0) this.score.cd = 15 * 60; else this.score.cd -= this.timeScale;
+                if(this.score.cd <= 0) this.end(t1g > t2g ? 1 : 2);
+            } else { this.score.cd = -1; }
+            this.updateHUD(`🔵 ${t1g} - 🔴 ${t2g}${this.score.cd>0 ? ` <span style="color:#f1c40f;font-size:1rem;">(⏳${Math.ceil(this.score.cd/60)})</span>` : ''}`);
+        }
+        else if (this.mode === 'wipeout') {
+            if(this.score.t1 >= 10) this.end(1); else if(this.score.t2 >= 10) this.end(2);
+            this.updateHUD(`🔵 ${this.score.t1} - 🔴 ${this.score.t2} <span style="font-size:1rem;">/ 10</span>`);
+        }
+        else if (this.mode === 'knockout') {
+            let t1Alive = this.entities.filter(e=>e.team===1 && e.hp>0);
+            let t2Alive = this.entities.filter(e=>e.team===2 && e.hp>0);
+            
+            let t1Icons = t1Alive.map(e => e.isPlayer ? '⭐' : '🔵').join(' ');
+            let t2Icons = t2Alive.map(e => '🔴').join(' ');
+            if (t1Alive.length === 0) t1Icons = '❌全滅';
+            if (t2Alive.length === 0) t2Icons = '❌全滅';
+            
+            this.updateHUD(
+                `<div style="font-size:1rem; color:#aaa; margin-bottom:2px;">ラウンド ${this.koRound} / 3</div>` +
+                `<div style="display:flex; justify-content:space-between; gap:20px; font-size:1.1rem;">` +
+                `<span>味方: ${t1Icons} (${t1Alive.length})</span>` +
+                `<span style="color:#f1c40f;">${this.koWinsT1} 🏆 ${this.koWinsT2}</span>` +
+                `<span>敵: (${t2Alive.length}) ${t2Icons}</span>` +
+                `</div>`
+            );
+            
+            if (!this.koRestarting) {
+                if (t1Alive.length === 0 || t2Alive.length === 0) {
+                    this.koRestarting = true;
+                    this.koRoundOverTimer = 180; 
+                    
+                    let roundWinner = t1Alive.length > 0 ? 1 : 2;
+                    if (roundWinner === 1) this.koWinsT1++;
+                    else this.koWinsT2++;
+                }
+            } else {
+                this.koRoundOverTimer -= this.timeScale;
+                if (this.koRoundOverTimer <= 0) {
+                    this.koRestarting = false;
+                    
+                    if (this.koWinsT1 >= 2) {
+                        this.end(1);
+                    } else if (this.koWinsT2 >= 2) {
+                        this.end(2);
+                    } else {
+                        this.koRound++;
+                        this.setupRound(player.type); 
+                        Game.uiEffects.push(new FloatingText(this.mapW/2, this.mapH/2, `ラウンド ${this.koRound}!`, '#f1c40f', 32));
+                    }
+                }
+            }
+        }
+        else if (this.mode === 'showdown') {
+            this.poisonRadius -= 0.25 * this.timeScale;
+            let alive = 0, last = null;
+            this.entities.forEach(e => {
+                if(e.hp>0) {
+                    alive++; last = e;
+                    if(dist(e.x, e.y, this.mapW/2, this.mapH/2) > this.poisonRadius) {
+                        if(Math.random()<0.05 * this.timeScale) {
+                            e.takeDamage(1000, null);
+                            this.uiEffects.push(new FloatingText(e.x, e.y-40, "POISON", '#2ecc71', 14));
+                        }
+                    }
+                }
+            });
+            if(alive <= 1) this.end(last ? last.team : 0);
+            this.updateHUD(`🏆 残り: ${alive}`);
+        }
+
+        this.entities.forEach(e => e.update());
+        this.bullets.forEach(b => b.update());
+        this.items.forEach(i => i.update());
+        this.ghosts.forEach(g => g.update());
+        this.particles.forEach(p => p.update());
+        this.uiEffects.forEach(u => u.update());
+        
+        this.entities = this.entities.filter(e => !e.remove || e.hp > 0);
+        this.bullets = this.bullets.filter(b => !b.remove);
+        this.ghosts = this.ghosts.filter(g => !g.remove);
+        this.particles = this.particles.filter(p => p.life > 0);
+        this.uiEffects = this.uiEffects.filter(u => u.life > 0);
+    },
+    
+    draw(ctx, cam) {
+        ctx.fillStyle = '#1e272e'; ctx.fillRect(-cam.x, -cam.y, this.mapW, this.mapH);
+        
+        ctx.save(); ctx.translate(-cam.x, -cam.y);
+        
+        ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for(let x=0; x<this.mapW; x+=100) { ctx.moveTo(x,0); ctx.lineTo(x,this.mapH); }
+        for(let y=0; y<this.mapH; y+=100) { ctx.moveTo(0,y); ctx.lineTo(this.mapW,y); }
+        ctx.stroke();
+
+        if(this.mode === 'showdown') {
+            ctx.fillStyle = 'rgba(46, 204, 113, 0.4)';
+            ctx.beginPath(); ctx.rect(0, 0, this.mapW, this.mapH);
+            ctx.arc(this.mapW/2, this.mapH/2, this.poisonRadius, 0, Math.PI*2, true); ctx.fill();
+        }
+
+        this.map.forEach(w => {
+            ctx.fillStyle = '#2c3e50'; ctx.fillRect(w.x, w.y+w.h, w.w, 15); 
+            ctx.fillStyle = '#95a5a6'; ctx.fillRect(w.x, w.y, w.w, w.h); 
+            ctx.strokeStyle = '#34495e'; ctx.lineWidth = 4; ctx.strokeRect(w.x, w.y, w.w, w.h);
+        });
+
+        let draws = [...this.items, ...this.entities, ...this.ghosts, ...this.particles];
+        draws.sort((a,b) => a.y - b.y);
+        draws.forEach(d => d.draw(ctx));
+        
+        this.bullets.forEach(b => b.draw(ctx)); 
+        this.uiEffects.forEach(u => u.draw(ctx)); 
+        
+        if(player && player.hp > 0) {
+            for(let key in Input.btns) {
+                let btn = Input.btns[key];
+                
+                if(btn.id !== null && !btn.tapOnly && btn.dragged && btn.mag >= 0.35) {
+                    ctx.save();
+                    
+                    let range = player.data.range;
+                    if(key === 'super' && player.type === 'shelly') range *= 1.3;
+                    if(key === 'gadget' && player.gadget === 'sharp') range *= 1.5;
+
+                    let isNormalEmpty = (player.ammo === 0 && key === 'attack');
+                    ctx.fillStyle = key==='attack' ? 'rgba(255,255,255,0.22)' : 'rgba(241,196,15,0.3)';
+                    ctx.strokeStyle = key==='attack' ? 'rgba(255,255,255,0.5)' : 'rgba(241,196,15,0.7)';
+                    if(isNormalEmpty) {
+                        ctx.fillStyle = 'rgba(231,76,60,0.2)'; 
+                        ctx.strokeStyle = 'rgba(231,76,60,0.5)';
+                    }
+                    ctx.lineWidth = 2;
+
+                    ctx.translate(player.x, player.y);
+                    
+                    if (player.type === 'shelly') {
+                        if (key === 'attack') {
+                            ctx.rotate(btn.angle);
+                            let w = player.data.attackWidth;
+                            ctx.beginPath();
+                            ctx.moveTo(0, 0);
+                            ctx.arc(0, 0, range, -w, w);
+                            ctx.closePath();
+                            ctx.fill(); ctx.stroke();
+                            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                            for (let step = -2; step <= 2; step++) {
+                                ctx.beginPath();
+                                ctx.moveTo(0,0);
+                                ctx.lineTo(Math.cos(step * 0.12) * range, Math.sin(step * 0.12) * range);
+                                ctx.stroke();
+                            }
+                        } else if (key === 'super') {
+                            ctx.rotate(btn.angle);
+                            let w = 0.8; 
+                            ctx.beginPath();
+                            ctx.moveTo(0, 0);
+                            ctx.arc(0, 0, range, -w, w);
+                            ctx.closePath();
+                            ctx.fill(); ctx.stroke();
+                            ctx.strokeStyle = 'rgba(241, 196, 15, 0.4)';
+                            for (let step = -4; step <= 4; step++) {
+                                ctx.beginPath();
+                                ctx.moveTo(0,0);
+                                ctx.lineTo(Math.cos(step * 0.1) * range, Math.sin(step * 0.1) * range);
+                                ctx.stroke();
+                            }
+                        } else if (key === 'gadget') {
+                            if (player.gadget === 'dash') {
+                                ctx.rotate(btn.angle);
+                                ctx.strokeStyle = 'rgba(46, 204, 113, 0.6)';
+                                ctx.lineWidth = 8;
+                                ctx.beginPath();
+                                ctx.moveTo(0, 0);
+                                ctx.lineTo(195, 0);
+                                ctx.stroke();
+                                ctx.fillStyle = 'rgba(46, 204, 113, 0.8)';
+                                ctx.beginPath();
+                                ctx.moveTo(195, -12);
+                                ctx.lineTo(220, 0);
+                                ctx.lineTo(195, 12);
+                                ctx.fill();
+                            } else if (player.gadget === 'sharp') {
+                                ctx.rotate(btn.angle);
+                                ctx.fillRect(0, -8, range, 16);
+                                ctx.strokeRect(0, -8, range, 16);
+                            }
+                        }
+                    } 
+                    else if (player.type === 'colt') {
+                        ctx.rotate(btn.angle);
+                        if (key === 'attack') {
+                            ctx.fillRect(0, -12, range, 24);
+                            ctx.strokeRect(0, -12, range, 24);
+                            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(range, 0); ctx.stroke();
+                        } else if (key === 'super') {
+                            ctx.fillStyle = 'rgba(241, 196, 15, 0.25)';
+                            ctx.fillRect(0, -20, range, 40);
+                            ctx.strokeRect(0, -20, range, 40);
+                            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(range, 0); ctx.stroke();
+                        } else if (key === 'gadget') {
+                            if (player.gadget === 'one') {
+                                ctx.fillStyle = 'rgba(46, 204, 113, 0.25)';
+                                ctx.strokeStyle = 'rgba(46, 204, 113, 0.7)';
+                                ctx.fillRect(0, -6, range, 12);
+                                ctx.strokeRect(0, -6, range, 12);
+                            } else if (player.gadget === 'slow') {
+                                ctx.fillStyle = 'rgba(155, 89, 182, 0.25)';
+                                ctx.strokeStyle = 'rgba(155, 89, 182, 0.7)';
+                                ctx.fillRect(0, -14, range, 28);
+                                ctx.strokeRect(0, -14, range, 28);
+                            }
+                        }
+                    } 
+                    else if (player.type === 'primo') {
+                        if (key === 'attack') {
+                            ctx.rotate(btn.angle);
+                            let w = player.data.attackWidth;
+                            ctx.beginPath();
+                            ctx.moveTo(0, 0);
+                            ctx.arc(0, 0, range, -w, w);
+                            ctx.closePath();
+                            ctx.fill(); ctx.stroke();
+                        } else if (key === 'super') {
+                            let distToTarget = btn.mag * 400; 
+                            let landingSpot = getSafeLandingSpot(player.x, player.y, btn.angle, distToTarget, player.r);
+                            let tx = landingSpot.x - player.x;
+                            let ty = landingSpot.y - player.y;
+                            
+                            ctx.strokeStyle = 'rgba(241, 196, 15, 0.6)';
+                            ctx.lineWidth = 4;
+                            ctx.setLineDash([8, 6]);
+                            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(tx, ty); ctx.stroke();
+                            ctx.setLineDash([]); 
+                            
+                            let landingRadius = player.sp === 'shock' ? 140 : 100;
+                            ctx.fillStyle = 'rgba(241, 196, 15, 0.2)';
+                            ctx.strokeStyle = 'rgba(241, 196, 15, 0.8)';
+                            ctx.lineWidth = 3;
+                            ctx.beginPath(); ctx.arc(tx, ty, landingRadius, 0, Math.PI * 2);
+                            ctx.fill(); ctx.stroke();
+                        } else if (key === 'gadget') {
+                            if (player.gadget === 'lariat') {
+                                ctx.rotate(btn.angle);
+                                ctx.strokeStyle = 'rgba(46, 204, 113, 0.6)';
+                                ctx.lineWidth = 8;
+                                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(210, 0); ctx.stroke();
+                                ctx.fillStyle = 'rgba(46, 204, 113, 0.8)';
+                                ctx.beginPath(); ctx.moveTo(210, -12); ctx.lineTo(235, 0); ctx.lineTo(210, 12); ctx.fill();
+                            } else if (player.gadget === 'catch') {
+                                ctx.rotate(btn.angle);
+                                ctx.fillStyle = 'rgba(46, 204, 113, 0.2)';
+                                ctx.strokeStyle = 'rgba(46, 204, 113, 0.8)';
+                                ctx.fillRect(0, -15, range, 30);
+                                ctx.strokeRect(0, -15, range, 30);
+                                ctx.beginPath();
+                                ctx.arc(range, 0, 15, -Math.PI/2, Math.PI/2);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                    else if (player.type === 'gus') {
+                        ctx.rotate(btn.angle);
+                        if (key === 'attack') {
+                            ctx.fillRect(0, -9, range, 18);
+                            ctx.strokeRect(0, -9, range, 18);
+                        } else if (key === 'super') {
+                            ctx.beginPath(); ctx.arc(0, 0, 150, 0, Math.PI*2); ctx.stroke(); 
+                        } else if (key === 'gadget') {
+                            if (player.gadget === 'cracker') {
+                                ctx.beginPath(); ctx.arc(0, 0, 110, 0, Math.PI*2); ctx.stroke();
+                            }
+                        }
+                    }
+                    else if (player.type === 'mortis') {
+                        ctx.rotate(btn.angle);
+                        if (key === 'attack') {
+                            let currentRange = range * (1 + player.longDashGauge * 2);
+                            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                            ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(currentRange, -20); ctx.lineTo(currentRange, 20); ctx.lineTo(0, 20); ctx.fill(); ctx.stroke();
+                        } else if (key === 'super') {
+                            ctx.fillRect(0, -15, 600, 30); ctx.strokeRect(0, -15, 600, 30);
+                        } else if (key === 'gadget') {
+                            if (player.gadget === 'spinner') {
+                                ctx.beginPath(); ctx.arc(0, 0, player.r * 4, 0, Math.PI*2); ctx.stroke();
+                            } else if (player.gadget === 'batmove') {
+                                ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(150,0); ctx.stroke();
+                            }
+                        }
+                    }
+                    else if (player.type === 'kit') {
+                        if (key === 'attack') {
+                            ctx.rotate(btn.angle);
+                            let w = player.data.attackWidth;
+                            ctx.beginPath();
+                            ctx.moveTo(0, 0);
+                            ctx.arc(0, 0, range, -w, w);
+                            ctx.closePath();
+                            ctx.fill(); ctx.stroke();
+                        } else if (key === 'super') {
+                            let distToTarget = btn.mag * 420; 
+                            let landingSpot = getSafeLandingSpot(player.x, player.y, btn.angle, distToTarget, player.r);
+                            let tx = landingSpot.x - player.x;
+                            let ty = landingSpot.y - player.y;
+                            
+                            ctx.strokeStyle = 'rgba(241, 196, 15, 0.6)';
+                            ctx.lineWidth = 4;
+                            ctx.setLineDash([8, 6]);
+                            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(tx, ty); ctx.stroke();
+                            ctx.setLineDash([]); 
+                            
+                            ctx.fillStyle = 'rgba(241, 196, 15, 0.2)';
+                            ctx.strokeStyle = 'rgba(241, 196, 15, 0.8)';
+                            ctx.lineWidth = 3;
+                            ctx.beginPath(); ctx.arc(tx, ty, 120, 0, Math.PI * 2);
+                            ctx.fill(); ctx.stroke();
+                        }
+                    }
+                    else if (player.type === 'chester') {
+                        ctx.rotate(btn.angle);
+                        if (key === 'attack') {
+                            let activeG = player.hcActive ? 3 : player.chesterGauge;
+                            let isFS = (activeG === 0 && player.sp === 'firststrike');
+                            let tW = isFS ? 28 : 16;
+                            ctx.fillRect(0, -tW/2, range, tW);
+                            ctx.strokeRect(0, -tW/2, range, tW);
+                        } else if (key === 'super') {
+                            let sType = player.chesterSuperType;
+                            if (sType === 'explode') {
+                                let distToTarget = btn.mag * 450;
+                                let tx = Math.cos(btn.angle) * distToTarget;
+                                let ty = Math.sin(btn.angle) * distToTarget;
+                                ctx.strokeStyle = 'rgba(211, 84, 0, 0.6)';
+                                ctx.lineWidth = 4;
+                                ctx.setLineDash([8, 6]);
+                                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(tx, ty); ctx.stroke();
+                                ctx.setLineDash([]);
+                                
+                                ctx.fillStyle = 'rgba(211, 84, 0, 0.2)';
+                                ctx.strokeStyle = 'rgba(211, 84, 0, 0.8)';
+                                ctx.beginPath(); ctx.arc(tx, ty, 140, 0, Math.PI*2);
+                                ctx.fill(); ctx.stroke();
+                            } else if (sType === 'stun') {
+                                ctx.fillRect(0, -14, 500, 28);
+                                ctx.strokeRect(0, -14, 500, 28);
+                            } else if (sType === 'poison') {
+                                ctx.beginPath();
+                                ctx.moveTo(0,0);
+                                ctx.arc(0,0, 350, -0.4, 0.4);
+                                ctx.closePath();
+                                ctx.fill(); ctx.stroke();
+                            } else if (sType === 'ice') {
+                                ctx.beginPath(); ctx.arc(0,0, 130, 0, Math.PI*2); ctx.stroke();
+                            }
+                        }
+                    }
+                    
+                    ctx.restore();
+                }
+            }
+        }
+        ctx.restore();
+    },
+    
+    addLog(k, v, team) {
+        let log = document.getElementById('kill-log');
+        let div = document.createElement('div');
+        div.className = 'log-item';
+        let color = team === 1 ? '#3498db' : '#e74c3c';
+        div.innerHTML = `<span style="color:${color}">${k}</span> 💥 <span>${v}</span>`;
+        log.appendChild(div);
+        setTimeout(() => { if(div.parentNode) div.parentNode.removeChild(div); }, 4000);
+    },
+    updateHUD(html) { document.getElementById('hud-top').innerHTML = html; },
+    
+    end(winTeam) {
+        this.state = 'end';
+        
+        this.entities.forEach(e => {
+            if (!this.globalStats[e.name]) {
+                this.globalStats[e.name] = { kills: e.kills, deaths: e.deaths, brawler: e.data.name, team: e.team };
+            } else {
+                this.globalStats[e.name].kills = e.kills;
+                this.globalStats[e.name].deaths = e.deaths;
+            }
+        });
+
+        let msg = winTeam === 1 ? "🎉 VICTORY!" : (winTeam === 0 ? "➖ DRAW" : "💀 DEFEAT");
+        if(this.mode === 'showdown') msg = winTeam === player.team ? "👑 #1 ドン勝！" : "💀 GAME OVER";
+        
+        let hud = document.getElementById('hud-top');
+        hud.innerHTML = msg; hud.style.fontSize = '3rem'; hud.style.color = winTeam===1||winTeam===player.team ? '#f1c40f' : '#e74c3c';
+        
+        setTimeout(() => {
+            hud.style.fontSize = '1.5rem'; hud.style.color = '#fff';
+            this.showScoreboard(winTeam);
+        }, 3000);
+    },
+
+    showScoreboard(winTeam) {
+        document.getElementById('gameCanvas').style.display = 'none';
+        document.getElementById('uiLayer').style.display = 'none';
+        
+        let resultsScreen = document.getElementById('resultsScreen');
+        resultsScreen.style.display = 'flex';
+        
+        let title = document.getElementById('resultsTitle');
+        if (this.mode === 'showdown') {
+            title.textContent = winTeam === player.team ? "🏆 ROYAL VICTORY! (1位)" : "💀 BATTLE OVER";
+        } else {
+            title.textContent = winTeam === 1 ? "🎉 VICTORY (チーム勝利!)" : "💀 DEFEAT (敗北...)";
+        }
+
+        let tableBody = document.getElementById('resultsTableBody');
+        tableBody.innerHTML = '';
+
+        let statsArray = Object.keys(this.globalStats).map(name => ({
+            name: name,
+            kills: this.globalStats[name].kills,
+            deaths: this.globalStats[name].deaths,
+            brawler: this.globalStats[name].brawler,
+            team: this.globalStats[name].team
+        }));
+
+        statsArray.sort((a, b) => {
+            if (b.kills !== a.kills) return b.kills - a.kills;
+            return a.deaths - b.deaths;
+        });
+
+        statsArray.forEach(data => {
+            let tr = document.createElement('tr');
+            
+            if (data.name === "YOU") {
+                tr.className = 'highlight';
+            }
+
+            let teamText = "";
+            if (this.mode === 'showdown') {
+                teamText = data.name === "YOU" ? "プレイヤー" : "ボット / 敵";
+            } else {
+                teamText = data.team === 1 ? "🟢 味方チーム" : "🔴 敵チーム";
+            }
+
+            tr.innerHTML = `
+                <td>${data.name} (${data.brawler})</td>
+                <td>${teamText}</td>
+                <td><strong style="color: #2ecc71;">${data.kills}</strong></td>
+                <td><strong style="color: #e74c3c;">${data.deaths}</strong></td>
+            `;
+            tableBody.appendChild(tr);
+        });
+    }
+};
+
+/** ==========================================
+ * 広角ズームカメラ & 死亡時観戦移動システム
+ * ========================================== */
+const cam = {
+    x: 0, y: 0,
+    zoom: 0.45, 
+    
+    update(tgt) {
+        if(!tgt) return;
+        
+        if (tgt.hp > 0) {
+            Game.spectateX = tgt.x;
+            Game.spectateY = tgt.y;
+        } else {
+            if (Input.leftJoy.active) {
+                let moveSpeed = 8;
+                Game.spectateX += Input.leftJoy.nx * moveSpeed * Input.leftJoy.mag * Game.timeScale;
+                Game.spectateY += Input.leftJoy.ny * moveSpeed * Input.leftJoy.mag * Game.timeScale;
+            } else {
+                let aliveFriend = Game.entities.find(e => e.team === 1 && e.hp > 0);
+                if (aliveFriend) {
+                    Game.spectateX += (aliveFriend.x - Game.spectateX) * 0.05 * Game.timeScale;
+                    Game.spectateY += (aliveFriend.y - Game.spectateY) * 0.05 * Game.timeScale;
+                } else {
+                    let aliveEnemy = Game.entities.find(e => e.hp > 0);
+                    if (aliveEnemy) {
+                        Game.spectateX += (aliveEnemy.x - Game.spectateX) * 0.05 * Game.timeScale;
+                        Game.spectateY += (aliveEnemy.y - Game.spectateY) * 0.05 * Game.timeScale;
+                    }
+                }
+            }
+        }
+        
+        let targetCamX = Game.spectateX - (cw / 2) / this.zoom;
+        let targetCamY = Game.spectateY - (ch / 2) / this.zoom;
+        
+        this.x += (targetCamX - this.x) * 0.15 * Game.timeScale;
+        this.y += (targetCamY - this.y) * 0.15 * Game.timeScale;
+        
+        this.x = Math.max(0, Math.min(this.x, Game.mapW - cw / this.zoom));
+        this.y = Math.max(0, Math.min(this.y, Game.mapH - ch / this.zoom));
+    }
+};
+
+/** ==========================================
+ * HUD / ジョイスティック描画
+ * ========================================== */
+function drawUI() {
+    ctx.lineWidth = 3;
+    
+    if(Input.leftJoy.active) {
+        ctx.beginPath(); ctx.arc(Input.leftJoy.ox, Input.leftJoy.oy, 60, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.2)'; ctx.fill(); ctx.strokeStyle='rgba(52, 152, 219, 0.5)'; ctx.stroke();
+        
+        ctx.beginPath(); ctx.arc(Input.leftJoy.x, Input.leftJoy.y, 25, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.8)'; ctx.fill();
+    }
+    
+    if (player && player.hp <= 0) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(20, 20, 310, 45);
+        ctx.strokeStyle = '#f1c40f';
+        ctx.strokeRect(20, 20, 310, 45);
+        ctx.fillStyle = '#fff';
+        ctx.font = '900 13px Nunito';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText("📷 観戦中: 左ジョイスティックでカメラを移動できます", 28, 42.5);
+    }
+    
+    for(let key in Input.btns) {
+        let b = Input.btns[key];
+        
+        ctx.beginPath(); ctx.arc(b.cx, b.cy, b.r, 0, Math.PI*2);
+        
+        if (key === 'gadget' && player && player.gadgetCooldown > 0) {
+            ctx.fillStyle = 'rgba(120, 120, 120, 0.3)';
+        } else {
+            ctx.fillStyle = b.color + '66'; 
+        }
+        
+        ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.stroke();
+        
+        let currentIcon = b.icon;
+        if (key === 'super' && player && player.hp > 0 && player.type === 'chester') {
+            // 【条件の修正】: 必殺技ゲージが満タン(>= max)のとき、もしくはスターパワー「種明かし」のときのみ、どの種類か開示する
+            let revealEnabled = (player.sp === 'reveal' || player.superCharge >= player.maxSuperCharge);
+            if (revealEnabled) {
+                let sT = player.chesterSuperType;
+                if (sType === 'explode') currentIcon = '💣';
+                else if (sType === 'stun') currentIcon = '⚡';
+                else if (sType === 'heal') currentIcon = '💖';
+                else if (sType === 'poison') currentIcon = '🤢';
+                else if (sType === 'ice') currentIcon = '❄️';
+            } else {
+                currentIcon = '❓';
+            }
+        }
+
+        ctx.fillStyle = '#fff'; ctx.font = `${b.r*0.6}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(currentIcon, b.cx, b.cy);
+
+        if(!player || player.hp <= 0) continue;
+
+        if(b.id !== null && !b.tapOnly) {
+            let nx = b.cx + Math.cos(b.angle)*b.mag*b.r;
+            let ny = b.cy + Math.sin(b.angle)*b.mag*b.r;
+            ctx.beginPath(); ctx.arc(nx, ny, b.r*0.5, 0, Math.PI*2);
+            
+            if (key === 'gadget' && player.gadgetCooldown > 0) {
+                ctx.fillStyle = '#7f8c8d';
+            } else {
+                ctx.fillStyle = b.color;
+            }
+            
+            ctx.fill(); ctx.stroke();
+            
+            if (b.dragged && b.mag < 0.35) {
+                ctx.strokeStyle = 'rgba(255, 77, 77, 0.85)';
+                ctx.lineWidth = 2.5;
+                ctx.setLineDash([5, 4]);
+                ctx.beginPath();
+                ctx.arc(b.cx, b.cy, b.r * 0.35, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+
+        ctx.lineWidth = 6;
+        if(key === 'super') {
+            let ratio = player.superCharge / player.maxSuperCharge;
+            if(ratio >= 1) { ctx.strokeStyle = '#f1c40f'; ctx.shadowBlur = 10; ctx.shadowColor = '#f1c40f'; }
+            else { ctx.strokeStyle = 'rgba(241, 196, 15, 0.3)'; ctx.shadowBlur = 0; }
+            ctx.beginPath(); ctx.arc(b.cx, b.cy, b.r+5, -Math.PI/2, -Math.PI/2 + Math.PI*2*ratio); ctx.stroke();
+            ctx.shadowBlur = 0;
+        } else if (key === 'hc') {
+            let ratio = player.hcCharge / player.maxHcCharge;
+            if(ratio >= 1) { ctx.strokeStyle = '#9b59b6'; ctx.shadowBlur = 15; ctx.shadowColor = '#9b59b6'; }
+            else { ctx.strokeStyle = 'rgba(155, 89, 182, 0.3)'; ctx.shadowBlur = 0; }
+            ctx.beginPath(); ctx.arc(b.cx, b.cy, b.r+5, -Math.PI/2, -Math.PI/2 + Math.PI*2*ratio); ctx.stroke();
+            ctx.shadowBlur = 0;
+        } else if (key === 'gadget') {
+            if(player.gadgetCooldown > 0) {
+                ctx.beginPath(); ctx.arc(b.cx, b.cy, b.r, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(30, 30, 30, 0.75)'; ctx.fill();
+                
+                let ratio = player.gadgetCooldown / 600;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.beginPath(); ctx.moveTo(b.cx, b.cy); ctx.arc(b.cx, b.cy, b.r, -Math.PI/2, -Math.PI/2 + Math.PI*2*ratio); ctx.fill();
+                
+                let remainingSec = (player.gadgetCooldown / 60).toFixed(1);
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#1e272e';
+                ctx.lineWidth = 3;
+                ctx.font = '900 18px Nunito';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.strokeText(remainingSec + "s", b.cx, b.cy);
+                ctx.fillText(remainingSec + "s", b.cx, b.cy);
+            }
+        }
+    }
+    
+    if(player && player.hp > 0) {
+        let bw = 200; let bx = cw/2 - bw/2; let by = ch - 50;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(bx, by, bw, 20);
+        ctx.fillStyle = '#2ecc71'; ctx.fillRect(bx, by, bw * (player.hp/player.maxHp), 20);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, 20);
+        ctx.fillStyle = '#fff'; ctx.font = '900 16px Nunito'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.strokeText(player.hp, cw/2, by+10); ctx.fillText(player.hp, cw/2, by+10);
+        
+        let slotW = bw / player.maxAmmo;
+        for(let i=0; i<player.maxAmmo; i++) {
+            let sx = bx + i*slotW;
+            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(sx, by+25, slotW-4, 12);
+            if(player.ammo > i) {
+                ctx.fillStyle = '#f39c12'; ctx.fillRect(sx, by+25, slotW-4, 12);
+            } else if (player.ammo === i) {
+                let aRatio = player.reloadTimer / (player.type==='shelly'&&player.hcActive ? player.reloadTime/3 : player.reloadTime);
+                ctx.fillStyle = '#e67e22'; ctx.fillRect(sx, by+25, (slotW-4)*aRatio, 12);
+            }
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(sx, by+25, slotW-4, 12);
+        }
+    }
+}
+
+/** ==========================================
+ * メインループ
+ * ========================================== */
+function loop(now) {
+    requestAnimationFrame(loop);
+    
+    if (!Game.lastTime) Game.lastTime = now;
+    let elapsed = now - Game.lastTime;
+    Game.lastTime = now;
+    
+    if (elapsed > 160) elapsed = 160; 
+    
+    Game.timeScale = elapsed / (1000 / 60);
+
+    if(Game.state !== 'playing') return;
+    
+    Game.update();
+    cam.update(player);
+    
+    ctx.clearRect(0,0,cw,ch);
+    
+    ctx.save();
+    ctx.scale(cam.zoom, cam.zoom);
+    Game.draw(ctx, cam);
+    ctx.restore();
+    
+    drawUI();
+}
+
+document.getElementById('btnStart').addEventListener('click', () => {
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('gameCanvas').style.display = 'block';
+    Input.initLayout();
+    Game.init(document.getElementById('selMode').value, document.getElementById('selChar').value);
+});
+
+document.getElementById('btnCloseResults').addEventListener('click', () => {
+    document.getElementById('resultsScreen').style.display = 'none';
+    document.getElementById('menu').style.display = 'flex';
+});
+
+Input.initLayout();
+requestAnimationFrame((now) => {
+    Game.lastTime = now;
+    loop(now);
+});
+
+</script>
+</body>
+</html>
