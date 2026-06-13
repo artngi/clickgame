@@ -465,7 +465,7 @@ const CHAR_DATA = {
     },
     pius: {
         name: 'ピアス', color: '#1abc9c', type: 'shooter', icon: '🪃',
-        hp: 6400, speed: 2.8, reload: 80, ammo: 3, range: 450, attackWidth: 0.1,
+        hp: 6800, speed: 2.8, reload: 80, ammo: 3, range: 450, attackWidth: 0.1,
         superChargeRate: 0.8,
         gadgets: [
             { id: 'shield_absorb', name: 'スナイパーは二度死ぬ (弾薬吸収＆シールド)' },
@@ -1806,7 +1806,7 @@ class Character extends Entity {
         else if (this.type === 'pius') {
             if (type === 'normal') {
                 let isLast = (this.ammo === 0);
-                let b = new Bullet(this, angle, 16, this.data.range, 1900 * dmgMult, 12, 'normal');
+                let b = new Bullet(this, angle, 20, this.data.range, 1900 * dmgMult, 14, 'normal');
                 b.isPiusNormal = true;
                 b.isLastAmmo = isLast;
                 Game.bullets.push(b);
