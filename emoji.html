@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI絵文字クリエイター - 画像から絵文字を生成</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=M+PLUS+Rounded+1c:wght@400;700&display=swap');
+        body {
+            font-family: 'M PLUS Rounded 1c', 'Fredoka One', sans-serif;
+        }
+        .emoji-pop {
+            animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+        .dark .gradient-bg {
+            background: linear-gradient(135deg, #1e1e2f 0%, #111119 100%);
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen flex flex-col items-center justify-between p-4 transition-colors duration-300 dark:text-gray-100">
+
+    <!-- Header -->
+    <header class="w-full max-w-4xl flex justify-between items-center py-4 px-6 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-3xl shadow-md mb-6">
+        <div class="flex items-center space-x-3">
+            <span class="text-4xl">🎨</span>
+            <div>
+                <h1 class="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">AI Emoji Maker</h1>
+                <p class="text-xs text-gray-500 dark:text-gray-400">画像からあなただけの絵文字を生成</p>
+            </div>
+        </div>
+        <button id="themeToggle" class="p-3 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:scale-105 transition-transform">
+            <i class="fa-solid fa-moon dark:hidden"></i>
+            <i class="fa-solid fa-sun hidden dark:block"></i>
+        </button>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-4xl flex-grow grid grid-cols-1 md:grid-cols-2 gap-6 items-start mb-8">
+        
+        <!-- Left Column: Upload & Input -->
+        <section class="bg-white/90 dark:bg-gray-800/90 rounded-3xl p-6 shadow-xl border border-gray-100 dark:border-gray-700 flex flex-col space-y-6 h-full justify-between">
+            <div>
+                <h2 class="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                    <span class="text-xl">📸</span> 1. 画像を選択
+                </h2>
+                
+                <!-- Dropzone -->
+                <div id="dropzone" class="border-3 border-dashed border-purple-300 dark:border-purple-800 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-purple-500 dark:hover:border-purple-600 transition-colors bg-purple-50/50 dark:bg-purple-950/20 relative group h-64 overflow-hidden">
+                    <input type="file" id="fileInput" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer" />
+                    
+                    <div id="uploadPrompt" class="text-center space-y-3 pointer-events-none">
+                        <div class="w-16 h-16 bg-purple-100 dark:bg-purple-900/50 rounded-full flex items-center justify-center mx-auto text-purple-600 dark:text-purple-300 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-700 dark:text-gray-300">画像をここにドラッグ ＆ ドロップ</p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500">または クリックしてファイルを選択</p>
+                        </div>
+                    </div>
+
+                    <!-- Preview Container -->
+                    <div id="imagePreviewContainer" class="hidden absolute inset-0 w-full h-full bg-white dark:bg-gray-800 flex items-center justify-center">
+                        <img id="imagePreview" src="" alt="アップロード画像" class="w-full h-full object-contain" />
+                        <button id="removeImage" class="absolute top-3 right-3 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-lg transition-transform hover:scale-110 z-10">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom Prompt Overlay -->
+                <div class="mt-4">
+                    <label for="customPrompt" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">🎨 絵文字のアレンジ・タッチ (オプション)</label>
+                    <input type="text" id="customPrompt" placeholder="例: 3D、ピクセルアート風、怒っている、キラキラ" class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-sm" />
+                </div>
+            </div>
+
+            <!-- Generate Button -->
+            <button id="generateBtn" disabled class="w-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-purple-500/30 transform active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:pointer-events-none mt-6">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>絵文字を生成する</span>
+            </button>
+        </section>
+
+        <!-- Right Column: Result & Outputs -->
+        <section class="bg-white/90 dark:bg-gray-800/90 rounded-3xl p-6 shadow-xl border border-gray-100 dark:border-gray-700 flex flex-col space-y-6 h-full justify-between">
+            <div>
+                <h2 class="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                    <span class="text-xl">✨</span> 2. 生成結果
+                </h2>
+
+                <!-- Loader / Placeholder / Result Container -->
+                <div class="bg-gray-50 dark:bg-gray-900 rounded-2xl p-6 min-h-[300px] flex flex-col items-center justify-center border border-gray-100 dark:border-gray-800 relative">
+                    
+                    <!-- Loading Spinner -->
+                    <div id="loader" class="hidden flex flex-col items-center space-y-4 text-center z-10">
+                        <div class="relative w-20 h-20">
+                            <div class="absolute inset-0 border-4 border-purple-200 dark:border-purple-900 rounded-full"></div>
+                            <div class="absolute inset-0 border-4 border-purple-600 dark:border-purple-400 rounded-full border-t-transparent animate-spin"></div>
+                            <span class="absolute inset-0 flex items-center justify-center text-2xl animate-bounce">🤖</span>
+                        </div>
+                        <div>
+                            <p id="loadingStatus" class="font-bold text-purple-600 dark:text-purple-400">画像をスキャン中...</p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500">少しお時間がかかる場合があります</p>
+                        </div>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="emptyState" class="text-center space-y-3 py-12">
+                        <span class="text-6xl filter grayscale dark:grayscale-0 opacity-40">✨</span>
+                        <p class="text-gray-400 dark:text-gray-500 font-bold">左側で画像を選択して、生成を開始してください</p>
+                    </div>
+
+                    <!-- Result Output -->
+                    <div id="resultContent" class="hidden w-full space-y-6 emoji-pop">
+                        <!-- Custom Generated Emoji Canvas / Image -->
+                        <div class="flex flex-col items-center">
+                            <div class="relative group bg-white dark:bg-gray-800 p-4 rounded-3xl shadow-inner border border-gray-100 dark:border-gray-700">
+                                <img id="generatedEmojiImage" src="" alt="AI Generated Emoji" class="w-48 h-48 object-contain rounded-2xl bg-slate-50 dark:bg-slate-900" />
+                                
+                                <div class="absolute -bottom-3 right-4 flex space-x-2">
+                                    <button id="downloadBtn" class="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full shadow-lg transition-transform hover:scale-110" title="画像をダウンロード">
+                                        <i class="fa-solid fa-download"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-4 text-center">※右クリック、または上のボタンから画像を保存できます</p>
+                        </div>
+
+                        <!-- Matches / Suggested Standard Text Emojis -->
+                        <div class="border-t border-gray-100 dark:border-gray-800 pt-4">
+                            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-3">おすすめの標準絵文字</h3>
+                            <div id="textEmojisList" class="flex flex-wrap gap-2 justify-center">
+                                <!-- Dynamic standard emojis will go here -->
+                            </div>
+                        </div>
+
+                        <!-- AI Explanation -->
+                        <div class="bg-purple-50 dark:bg-purple-950/30 p-4 rounded-2xl border border-purple-100/50 dark:border-purple-900/50">
+                            <h4 class="text-xs font-bold text-purple-600 dark:text-purple-400 mb-1">AIの絵文字解説</h4>
+                            <p id="emojiDescription" class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed"></p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Feedback Notifications -->
+            <div id="notification" class="hidden bg-emerald-500 text-white text-xs font-bold py-2 px-4 rounded-xl text-center shadow-md animate-pulse">
+                コピーしました！
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-6 text-xs text-gray-400 dark:text-gray-500">
+        <p>&copy; 2026 AI Emoji Creator. Powered by Gemini Flash & Imagen.</p>
+    </footer>
+
+    <!-- Script Section -->
+    <script>
+        // --- API & State Setup ---
+        const apiKey = ""; // Runtime will inject this
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-emoji-maker';
+
+        // Elements
+        const themeToggle = document.getElementById('themeToggle');
+        const fileInput = document.getElementById('fileInput');
+        const dropzone = document.getElementById('dropzone');
+        const uploadPrompt = document.getElementById('uploadPrompt');
+        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+        const imagePreview = document.getElementById('imagePreview');
+        const removeImageBtn = document.getElementById('removeImage');
+        const customPromptInput = document.getElementById('customPrompt');
+        const generateBtn = document.getElementById('generateBtn');
+
+        const loader = document.getElementById('loader');
+        const loadingStatus = document.getElementById('loadingStatus');
+        const emptyState = document.getElementById('emptyState');
+        const resultContent = document.getElementById('resultContent');
+        const generatedEmojiImage = document.getElementById('generatedEmojiImage');
+        const textEmojisList = document.getElementById('textEmojisList');
+        const emojiDescription = document.getElementById('emojiDescription');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const notification = document.getElementById('notification');
+
+        let selectedImageBase64 = null;
+        let selectedImageMimeType = null;
+
+        // Theme Toggle Logic
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
+        themeToggle.addEventListener('click', () => {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        });
+
+        // --- File Handling Functions ---
+        function handleFile(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                showToast("有効な画像ファイルを選択してください", "bg-red-500");
+                return;
+            }
+
+            selectedImageMimeType = file.type;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const base64Data = e.target.result.split(',')[1];
+                selectedImageBase64 = base64Data;
+                imagePreview.src = e.target.result;
+                
+                // Switch View to Preview
+                uploadPrompt.classList.add('hidden');
+                imagePreviewContainer.classList.remove('hidden');
+                generateBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Drag & Drop Listeners
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('border-purple-600', 'bg-purple-100/30');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('border-purple-600', 'bg-purple-100/30');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-purple-600', 'bg-purple-100/30');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        removeImageBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            resetUploadState();
+        });
+
+        function resetUploadState() {
+            selectedImageBase64 = null;
+            selectedImageMimeType = null;
+            fileInput.value = '';
+            imagePreview.src = '';
+            uploadPrompt.classList.remove('hidden');
+            imagePreviewContainer.classList.add('hidden');
+            generateBtn.disabled = true;
+        }
+
+        // --- Core Gemini Integration & API Call with Exponential Backoff ---
+        async function fetchWithRetry(url, options, retries = 5, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) return await response.json();
+                    
+                    // If rate limit or server error, wait and retry
+                    if (response.status === 429 || response.status >= 500) {
+                        await new Promise(res => setTimeout(res, delay));
+                        delay *= 2; // Exponential backoff
+                        continue;
+                    }
+                    
+                    const errText = await response.text();
+                    throw new Error(`API Error: ${response.status} - ${errText}`);
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    await new Promise(res => setTimeout(res, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        // Action Trigger
+        generateBtn.addEventListener('click', async () => {
+            if (!selectedImageBase64) return;
+
+            // Switch UI states to Processing
+            emptyState.classList.add('hidden');
+            resultContent.classList.add('hidden');
+            loader.classList.remove('hidden');
+            generateBtn.disabled = true;
+
+            try {
+                // Step 1: Analyze image using gemini-2.5-flash-preview-09-2025
+                loadingStatus.textContent = "画像をAIでスキャン・解析中...";
+                const analysisResult = await analyzeImageAndSuggestEmojis(selectedImageBase64, selectedImageMimeType, customPromptInput.value);
+
+                // Step 2: Generate the custom Emoji art using imagen-4.0-generate-001
+                loadingStatus.textContent = "カスタム絵文字画像を錬成中...";
+                const customEmojiImageBase64 = await generateCustomEmojiImage(analysisResult.imageGenerationPrompt);
+
+                // Step 3: Render results
+                displayResults(customEmojiImageBase64, analysisResult);
+
+            } catch (error) {
+                console.error(error);
+                showToast("エラーが発生しました。時間をあけて再度お試しください。", "bg-red-500");
+                emptyState.classList.remove('hidden');
+            } finally {
+                loader.classList.add('hidden');
+                generateBtn.disabled = false;
+            }
+        });
+
+        // Step 1 helper: Analyze Image & fetch structured instructions
+        async function analyzeImageAndSuggestEmojis(base64Image, mimeType, userCustomMod) {
+            const prompt = `あなたは世界最高峰の絵文字デザイナーです。この画像の特徴、カラーパレット、感情、重要なシンボルを注意深く抽出・解析してください。
+そして、その解析をもとに以下のJSONフォーマットのオブジェクトのみを出力してください。追加のマークダウン装飾（\`\`\`json 等）は不要です。生テキストとしてJSONを返してください。
+
+【求めるJSON構造】:
+{
+  "imageGenerationPrompt": "画像生成AI（Imagen 4.0）向けの、完全な英語プロンプト。画像から特徴的なキャラクターやシンボルを、完全に透明な背景、またはクリーンでソリッドな単色背景（可能なら3Dクレイ調、ピクセルアート風、フラットデザインなど現代的な絵文字スタイル）の単一アイコン・絵文字（Emoji）として再構築するための指示。3D、光沢感、かわいいタッチを指定してください。追加指示: ${userCustomMod || '典型的な3D絵文字スタイル'}",
+  "suggestedStandardEmojis": ["画像に密接に関連する、既存の一般的なテキスト絵文字5つの配列"],
+  "japaneseExplanation": "この画像からなぜこれらの絵文字がインスパイアされたのか、画像のデザインコンセプトを説明する150文字以内の日本語文章。"
+}`;
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [
+                        { text: prompt },
+                        { inlineData: { mimeType: mimeType, data: base64Image } }
+                    ]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            imageGenerationPrompt: { type: "STRING" },
+                            suggestedStandardEmojis: {
+                                type: "ARRAY",
+                                items: { type: "STRING" }
+                            },
+                            japaneseExplanation: { type: "STRING" }
+                        },
+                        required: ["imageGenerationPrompt", "suggestedStandardEmojis", "japaneseExplanation"]
+                    }
+                }
+            };
+
+            const response = await fetchWithRetry(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            const rawText = response.candidates?.[0]?.content?.parts?.[0]?.text;
+            return JSON.parse(rawText);
+        }
+
+        // Step 2 helper: Generate Beautiful Emoji from analysis prompt
+        async function generateCustomEmojiImage(generationPrompt) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+            
+            // Adjust the user prompt slightly to guarantee a premium app icon/emoji asset
+            const refinedPrompt = `${generationPrompt}, minimalist emoji icon, clean smooth clay 3D render, vibrant colors, solid white background, high-definition, stickers, game asset.`;
+
+            const payload = {
+                instances: [
+                    { prompt: refinedPrompt }
+                ],
+                parameters: {
+                    sampleCount: 1,
+                    aspectRatio: "1:1",
+                    outputMimeType: "image/png"
+                }
+            };
+
+            const response = await fetchWithRetry(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            const bytes = response.predictions?.[0]?.bytesBase64Encoded;
+            if (!bytes) {
+                throw new Error("Imagen generation returned empty content");
+            }
+
+            return `data:image/png;base64,${bytes}`;
+        }
+
+        // Display results to user
+        function displayResults(customEmojiUrl, analysis) {
+            generatedEmojiImage.src = customEmojiUrl;
+            emojiDescription.textContent = analysis.japaneseExplanation;
+
+            // Clear old text emojis
+            textEmojisList.innerHTML = '';
+
+            // Add new ones
+            analysis.suggestedStandardEmojis.forEach(emoji => {
+                const button = document.createElement('button');
+                button.className = 'text-3xl p-3 bg-gray-100 dark:bg-gray-700 hover:bg-purple-100 dark:hover:bg-purple-900 rounded-2xl transform active:scale-95 transition-all flex items-center justify-center';
+                button.innerHTML = emoji;
+                button.addEventListener('click', () => {
+                    copyToClipboard(emoji);
+                });
+                textEmojisList.appendChild(button);
+            });
+
+            // Set up download trigger
+            downloadBtn.onclick = () => {
+                const link = document.createElement('a');
+                link.href = customEmojiUrl;
+                link.download = `ai-emoji-${Date.now()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast("絵文字画像をダウンロードしました！");
+            };
+
+            resultContent.classList.remove('hidden');
+        }
+
+        // Clipboard Copy Helper
+        function copyToClipboard(text) {
+            const tempInput = document.createElement('input');
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showToast(`絵文字「 ${text} 」をコピーしました！`);
+        }
+
+        // Custom Toast / Banner
+        function showToast(message, bgColor = "bg-purple-600") {
+            notification.textContent = message;
+            notification.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 text-white font-bold py-3 px-6 rounded-2xl shadow-xl z-50 text-sm ${bgColor} emoji-pop`;
+            notification.classList.remove('hidden');
+
+            setTimeout(() => {
+                notification.classList.add('hidden');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
