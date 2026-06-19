@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像➔絵文字アート変換器</title>
+    <style>
+        body { font-family: sans-serif; max-width: 500px; margin: 40px auto; padding: 20px; background: #f0f2f5; text-align: center; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .btn { display: inline-block; padding: 12px 24px; background: #007bff; color: white; border-radius: 6px; cursor: pointer; font-weight: bold; margin-bottom: 15px; }
+        input[type="file"] { display: none; }
+        select { padding: 8px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
+        textarea { width: 100%; height: 200px; font-family: monospace; font-size: 10px; letter-spacing: 0px; line-height: 1.1; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; white-space: pre; overflow-x: auto; }
+        .copy-btn { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .result-area { display: none; margin-top: 20px; }
+        #error { color: red; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>画像 ➔ 絵文字ドット絵変換</h2>
+    <p>画像をチャットに貼り付けられる絵文字アートに変換します。</p>
+    
+    <label for="sizeSelect">サイズ（絵文字の細かさ）：</label>
+    <select id="sizeSelect">
+        <option value="12">12 x 12 (チャットに最適・短め)</option>
+        <option value="16" selected>16 x 16 (おすすめ標準)</option>
+        <option value="24">24 x 24 (少し細かめ)</option>
+    </select>
+    <br>
+
+    <label class="btn" for="imageInput">画像を選ぶ</label>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="error"></div>
+
+    <div class="result-area" id="resultArea">
+        <p>変換結果（これをそのままコピペできます）：</p>
+        <textarea id="outputText" readonly></textarea>
+        <button class="copy-btn" id="copyBtn">絵文字をコピーする</button>
+    </div>
+</div>
+
+<canvas id="hiddenCanvas" style="display:none;"></canvas>
+
+<script>
+// 色判別用の絵文字リスト（RGBの基準値）
+const emojiPalette = [
+    { emoji: '⬛', r: 0,   g: 0,   b: 0 },
+    { emoji: '⬜', r: 255, g: 255, b: 255 },
+    { emoji: '🟥', r: 230, g: 35,  b: 35 },
+    { emoji: '🟦', r: 30,  g: 140, b: 240 },
+    { emoji: '🟩', r: 40,  g: 180, b: 70 },
+    { emoji: '🟨', r: 250, g: 220, b: 20 },
+    { emoji: '🟧', r: 250, g: 130, b: 30 },
+    { emoji: '🟪', r: 160, g: 40, b: 180 },
+    { emoji: '🟫', r: 120, g: 70, b: 40 }
+];
+
+document.getElementById('imageInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const errorTxt = document.getElementById('error');
+    const resultArea = document.getElementById('resultArea');
+    
+    errorTxt.innerText = '';
+    resultArea.style.display = 'none';
+
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+        errorTxt.innerText = '画像ファイルを選択してください。';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            // 画像の解析・変換処理スタート
+            convertToEmojiArt(img);
+        };
+        img.onerror = function() {
+            errorTxt.innerText = '画像の読み込みに失敗しました。';
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+});
+
+function convertToEmojiArt(img) {
+    const size = parseInt(document.getElementById('sizeSelect').value);
+    const canvas = document.getElementById('hiddenCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // エラー防止：キャンバスをユーザーが指定した極小サイズ（16x16など）に設定
+    canvas.width = size;
+    canvas.height = size;
+
+    // 画像をキャンバスのサイズにギュッと縮小して描画
+    ctx.drawImage(img, 0, 0, size, size);
+
+    // 縮小されたピクセルの色データ（RGBA）を一括取得
+    const imgData = ctx.getImageData(0, 0, size, size).data;
+    let emojiResult = '';
+
+    // ピクセルを1つずつループ処理して絵文字に置き換える
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const index = (y * size + x) * 4;
+            const r = imgData[index];
+            const g = imgData[index + 1];
+            const b = imgData[index + 2];
+            const a = imgData[index + 3];
+
+            // 透明度が低い（透けている）ピクセルは白にする
+            if (a < 128) {
+                emojiResult += '⬜';
+            } else {
+                // 一番近い色をパレットから探す
+                emojiResult += findClosestEmoji(r, g, b);
+            }
+        }
+        emojiResult += '\n'; // 行の終わりに改行を入れる
+    }
+
+    // 画面に出力
+    document.getElementById('outputText').value = emojiResult;
+    document.getElementById('resultArea').style.display = 'block';
+}
+
+// RGBの値から、一番近い色の絵文字を計算して返す関数
+function findClosestEmoji(r, g, b) {
+    let minDistance = Infinity;
+    let closestEmoji = '⬛';
+
+    for (const item of emojiPalette) {
+        // 三次元空間の距離の公式（色の近さを計算）
+        const distance = Math.pow(r - item.r, 2) + Math.pow(g - item.g, 2) + Math.pow(b - item.b, 2);
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestEmoji = item.emoji;
+        }
+    }
+    return closestEmoji;
+}
+
+// コピー機能
+document.getElementById('copyBtn').addEventListener('click', function() {
+    const outputText = document.getElementById('outputText');
+    outputText.select();
+    document.execCommand('copy');
+    alert('絵文字ドット絵をコピーしました！チャットに貼り付けてみてね！');
+});
+</script>
+
+</body>
+</html>
