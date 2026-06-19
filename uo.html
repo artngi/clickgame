@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像→絵文字データ変換ツール</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        h1 { font-size: 24px; margin-top: 0; color: #2c3e50; }
+        .input-group { margin-bottom: 20px; }
+        input[type="file"] { display: none; }
+        .file-label {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #3498db;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .file-label:hover { background: #2980b9; }
+        .error-message { color: #e74c3c; font-weight: bold; margin-top: 10px; display: none; }
+        .result-box { display: none; margin-top: 25px; }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            resize: vertical;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button.copy-btn {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button.copy-btn:hover { background: #27ae60; }
+        .preview { max-width: 100px; max-height: 100px; display: block; margin-top: 10px; border-radius: 6px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>画像 ➔ 絵文字データ変換器</h1>
+    <p>画像を1つの文字列（Base64形式）に変換し、どこでも文字としてコピペできるようにします。</p>
+    
+    <div class="input-group">
+        <label for="imageInput" class="file-label">画像を選択する</label>
+        <input type="file" id="imageInput" accept="image/*">
+        <div id="errorMessage" class="error-message"></div>
+    </div>
+
+    <div id="resultBox" class="result-box">
+        <h3>変換成功！</h3>
+        <img id="previewImage" class="preview" alt="プレビュー">
+        <p>下のテキストを「1つの文字データ」としてコピーして使えます：</p>
+        <textarea id="outputText" readonly></textarea>
+        <button id="copyBtn" class="copy-btn">クリップボードにコピー</button>
+    </div>
+</div>
+
+<script>
+document.getElementById('imageInput').addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    const errorDiv = document.getElementById('errorMessage');
+    const resultBox = document.getElementById('resultBox');
+    const outputText = document.getElementById('outputText');
+    const previewImage = document.getElementById('previewImage');
+
+    // 初期化
+    errorDiv.style.display = 'none';
+    errorDiv.innerText = '';
+    resultBox.style.display = 'none';
+
+    // 1. ファイルが選択されていない場合のエラー回避
+    if (!file) return;
+
+    // 2. エラー防止：画像ファイルかどうかのチェック
+    if (!file.type.startsWith('image/')) {
+        showError('エラー: 画像ファイル（png, jpg, gifなど）を選択してください。');
+        return;
+    }
+
+    // 3. エラー防止：ファイルサイズの上限チェック (例: 5MB = 5 * 1024 * 1024 バイト)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+        showError('エラー: ファイルサイズが大きすぎます(5MBまで)。ブラウザがフリーズするのを防ぐため中断しました。');
+        return;
+    }
+
+    // 4. エラー防止：安全な非同期読み込み処理
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        const base64Data = e.target.result;
+        
+        // 画面に結果を表示
+        previewImage.src = base64Data;
+        outputText.value = base64Data;
+        resultBox.style.display = 'block';
+    };
+
+    // 読み込み自体が失敗した場合の保険（ファイル破損など）
+    reader.onerror = function() {
+        showError('エラー: ファイルの読み込み中に問題が発生しました。');
+    };
+
+    // 実行
+    reader.readAsDataURL(file);
+});
+
+// コピー機能
+document.getElementById('copyBtn').addEventListener('click', function() {
+    const outputText = document.getElementById('outputText');
+    outputText.select();
+    document.execCommand('copy');
+    alert('クリップボードに文字データをコピーしました！');
+});
+
+// エラー表示用関数
+function showError(message) {
+    const errorDiv = document.getElementById('errorMessage');
+    errorDiv.innerText = message;
+    errorDiv.style.display = 'block';
+}
+</script>
+
+</body>
+</html>
