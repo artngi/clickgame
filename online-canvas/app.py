@@ -1,225 +1,137 @@
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO, emit, join_room, leave_room
-import uuid
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
-# リアルタイム同期およびロビー招待システム用の設定
+# リアルタイム通信を行うための設定
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# 接続中のオンラインプレイヤー管理
-# { sid: { id, name, room, status: 'lobby'|'playing' } }
-online_players = {}
+# 接続中のユーザーを管理する辞書 { sid: username }
+online_users = {}
+# 現在進行中のゲームセッション { game_id: { player1: sid, player2: sid } }
+active_games = {}
 
 @app.route('/')
 def index():
-    # ゲーム画面を表示
+    # メインのHTMLを表示する
     return render_template('index.html')
 
+# クライアントが接続したとき
 @socketio.on('connect')
 def handle_connect():
     sid = request.sid
-    # 初期状態のユーザーを作成
-    online_players[sid] = {
-        "sid": sid,
-        "id": str(uuid.uuid4())[:8],
-        "name": "ブローラー",
-        "room": "public",
-        "status": "lobby"
-    }
-    # 初期状態としてpublic部屋に参加させる
-    join_room("public")
-    # 自分に個人情報を伝える
-    emit('me', online_players[sid])
-    # 全員に最新のオンラインリストを同期
-    send_online_list()
+    # 初期ユーザー名（後からクライアント側で変更可能）
+    username = f"プレイヤー_{sid[:5]}"
+    online_users[sid] = username
+    
+    # 全員に最新のオンラインユーザーリストを送信
+    emit('update_users', {
+        'users': online_users,
+        'my_id': sid
+    }, broadcast=True)
 
+# ユーザー名が設定・変更されたとき
+@socketio.on('set_username')
+def handle_set_username(data):
+    sid = request.sid
+    new_name = data.get('username', f"プレイヤー_{sid[:5]}")
+    online_users[sid] = new_name
+    
+    # ユーザーリストを更新
+    emit('update_users', {
+        'users': online_users,
+        'my_id': sid
+    }, broadcast=True)
+
+# クライアントが切断したとき
 @socketio.on('disconnect')
 def handle_disconnect():
     sid = request.sid
-    if sid in online_players:
-        player = online_players[sid]
-        room = player["room"]
-        leave_room(room)
-        # 部屋の他のメンバーにスロット退室通知
-        emit('player_left', {"sid": sid, "id": player["id"]}, to=room)
-        del online_players[sid]
-    send_online_list()
-
-@socketio.on('set_name')
-def handle_set_name(data):
-    sid = request.sid
-    if sid in online_players:
-        online_players[sid]["name"] = data.get("name", "ブローラー")[:12]
-        # 自分の情報を再送信
-        emit('me', online_players[sid])
-        # 全員に通知
-        send_online_list()
-        # 同じロビーの仲間にも同期
-        room = online_players[sid]["room"]
-        emit('room_sync_trigger', to=room)
-
-# --- ロビー・同期システム ---
-@socketio.on('join_lobby')
-def handle_join_lobby(data):
-    sid = request.sid
-    if sid not in online_players: return
+    if sid in online_users:
+        del online_users[sid]
     
-    old_room = online_players[sid]["room"]
-    leave_room(old_room)
-    emit('player_left', {"sid": sid, "id": online_players[sid]["id"]}, to=old_room)
+    # 関連する対戦中ゲームがあれば削除し、対戦相手に通知
+    game_to_remove = None
+    for game_id, players in active_games.items():
+        if players['p1'] == sid or players['p2'] == sid:
+            opponent_sid = players['p2'] if players['p1'] == sid else players['p1']
+            emit('opponent_disconnected', room=opponent_sid)
+            game_to_remove = game_id
+            break
+            
+    if game_to_remove:
+        del active_games[game_to_remove]
 
-    new_room = data.get("room", "public")
-    online_players[sid]["room"] = new_room
-    join_room(new_room)
+    # 全員に最新のオンラインユーザーリストを送信
+    emit('update_users', {
+        'users': online_users,
+        'my_id': ''
+    }, broadcast=True)
+
+# 誰かに挑戦状を送る
+@socketio.on('challenge_send')
+def handle_challenge_send(data):
+    sender_sid = request.sid
+    target_sid = data.get('target_sid')
     
-    # ロビー内の全員に通知
-    emit('player_joined', {
-        "sid": sid,
-        "id": online_players[sid]["id"],
-        "name": online_players[sid]["name"]
-    }, to=new_room)
+    if target_sid in online_users:
+        # 挑戦相手にのみ、挑戦者の名前とIDを送る
+        emit('challenge_received', {
+            'challenger_id': sender_sid,
+            'challenger_name': online_users[sender_sid]
+        }, room=target_sid)
+
+# 挑戦を承諾する
+@socketio.on('challenge_accept')
+def handle_challenge_accept(data):
+    p2_sid = request.sid # 承諾した人
+    p1_sid = data.get('challenger_id') # 挑んだ人
     
-    send_online_list()
+    if p1_sid in online_users and p2_sid in online_users:
+        # ユニークなゲームIDを作成
+        game_id = f"game_{p1_sid[:4]}_{p2_sid[:4]}"
+        active_games[game_id] = {'p1': p1_sid, 'p2': p2_sid}
+        
+        # 双方にゲーム開始を通知
+        # p1（ホスト側）
+        emit('game_start', {
+            'game_id': game_id,
+            'role': 'p1',
+            'opponent_name': online_users[p2_sid],
+            'opponent_id': p2_sid
+        }, room=p1_sid)
+        
+        # p2（ゲスト側）
+        emit('game_start', {
+            'game_id': game_id,
+            'role': 'p2',
+            'opponent_name': online_users[p1_sid],
+            'opponent_id': p1_sid
+        }, room=p2_sid)
 
-# スロットの状態変更（キャラクター設定、ガジェット、スターパワー、スロットの選択）を部屋メンバーにブロードキャスト
-@socketio.on('update_slot')
-def handle_update_slot(data):
-    sid = request.sid
-    if sid in online_players:
-        room = online_players[sid]["room"]
-        # スロット変更データをロビーの全員（自分以外）に伝える
-        emit('slot_updated', {
-            "sid": sid,
-            "id": online_players[sid]["id"],
-            "name": online_players[sid]["name"],
-            "slotIndex": data.get("slotIndex"),
-            "brawler": data.get("brawler"),
-            "gadget": data.get("gadget"),
-            "sp": data.get("sp"),
-            "enabled": data.get("enabled"),
-            "isPlayer": data.get("isPlayer")
-        }, to=room, include_self=False)
+# 挑戦を拒否する
+@socketio.on('challenge_decline')
+def handle_challenge_decline(data):
+    p1_sid = data.get('challenger_id')
+    if p1_sid in online_users:
+        emit('challenge_declined', {
+            'declined_by': online_users[request.sid]
+        }, room=p1_sid)
 
-# ゲームモードの変更同期
-@socketio.on('update_mode')
-def handle_update_mode(data):
-    sid = request.sid
-    if sid in online_players:
-        room = online_players[sid]["room"]
-        emit('mode_updated', {"mode": data.get("mode")}, to=room, include_self=False)
-
-# 誰かがゲームスタートを押したとき
-@socketio.on('start_game')
-def handle_start_game(data):
-    sid = request.sid
-    if sid in online_players:
-        room = online_players[sid]["room"]
-        # 全員をプレイ中ステータスにする
-        for s, p in online_players.items():
-            if p["room"] == room:
-                p["status"] = "playing"
-        emit('game_started', data, to=room)
-        send_online_list()
-
-# ゲームが終了してメニューに戻ったとき
-@socketio.on('back_to_lobby')
-def handle_back_to_lobby():
-    sid = request.sid
-    if sid in online_players:
-        room = online_players[sid]["room"]
-        online_players[sid]["status"] = "lobby"
-        emit('lobby_returned', to=room)
-        send_online_list()
-
-# --- 招待システム ---
-@socketio.on('send_invite')
-def handle_send_invite(data):
-    # data: { targetSid: '...' }
-    sid = request.sid
-    target_sid = data.get("targetSid")
-    if sid in online_players and target_sid in online_players:
-        sender = online_players[sid]
-        # ターゲットに招待通知を送る
-        emit('invite_received', {
-            "senderSid": sid,
-            "senderName": sender["name"],
-            "senderRoom": sender["room"]
-        }, to=target_sid)
-
-@socketio.on('respond_invite')
-def handle_respond_invite(data):
-    # data: { senderSid: '...', accept: true/false, senderRoom: '...' }
-    sid = request.sid
-    sender_sid = data.get("senderSid")
-    accept = data.get("accept")
+# 対戦中のアクション（位置移動、弾発射、被弾、勝利判定など）を中継
+@socketio.on('game_action')
+def handle_game_action(data):
+    sender_sid = request.sid
+    opponent_sid = data.get('opponent_id')
+    action_type = data.get('type')
+    action_data = data.get('data')
     
-    if sid in online_players and sender_sid in online_players:
-        receiver_name = online_players[sid]["name"]
-        if accept:
-            # 招待を承諾した場合、送り主のルームに移動
-            room_to_join = data.get("senderRoom")
-            old_room = online_players[sid]["room"]
-            leave_room(old_room)
-            emit('player_left', {"sid": sid, "id": online_players[sid]["id"]}, to=old_room)
-            
-            online_players[sid]["room"] = room_to_join
-            join_room(room_to_join)
-            
-            # 招待承諾を送り主に伝える
-            emit('invite_response', {
-                "receiverName": receiver_name,
-                "accept": True,
-                "room": room_to_join
-            }, to=sender_sid)
-            
-            # ロビー同期発火
-            emit('room_sync_trigger', to=room_to_join)
-        else:
-            # 拒否を伝える
-            emit('invite_response', {
-                "receiverName": receiver_name,
-                "accept": False
-            }, to=sender_sid)
-            
-        send_online_list()
-
-# --- リアルタイム対戦同期パケット ---
-# 同一のロビー部屋内でプレイ中のプレイヤー同士の位置・行動を同期
-@socketio.on('sync_pos')
-def handle_sync_pos(data):
-    sid = request.sid
-    if sid in online_players:
-        room = online_players[sid]["room"]
-        data["sid"] = sid
-        emit('sync_pos', data, to=room, include_self=False)
-
-@socketio.on('sync_attack')
-def handle_sync_attack(data):
-    sid = request.sid
-    if sid in online_players:
-        room = online_players[sid]["room"]
-        data["sid"] = sid
-        emit('sync_attack', data, to=room, include_self=False)
-
-@socketio.on('sync_damage')
-def handle_sync_damage(data):
-    sid = request.sid
-    if sid in online_players:
-        room = online_players[sid]["room"]
-        emit('sync_damage', data, to=room, include_self=False)
-
-@socketio.on('sync_die')
-def handle_sync_die(data):
-    sid = request.sid
-    if sid in online_players:
-        room = online_players[sid]["room"]
-        data["sid"] = sid
-        emit('sync_die', data, to=room, include_self=False)
-
-def send_online_list():
-    # 接続中の全員の情報をシリアライズして一括送信
-    plist = list(online_players.values())
-    socketio.emit('online_list', plist)
+    if opponent_sid in online_users:
+        # 相手プレイヤーにアクションデータをそのまま転送する
+        emit('opponent_action', {
+            'type': action_type,
+            'data': action_data
+        }, room=opponent_sid)
 
 if __name__ == '__main__':
+    # サーバーを起動（ポート番号5000）
     socketio.run(app, debug=True, port=5000)
