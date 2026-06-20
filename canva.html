@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>リアルタイム共有キャンバス</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: fixed;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        .container {
+            display: flex;
+            display: table;
+            width: 100%;
+            height: 100%;
+        }
+        header {
+            background-color: #1e293b;
+            color: #ffffff;
+            padding: 12px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.5px; }
+        .controls {
+            background-color: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px;
+            text-align: center;
+        }
+        .control-group {
+            display: inline-block;
+            margin: 0 8px;
+            vertical-align: middle;
+        }
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            vertical-align: middle;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+        
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: background-color 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        button:active { background-color: #2563eb; }
+        #clearBtn { background-color: #ef4444; }
+        #clearBtn:active { background-color: #dc2626; }
+        
+        .canvas-container {
+            padding: 16px;
+            text-align: center;
+            background-color: #f1f5f9;
+            height: calc(100% - 130px);
+            overflow: hidden;
+        }
+        .canvas-wrapper {
+            display: inline-block;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            padding: 8px;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        canvas {
+            display: block;
+            background: #ffffff;
+            max-width: 100%;
+            max-height: 70vh;
+            aspect-ratio: 1 / 1;
+            touch-action: none;
+        }
+        .status-bar {
+            background-color: #e2e8f0;
+            padding: 6px 12px;
+            font-size: 11px;
+            color: #64748b;
+            text-align: center;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>リアルタイム共有キャンバス (スマホ対応版)</h1>
+    </header>
+    
+    <div class="controls">
+        <div class="control-group">
+            <input type="color" id="colorPicker" value="#2563eb">
+        </div>
+        <div class="control-group">
+            <button id="eraserBtn">消しゴム</button>
+        </div>
+        <div class="control-group">
+            <button id="clearBtn">全消去</button>
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <div class="canvas-wrapper">
+            <canvas id="canvas" width="600" height="600"></canvas>
+        </div>
+    </div>
+    
+    <div class="status-bar" id="statusBar">サーバー接続中...</div>
+
+    <script>
+        // 本番環境（Render等）のURLに置き換える部分。未設定時はローカルホスト
+        const SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:5000' 
+            : 'https://my-canvas-game.onrender.com'; // ★ここにRenderのURLを入れる
+
+        const socket = io(SERVER_URL);
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const colorPicker = document.getElementById('colorPicker');
+        const eraserBtn = document.getElementById('eraserBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const statusBar = document.getElementById('statusBar');
+
+        let isDrawing = false;
+        let isEraser = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        socket.on('connect', () => {
+            statusBar.textContent = '● サーバーに接続されました。お絵描きできます！';
+            statusBar.style.color = '#16a34a';
+        });
+
+        socket.on('disconnect', () => {
+            statusBar.textContent = '▲ サーバーから切断されました。再接続を試みています...';
+            statusBar.style.color = '#dc2626';
+        });
+
+        function drawLine(x1, y1, x2, y2, color, size, emit = false) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = size;
+            ctx.stroke();
+
+            if (emit && socket.connected) {
+                socket.emit('draw', { x1, y1, x2, y2, color, size });
+            }
+        }
+
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            const pos = getPos(e);
+            lastX = pos.x;
+            lastY = pos.y;
+        }
+
+        function moveDrawing(e) {
+            if (!isDrawing) return;
+            if (e.cancelable) e.preventDefault();
+            
+            const pos = getPos(e);
+            const color = isEraser ? '#ffffff' : colorPicker.value;
+            const size = isEraser ? 40 : 6;
+
+            drawLine(lastX, lastY, pos.x, pos.y, color, size, true);
+            lastX = pos.x;
+            lastY = pos.y;
+        }
+
+        function stopDrawing() { isDrawing = false; }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', moveDrawing);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+        
+        canvas.addEventListener('touchstart', startDrawing, { passive: false });
+        canvas.addEventListener('touchmove', moveDrawing, { passive: false });
+        canvas.addEventListener('touchend', stopDrawing);
+
+        eraserBtn.addEventListener('click', () => {
+            isEraser = !isEraser;
+            eraserBtn.style.backgroundColor = isEraser ? '#64748b' : '#3b82f6';
+            eraserBtn.innerText = isEraser ? 'ペンを使う' : '消しゴム';
+        });
+
+        clearBtn.addEventListener('click', () => {
+            if(confirm("全員のキャンバスを完全に消去しますか？")) {
+                socket.emit('clear');
+            }
+        });
+
+        socket.on('history', (history) => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            history.forEach(data => {
+                drawLine(data.x1, data.y1, data.x2, data.y2, data.color, data.size, false);
+            });
+        });
+
+        socket.on('draw', (data) => {
+            drawLine(data.x1, data.y1, data.x2, data.y2, data.color, data.size, false);
+        });
+
+        socket.on('clear', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+    </script>
+</body>
+</html>
