@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>オンライン連打ゲーム - わら人形</title>
+    <title>連打ゲーム - わら人形</title>
+    <!-- Socket.ioクライアントの追加 -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body {
             font-family: 'Hiragino Kaku Gothic ProN', sans-serif;
@@ -44,51 +46,12 @@
             padding: 8px;
             margin-bottom: 10px;
             border: 2px solid #9b59b6;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
         #current-rank {
             font-weight: bold;
             color: #f1c40f;
             font-size: 1.1rem;
             text-shadow: 0 0 5px rgba(241, 196, 15, 0.5);
-        }
-
-        /* オンライン連携用の丸ボタンとインジケーター */
-        .online-status-container {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .online-indicator {
-            width: 10px;
-            height: 10px;
-            background-color: #7f8c8d;
-            border-radius: 50%;
-            display: inline-block;
-        }
-        .online-indicator.connected {
-            background-color: #2ecc71;
-            box-shadow: 0 0 8px #2ecc71;
-        }
-        .online-toggle-btn {
-            background: #3b82f6;
-            border: none;
-            color: white;
-            border-radius: 50%;
-            width: 32px;
-            height: 32px;
-            font-size: 1.1rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            transition: transform 0.2s;
-        }
-        .online-toggle-btn:active {
-            transform: scale(0.9);
         }
 
         .top-controls {
@@ -198,7 +161,7 @@
         }
         .upgrade-btn:disabled { background: #7f8c8d; opacity: 0.6; }
 
-        /* ダメージポップアップの基本スタイル */
+        /* ダメージポップアップの基本スタイル（色はJSで指定） */
         .damage-popup {
             position: absolute;
             font-weight: bold;
@@ -226,8 +189,44 @@
         .reset-area { margin-top: 15px; border-top: 1px solid #5d6d7e; padding-top: 10px; }
         #btn-reset { background: #c0392b; color: #ecf0f1; border: none; padding: 6px 12px; border-radius: 5px; font-size: 0.7rem; cursor: pointer; }
 
-        /* --- オンライン・マルチプレイヤースタイル --- */
-        .modal-overlay {
+        /* ==== オンライン機能追加用スタイル（元のレイアウトを崩さない位置） ==== */
+        #online-float-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            transition: transform 0.2s, background-color 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #online-float-btn:active {
+            transform: scale(0.9);
+            background: #2563eb;
+        }
+        .online-dot {
+            width: 10px;
+            height: 10px;
+            background: #2ecc71;
+            border-radius: 50%;
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            border: 2px solid white;
+        }
+
+        /* オンラインモーダル */
+        #online-modal {
             display: none;
             position: fixed;
             top: 0;
@@ -238,81 +237,141 @@
             z-index: 1000;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 15px;
         }
         .modal-content {
             background: #2c3e50;
-            border: 3px solid #3b82f6;
+            border: 3px solid #34495e;
             border-radius: 15px;
             width: 100%;
             max-width: 380px;
-            padding: 15px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            text-align: center;
             max-height: 80vh;
             display: flex;
             flex-direction: column;
+            color: white;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            overflow: hidden;
         }
         .modal-header {
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #3b82f6;
+            background: #34495e;
+            padding: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 2px solid #1a252f;
         }
+        .modal-header h3 { margin: 0; font-size: 1.1rem; }
         .modal-close {
-            cursor: pointer;
+            background: none;
+            border: none;
+            color: #bdc3c7;
             font-size: 1.5rem;
-            color: #95a5a6;
+            cursor: pointer;
+        }
+        .modal-body {
+            padding: 15px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .name-config {
+            background: #1a252f;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .name-config input {
+            flex: 1;
+            background: #2c3e50;
+            border: 1px solid #7f8c8d;
+            border-radius: 5px;
+            color: white;
+            padding: 6px;
+            font-size: 0.9rem;
+        }
+        .name-config button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .rank-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        .tab-btn {
+            flex: 1;
+            background: #34495e;
+            color: #bdc3c7;
+            border: none;
+            padding: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .tab-btn.active {
+            background: #8e44ad;
+            color: white;
+            font-weight: bold;
         }
         .player-list {
-            overflow-y: auto;
-            flex-grow: 1;
-            margin: 10px 0;
             display: flex;
             flex-direction: column;
             gap: 8px;
-            padding-right: 5px;
+            max-height: 40vh;
+            overflow-y: auto;
         }
-        .player-item {
-            background: rgba(0,0,0,0.3);
+        .player-card {
+            background: #1a252f;
             border-radius: 8px;
             padding: 8px 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 0.85rem;
         }
         .player-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
             text-align: left;
         }
-        .player-name {
-            font-weight: bold;
-            color: #f1c40f;
+        .player-name-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        .player-stats {
-            font-size: 0.75rem;
-            color: #bdc3c7;
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
         }
-        .btn-duel {
+        .status-online { background: #2ecc71; }
+        .status-offline { background: #95a5a6; }
+        
+        .challenge-btn {
             background: #e74c3c;
-            border: none;
-            padding: 4px 10px;
             color: white;
+            border: none;
+            padding: 6px 12px;
             border-radius: 5px;
-            font-size: 0.8rem;
             cursor: pointer;
-            transition: 0.2s;
+            font-size: 0.8rem;
+            font-weight: bold;
         }
-        .btn-duel:disabled {
+        .challenge-btn:disabled {
             background: #7f8c8d;
             opacity: 0.5;
+            cursor: not-allowed;
         }
-        
-        /* 決闘画面モーダル */
-        .duel-modal {
+
+        /* 挑戦＆対戦パネル */
+        #match-panel {
             display: none;
             position: fixed;
             top: 0;
@@ -325,81 +384,65 @@
             justify-content: center;
             padding: 20px;
         }
-        .duel-container {
-            background: #1a252f;
+        .match-card {
+            background: #2c3e50;
             border: 4px solid #e74c3c;
             border-radius: 20px;
             width: 100%;
-            max-width: 400px;
+            max-width: 350px;
             padding: 20px;
             text-align: center;
-            box-shadow: 0 0 30px #e74c3c;
+            color: white;
         }
-        .duel-title {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #e74c3c;
-            margin-bottom: 15px;
-            text-shadow: 0 0 10px rgba(231, 76, 60, 0.5);
-        }
-        .duel-timer {
-            font-size: 2.5rem;
+        .match-title {
+            font-size: 1.4rem;
             font-weight: bold;
             color: #f1c40f;
-            margin: 10px 0;
+            margin-bottom: 15px;
         }
-        .duel-fighters {
+        .battle-ui {
             display: flex;
-            justify-content: space-around;
-            align-items: center;
-            margin: 20px 0;
+            flex-direction: column;
+            gap: 15px;
         }
-        .fighter {
-            flex: 1;
+        .battle-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: #1a252f;
+            padding: 12px;
+            border-radius: 10px;
         }
-        .fighter.self {
-            color: #3498db;
+        .battle-bar-wrapper {
+            text-align: left;
         }
-        .fighter.enemy {
-            color: #e74c3c;
-        }
-        .fighter-name {
-            font-weight: bold;
-            font-size: 1.1rem;
-        }
-        .fighter-score {
-            font-size: 1.8rem;
-            font-weight: bold;
-            margin-top: 5px;
-        }
-        .vs-label {
-            font-style: italic;
-            color: #bdc3c7;
-            font-size: 1.2rem;
-        }
-        .input-name-field {
+        .battle-bar-container {
             width: 100%;
-            padding: 8px;
-            border-radius: 5px;
-            border: 1px solid #7f8c8d;
-            background: #34495e;
-            color: white;
-            margin-bottom: 10px;
-            box-sizing: border-box;
+            background: #555;
+            height: 15px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .battle-bar-fill {
+            height: 100%;
+            transition: width 0.1s;
+        }
+        #my-battle-fill { background: #2ecc71; width: 0%; }
+        #opp-battle-fill { background: #e74c3c; width: 0%; }
+        #battle-timer {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ff4757;
+            text-shadow: 0 0 10px rgba(255, 71, 87, 0.5);
         }
     </style>
-    <!-- Socket.IOクライアントのインポート -->
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
 
     <div id="game-container">
         <div class="rank-display">
-            <div>現在のランク: <span id="current-rank">読み込み中...</span></div>
-            <div class="online-status-container">
-                <span class="online-indicator" id="online-indicator"></span>
-                <button class="online-toggle-btn" id="online-btn" title="オンライン対戦・ランキング">🌐</button>
-            </div>
+            現在のランク: <span id="current-rank">読み込み中...</span>
         </div>
 
         <div class="top-controls">
@@ -467,43 +510,78 @@
         </div>
     </div>
 
-    <!-- オンライン・プレイヤーモーダル -->
-    <div class="modal-overlay" id="online-modal">
+    <!-- ==== オンライン用UI要素（元のレイアウトを崩さない） ==== -->
+    <button id="online-float-btn">
+        🌐
+        <div class="online-dot" id="online-indicator" style="background: #e74c3c;"></div>
+    </button>
+
+    <div id="online-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <span>🌐 オンラインプレイヤー</span>
-                <span class="modal-close" id="close-online-btn">&times;</span>
+                <h3>🌐 オンラインランキング & 挑戦</h3>
+                <button class="modal-close" id="close-online-btn">&times;</button>
             </div>
-            <div style="margin-bottom: 10px; font-size: 0.8rem; color: #bdc3c7;">
-                他のオンラインプレイヤーに戦いを挑もう！
-            </div>
-            <div class="player-list" id="online-player-list">
-                <!-- プレイヤーがここに追加される -->
+            <div class="modal-body">
+                <!-- ニックネーム設定 -->
+                <div class="name-config">
+                    <input type="text" id="user-name-input" placeholder="名前を入力...">
+                    <button id="save-name-btn">変更</button>
+                </div>
+                
+                <!-- タブ切り替え -->
+                <div class="rank-tabs">
+                    <button class="tab-btn active" id="tab-points">ポイント順</button>
+                    <button class="tab-btn" id="tab-damage">総ダメージ順</button>
+                </div>
+
+                <!-- ランキング / プレイヤー一覧 -->
+                <div class="player-list" id="player-ranking-list">
+                    <!-- JSで動的生成 -->
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- 決闘ゲームモーダル -->
-    <div class="duel-modal" id="duel-modal">
-        <div class="duel-container">
-            <div class="duel-title">⚔️ 連打決闘 (DUEL) ⚔️</div>
-            <p style="color: #bdc3c7; font-size: 0.85rem;">相手より多く連打して、ポイントを奪い取れ！</p>
-            <div class="duel-timer" id="duel-countdown">10</div>
-            
-            <div class="duel-fighters">
-                <div class="fighter self">
-                    <div class="fighter-name" id="duel-self-name">あなた</div>
-                    <div class="fighter-score" id="duel-self-score">0</div>
-                </div>
-                <div class="vs-label">VS</div>
-                <div class="fighter enemy">
-                    <div class="fighter-name" id="duel-enemy-name">相手</div>
-                    <div class="fighter-score" id="duel-enemy-score">0</div>
+    <!-- マッチング・対戦演出用パネル -->
+    <div id="match-panel">
+        <div class="match-card">
+            <div id="match-view-challenger" style="display:none;">
+                <div class="match-title">⚔️ 挑戦状届く！</div>
+                <p id="challenger-text">プレイヤーAから対戦の申し込みが来ています！</p>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button id="accept-battle-btn" style="flex:1; background:#2ecc71; color:white; border:none; padding:10px; border-radius:8px; font-weight:bold; cursor:pointer;">受ける</button>
+                    <button id="reject-battle-btn" style="flex:1; background:#e74c3c; color:white; border:none; padding:10px; border-radius:8px; font-weight:bold; cursor:pointer;">拒否する</button>
                 </div>
             </div>
             
-            <div style="font-size: 2rem; animation: pulse 1s infinite;">🌾</div>
-            <p style="font-size: 0.9rem; color:#e74c3c;">※画面全体のわら人形を連打してください！</p>
+            <div id="match-view-waiting" style="display:none;">
+                <div class="match-title">⏳ 挑戦送信中</div>
+                <p id="waiting-text">対戦相手の返答を待っています...</p>
+                <button id="cancel-challenge-btn" style="background:#7f8c8d; color:white; border:none; padding:8px 15px; border-radius:8px; margin-top:15px; cursor:pointer;">キャンセル</button>
+            </div>
+
+            <div id="match-view-battle" style="display:none;">
+                <div class="match-title" style="color:#e74c3c;">🔥 連打バトル！ 🔥</div>
+                <div class="battle-ui">
+                    <div id="battle-timer">15</div>
+                    <p style="font-size:0.8rem; margin:0;">画面のわら人形を全力で連打しろ！</p>
+                    <div class="battle-bars">
+                        <div class="battle-bar-wrapper">
+                            <span style="font-size:0.75rem;">自分 (ダメージ): <span id="battle-my-dmg">0</span></span>
+                            <div class="battle-bar-container">
+                                <div id="my-battle-fill" class="battle-bar-fill"></div>
+                            </div>
+                        </div>
+                        <div class="battle-bar-wrapper">
+                            <span style="font-size:0.75rem;">相手 (<span id="battle-opp-name">相手</span>): <span id="battle-opp-dmg">0</span></span>
+                            <div class="battle-bar-container">
+                                <div id="opp-battle-fill" class="battle-bar-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -512,20 +590,6 @@
         let totalDamage = 0;
         let userName = "";
         let currentMultiplier = 1;
-        let userId = ""; // ユニークなユーザーID
-
-        // オンライン関連の変数
-        let socket;
-        const SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-            ? 'http://localhost:5000' 
-            : 'https://click-server-85wq.onrender.com'; // RenderなどのURL。適宜書き換えてください。
-
-        let onlinePlayers = [];
-        let isDuelActive = false;
-        let currentDuelId = "";
-        let duelSelfScore = 0;
-        let duelTimerInterval;
-        let currentOpponentId = "";
 
         const RANKS = [
             { threshold: 0, title: "一般人" },
@@ -559,10 +623,28 @@
         const eventTimerEl = document.getElementById('event-timer-display');
         const bannerEl = document.getElementById('event-banner');
 
+        // ==== オンライン機能用の状態変数 ====
+        let socket;
+        let myUid = localStorage.getItem('straw_doll_my_uid') || '';
+        let allPlayersData = [];
+        let rankingTab = 'points'; // 'points' or 'damage'
+        let battleActive = false;
+        let currentBattleId = null;
+        let battleRole = ''; // 'p1' or 'p2'
+        let myBattleDmg = 0;
+        let oppBattleDmg = 0;
+        let battleTimerInterval = null;
+        let battleTimeLeft = 15;
+        let currentOpponentUid = null;
+
+        const SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:5000' 
+            : 'https://my-canvas-game.onrender.com'; // 接続先の Render サーバURL
+
         function saveGame() {
-            localStorage.setItem('straw_doll_v2_save', JSON.stringify({ points, totalDamage, userName, userId, state }));
-            // オンラインサーバーにも能力値を同期
-            syncWithOnlineServer();
+            localStorage.setItem('straw_doll_v2_save', JSON.stringify({ points, totalDamage, userName, state }));
+            // オンラインサーバにデータを同期
+            syncOnlineData();
         }
 
         function loadGame() {
@@ -572,11 +654,12 @@
                 points = data.points || 0;
                 totalDamage = data.totalDamage || 0;
                 userName = data.userName || "";
-                userId = data.userId || "user_" + Math.random().toString(36).substr(2, 9);
                 if(data.state) Object.keys(state).forEach(k => { if(data.state[k]) state[k].lv = data.state[k].lv; });
-            } else {
-                userId = "user_" + Math.random().toString(36).substr(2, 9);
             }
+            if(!userName) {
+                userName = "名無しさん_" + Math.floor(Math.random() * 900 + 100);
+            }
+            document.getElementById('user-name-input').value = userName;
         }
 
         function updateRankUI() {
@@ -684,22 +767,13 @@
 
         function applyDamage(dmg, color = "#ffffff", isCrit = false) {
             if (dmg <= 0) return;
-
-            // 決闘モード時の処理
-            if (isDuelActive) {
-                duelSelfScore += dmg;
-                document.getElementById('duel-self-score').innerText = Math.ceil(duelSelfScore).toLocaleString();
-                if (socket && socket.connected) {
-                    socket.emit('duel_progress', {
-                        duelId: currentDuelId,
-                        userId: userId,
-                        damage: dmg
-                    });
-                }
-            }
-
             if (activeEvent === "DMG_X2") dmg *= 2;
             if (activeEvent === "DMG_HALF") dmg *= 0.5;
+
+            // オンライン対戦中の場合は、ダメージを即時にサーバーへ送信
+            if (battleActive && currentBattleId) {
+                socket.emit('battle_damage', { battle_id: currentBattleId, damage: dmg });
+            }
 
             if (bossMode) {
                 bossHP -= dmg;
@@ -726,7 +800,7 @@
             if (activeEvent === "PT_HALF") ptGain *= 0.5;
             
             points += ptGain;
-            showDamageText(dmg, color, isCrit);
+            showDamageText(dmg, color, isCrit); 
             triggerShake(); 
             updateUI();
             saveGame();
@@ -784,7 +858,7 @@
         setInterval(() => {
             if (state.turret.lv > 0) {
                const damage = Math.ceil((state.turret.lv + (state.gem.lv) * 0.3) * 0.2);
-               applyDamage(damage, "#dc143c");
+               applyDamage(damage, "#dc143c"); 
            }
         }, 50);
 
@@ -804,11 +878,8 @@
 
         function resetData() {
             if (confirm("全データを削除して最初からやり直しますか？")) {
-                // オンライン切断
-                if (socket && socket.connected) {
-                    socket.emit('disconnect_player', { userId: userId });
-                }
                 localStorage.removeItem('straw_doll_v2_save');
+                localStorage.removeItem('straw_doll_my_uid');
                 localStorage.clear();
                 points = 0;
                 totalDamage = 0;
@@ -839,265 +910,271 @@
             });
         });
 
-        // 読み込み完了後にゲームデータをロード
-        loadGame();
-        updateUI();
+        // ==== オンライン機能追加（通信・同期・バトル） ====
 
-        // --- オンラインマルチプレイヤー実装 ---
-
-        // 名前登録・初期設定
-        function setupOnlineName() {
-            if (!userName) {
-                const defaultName = "プレイヤー" + Math.floor(1000 + Math.random() * 9000);
-                const nameInput = prompt("オンライン用の名前を登録してください（12文字以内）:", defaultName);
-                userName = (nameInput && nameInput.trim()) ? nameInput.substring(0, 12) : defaultName;
-                saveGame();
-            }
-        }
-
-        // オンラインサーバーへ接続
         function connectToOnlineServer() {
-            setupOnlineName();
-            
             socket = io(SERVER_URL);
 
             socket.on('connect', () => {
-                document.getElementById('online-indicator').classList.add('connected');
-                // サーバーに現在の自分の状況を同期
-                syncWithOnlineServer();
+                document.getElementById('online-indicator').style.backgroundColor = '#2ecc71';
+                // 接続直後にサーバーに登録する
+                socket.emit('register_player', {
+                    uid: myUid,
+                    name: userName,
+                    points: points,
+                    total_damage: totalDamage
+                });
             });
 
             socket.on('disconnect', () => {
-                document.getElementById('online-indicator').classList.remove('connected');
+                document.getElementById('online-indicator').style.backgroundColor = '#e74c3c';
             });
 
-            // プレイヤーリストの更新
+            socket.on('registration_success', (data) => {
+                myUid = data.uid;
+                localStorage.setItem('straw_doll_my_uid', myUid);
+            });
+
+            // ランキング＆プレイヤーリストの更新を受信
             socket.on('update_players', (playersList) => {
-                onlinePlayers = playersList;
-                renderPlayerList();
+                allPlayersData = playersList;
+                renderRanking();
             });
 
-            // 対戦要請を受けた時
-            socket.on('receive_challenge', (data) => {
-                if (data.targetId === userId && !isDuelActive) {
-                    navigator.vibrate?.([100, 50, 100]);
-                    const accept = confirm(`⚔️ ${data.challengerName} から決闘が挑まれました！\n勝負を受けますか？`);
-                    if (accept) {
-                        socket.emit('challenge_accept', {
-                            challengerId: data.challengerId,
-                            targetId: userId
-                        });
-                    } else {
-                        socket.emit('challenge_decline', {
-                            challengerId: data.challengerId
-                        });
-                    }
+            // 挑戦を受け取ったとき
+            socket.on('challenge_received', (data) => {
+                if (battleActive) {
+                    // すでにバトル中の場合は自動拒否するなどの対応
+                    socket.emit('respond_challenge', { challenger_uid: data.challenger_uid, accepted: false });
+                    return;
                 }
+                currentOpponentUid = data.challenger_uid;
+                document.getElementById('challenger-text').innerText = `【${data.challenger_name}】から連打対決の挑戦状が届きました！`;
+                
+                document.getElementById('match-panel').style.display = 'flex';
+                document.getElementById('match-view-challenger').style.display = 'block';
+                document.getElementById('match-view-waiting').style.display = 'none';
+                document.getElementById('match-view-battle').style.display = 'none';
             });
 
-            // 対戦相手に拒否された場合
+            // 相手に挑戦を拒否された場合
             socket.on('challenge_rejected', (data) => {
-                alert(data.reason);
+                alert(data.msg || "挑戦が断られました。");
+                closeMatchPanel();
             });
 
-            socket.on('duel_declined', (data) => {
-                if(data.challengerId === userId) {
-                    alert("決闘リクエストは拒否されました。");
-                }
-            });
+            // 挑戦が承諾されバトルが始まるとき
+            socket.on('battle_start', (data) => {
+                battleActive = true;
+                currentBattleId = data.battle_id;
+                battleRole = data.role;
+                myBattleDmg = 0;
+                oppBattleDmg = 0;
+                battleTimeLeft = 15;
 
-            // 決闘開始
-            socket.on('duel_start', (data) => {
-                if (data.challengerId === userId || data.targetId === userId) {
-                    startDuel(data);
-                }
-            });
+                document.getElementById('battle-opp-name').innerText = data.opponent_name;
+                document.getElementById('battle-my-dmg').innerText = '0';
+                document.getElementById('battle-opp-dmg').innerText = '0';
+                document.getElementById('my-battle-fill').style.width = '0%';
+                document.getElementById('opp-battle-fill').style.width = '0%';
 
-            // 決闘中の相手スコア更新
-            socket.on('duel_score_update', (data) => {
-                if (isDuelActive && data.duelId === currentDuelId) {
-                    if (userId === onlinePlayers.find(p => p.sid === userId)?.sid) {
-                        // 相手のIDを見つけてスコアを更新
-                        const isChallenger = currentDuelId.includes(userId) && currentDuelId.indexOf(userId) === 5; // duel_ の後
-                        const opponentScore = isChallenger ? data.targetScore : data.challengerScore;
-                        document.getElementById('duel-enemy-score').innerText = Math.ceil(opponentScore).toLocaleString();
+                document.getElementById('match-panel').style.display = 'flex';
+                document.getElementById('match-view-challenger').style.display = 'none';
+                document.getElementById('match-view-waiting').style.display = 'none';
+                document.getElementById('match-view-battle').style.display = 'block';
+
+                document.getElementById('online-modal').style.display = 'none'; // オンラインリストは閉じる
+
+                // カウントダウン開始
+                clearInterval(battleTimerInterval);
+                battleTimerInterval = setInterval(() => {
+                    battleTimeLeft--;
+                    document.getElementById('battle-timer').innerText = battleTimeLeft;
+                    if (battleTimeLeft <= 0) {
+                        clearInterval(battleTimerInterval);
+                        // タイムアップを伝える
+                        socket.emit('battle_timeout', { battle_id: currentBattleId });
                     }
-                }
+                }, 1000);
             });
 
-            // 決闘結果通知
-            socket.on('duel_result', (data) => {
-                if (isDuelActive && data.duelId === currentDuelId) {
-                    endDuel(data);
+            // リアルタイム対戦データの更新
+            socket.on('battle_update', (data) => {
+                if (battleRole === 'p1') {
+                    myBattleDmg = data.p1_dmg;
+                    oppBattleDmg = data.p2_dmg;
+                } else {
+                    myBattleDmg = data.p2_dmg;
+                    oppBattleDmg = data.p1_dmg;
                 }
+
+                document.getElementById('battle-my-dmg').innerText = Math.ceil(myBattleDmg).toLocaleString();
+                document.getElementById('battle-opp-dmg').innerText = Math.ceil(oppBattleDmg).toLocaleString();
+
+                // ゲージの割合計算
+                const total = (myBattleDmg + oppBattleDmg) || 1;
+                const myPct = (myBattleDmg / total) * 100;
+                const oppPct = (oppBattleDmg / total) * 100;
+
+                document.getElementById('my-battle-fill').style.width = `${myPct}%`;
+                document.getElementById('opp-battle-fill').style.width = `${oppPct}%`;
+            });
+
+            // バトル結果発表
+            socket.on('battle_result', (data) => {
+                clearInterval(battleTimerInterval);
+                battleActive = false;
+
+                let isWin = false;
+                if (battleRole === 'p1' && data.winner === 'p1') isWin = true;
+                if (battleRole === 'p2' && data.winner === 'p2') isWin = true;
+
+                let resultMsg = "";
+                if (data.winner === null) {
+                    resultMsg = `【引き分け】\n双方ダメージ: ${Math.ceil(data.p1_dmg).toLocaleString()}`;
+                } else if (isWin) {
+                    resultMsg = `🎉【勝利！】🎉\nあなたは大ダメージを叩き出しました！\n勝者ボーナス: +10,000 pt 獲得！`;
+                    points += 10000;
+                    updateUI();
+                    saveGame();
+                } else {
+                    resultMsg = `💀【敗北...】💀\n相手の方が連打が早かったようです。\nあなたのダメージ: ${Math.ceil(myBattleDmg).toLocaleString()}\n相手のダメージ: ${Math.ceil(oppBattleDmg).toLocaleString()}`;
+                }
+
+                alert(resultMsg);
+                closeMatchPanel();
             });
         }
 
-        function syncWithOnlineServer() {
+        function syncOnlineData() {
             if (socket && socket.connected) {
-                socket.emit('join_game', {
-                    userId: userId,
+                socket.emit('update_player_data', {
                     name: userName,
                     points: points,
-                    totalDamage: totalDamage,
-                    socketId: socket.id
+                    total_damage: totalDamage
                 });
             }
         }
 
-        // プレイヤーリストをUIへ描画
-        function renderPlayerList() {
-            const listEl = document.getElementById('online-player-list');
+        // ランキングの表示処理
+        function renderRanking() {
+            const listEl = document.getElementById('player-ranking-list');
             listEl.innerHTML = '';
 
-            // 総ダメージ順にソート（簡易オンラインランキング）
-            const sortedPlayers = [...onlinePlayers].sort((a, b) => b.totalDamage - a.totalDamage);
-
-            sortedPlayers.forEach((player, index) => {
-                const isSelf = player.sid === userId;
-                
-                const item = document.createElement('div');
-                item.className = 'player-item';
-                if (isSelf) {
-                    item.style.border = "1px solid #f1c40f";
-                    item.style.background = "rgba(241, 196, 15, 0.1)";
+            // ソート
+            const sortedPlayers = [...allPlayersData].sort((a, b) => {
+                if (rankingTab === 'points') {
+                    return b.points - a.points;
+                } else {
+                    return b.total_damage - a.total_damage;
                 }
-
-                item.innerHTML = `
-                    <div class="player-info">
-                        <span style="font-weight: bold; color: #3498db;">#${index + 1}</span>
-                        <span class="player-name">${player.name} ${isSelf ? '(あなた)' : ''}</span>
-                        <div class="player-stats">
-                            💰 ${Math.ceil(player.points).toLocaleString()} pt | 💥 ${Math.ceil(player.totalDamage).toLocaleString()} dmg
-                        </div>
-                        <div style="font-size: 0.7rem; color: ${player.status === 'idle' ? '#2ecc71' : '#e74c3c'}">
-                            ステータス: ${player.status === 'idle' ? '対戦可能' : '戦闘中'}
-                        </div>
-                    </div>
-                    ${!isSelf ? `
-                        <button class="btn-duel" onclick="sendDuelRequest('${player.sid}')" ${player.status !== 'idle' ? 'disabled' : ''}>
-                            ⚔️ 決闘
-                        </button>
-                    ` : ''}
-                `;
-                listEl.appendChild(item);
             });
 
-            if (sortedPlayers.length === 0) {
-                listEl.innerHTML = '<div style="color: #bdc3c7; font-size: 0.9rem; padding: 10px;">接続中の他のプレイヤーはいません。</div>';
+            sortedPlayers.forEach((player, index) => {
+                const card = document.createElement('div');
+                card.className = 'player-card';
+
+                const isMe = player.uid === myUid;
+                const valStr = rankingTab === 'points' 
+                    ? `${Math.ceil(player.points).toLocaleString()} pt` 
+                    : `${Math.ceil(player.total_damage).toLocaleString()} dmg`;
+
+                card.innerHTML = `
+                    <div class="player-info">
+                        <div class="player-name-wrapper">
+                            <span class="status-indicator ${player.online ? 'status-online' : 'status-offline'}"></span>
+                            <span style="font-weight: bold; ${isMe ? 'color: #f1c40f;' : ''}">
+                                ${index + 1}. ${escapeHTML(player.name)} ${isMe ? '(自分)' : ''}
+                            </span>
+                        </div>
+                        <span style="font-size: 0.8rem; color: #bdc3c7;">${valStr}</span>
+                    </div>
+                    ${!isMe && player.online ? `<button class="challenge-btn" onclick="sendChallenge('${player.uid}')">挑戦</button>` : ''}
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        function sendChallenge(targetUid) {
+            if (socket && socket.connected) {
+                socket.emit('send_challenge', { target_uid: targetUid });
+                
+                // 挑戦待ち画面へ遷移
+                document.getElementById('match-panel').style.display = 'flex';
+                document.getElementById('match-view-challenger').style.display = 'none';
+                document.getElementById('match-view-waiting').style.display = 'block';
+                document.getElementById('match-view-battle').style.display = 'none';
+            } else {
+                alert("サーバーと通信できません。");
             }
         }
 
-        // 決闘要請の送信
-        window.sendDuelRequest = function(targetId) {
-            if (socket && socket.connected) {
-                const targetPlayer = onlinePlayers.find(p => p.sid === targetId);
-                if (targetPlayer) {
-                    alert(`${targetPlayer.name} に決闘を申し込みました。相手が承認するまでお待ちください...`);
-                    socket.emit('challenge_request', {
-                        challengerId: userId,
-                        targetId: targetId,
-                        socketId: socket.id
-                    });
-                }
-            } else {
-                alert("サーバーに未接続です。");
-            }
-        };
+        function closeMatchPanel() {
+            document.getElementById('match-panel').style.display = 'none';
+            battleActive = false;
+            currentBattleId = null;
+        }
 
-        // 決闘の開始
-        function startDuel(data) {
-            isDuelActive = true;
-            currentDuelId = data.duelId;
-            duelSelfScore = 0;
-            
-            const opponentName = data.challengerId === userId ? data.targetName : data.challengerName;
-            currentOpponentId = data.challengerId === userId ? data.targetId : data.challengerId;
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
 
-            document.getElementById('duel-self-name').innerText = userName;
-            document.getElementById('duel-enemy-name').innerText = opponentName;
-            document.getElementById('duel-self-score').innerText = "0";
-            document.getElementById('duel-enemy-score').innerText = "0";
+        // UIイベントの紐付け
+        document.getElementById('online-float-btn').addEventListener('click', () => {
+            document.getElementById('online-modal').style.display = 'flex';
+            renderRanking();
+        });
 
-            // メインコンテナを閉じるか隠す必要はありません。モーダルを重ねて表示
-            document.getElementById('duel-modal').style.display = 'flex';
+        document.getElementById('close-online-btn').addEventListener('click', () => {
             document.getElementById('online-modal').style.display = 'none';
-
-            let count = 10;
-            document.getElementById('duel-countdown').innerText = count;
-
-            duelTimerInterval = setInterval(() => {
-                count--;
-                document.getElementById('duel-countdown').innerText = count;
-                if (count <= 0) {
-                    clearInterval(duelTimerInterval);
-                    if (data.challengerId === userId) {
-                        // ホスト役(挑戦者)が決闘終了処理を促す
-                        setTimeout(() => {
-                            socket.emit('duel_end', { duelId: currentDuelId });
-                        }, 500);
-                    }
-                }
-            }, 1000);
-        }
-
-        // 決闘の終了
-        function endDuel(data) {
-            isDuelActive = false;
-            clearInterval(duelTimerInterval);
-            document.getElementById('duel-modal').style.display = 'none';
-
-            const amIWinner = data.winnerId === userId;
-            const isDraw = data.winnerId === null;
-
-            if (isDraw) {
-                alert(`決闘結果：引き分け！\n（あなた: ${data.challengerScore}pt 対 ${data.targetScore}pt）`);
-            } else if (amIWinner) {
-                points += data.transfer;
-                navigator.vibrate?.([200, 100, 200, 100, 400]);
-                alert(`🏆 決闘勝利！\n相手から ${data.transfer.toLocaleString()}pt を強奪しました！\n（あなた: ${userId === data.loserId ? data.targetScore : data.challengerScore}pt 対 相手: ${userId === data.loserId ? data.challengerScore : data.targetScore}pt）`);
-            } else {
-                points -= data.transfer;
-                if (points < 0) points = 0;
-                navigator.vibrate?.(1000);
-                alert(`💀 決闘敗北...\n相手に ${data.transfer.toLocaleString()}pt を奪われました...\n（あなた: ${userId === data.loserId ? data.targetScore : data.challengerScore}pt 対 相手: ${userId === data.loserId ? data.challengerScore : data.targetScore}pt）`);
-            }
-
-            currentDuelId = "";
-            currentOpponentId = "";
-            updateUI();
-            saveGame();
-        }
-
-        // オンラインボタン＆モーダルの表示制御
-        const onlineBtn = document.getElementById('online-btn');
-        const onlineModal = document.getElementById('online-modal');
-        const closeOnlineBtn = document.getElementById('close-online-btn');
-
-        onlineBtn.addEventListener('click', () => {
-            if (!socket || !socket.connected) {
-                connectToOnlineServer();
-            }
-            onlineModal.style.display = 'flex';
         });
 
-        closeOnlineBtn.addEventListener('click', () => {
-            onlineModal.style.display = 'none';
-        });
-
-        window.addEventListener('click', (e) => {
-            if (e.target === onlineModal) {
-                onlineModal.style.display = 'none';
+        document.getElementById('save-name-btn').addEventListener('click', () => {
+            const val = document.getElementById('user-name-input').value.trim();
+            if (val) {
+                userName = val;
+                saveGame();
+                alert("名前を変更しました！");
             }
         });
 
-        // 定期的なデータ同期 (生存確認も兼ねて10秒毎)
-        setInterval(() => {
+        document.getElementById('tab-points').addEventListener('click', () => {
+            rankingTab = 'points';
+            document.getElementById('tab-points').classList.add('active');
+            document.getElementById('tab-damage').classList.remove('active');
+            renderRanking();
+        });
+
+        document.getElementById('tab-damage').addEventListener('click', () => {
+            rankingTab = 'damage';
+            document.getElementById('tab-points').classList.remove('active');
+            document.getElementById('tab-damage').classList.add('active');
+            renderRanking();
+        });
+
+        // 挑戦承諾・拒否
+        document.getElementById('accept-battle-btn').addEventListener('click', () => {
             if (socket && socket.connected) {
-                syncWithOnlineServer();
+                socket.emit('respond_challenge', { challenger_uid: currentOpponentUid, accepted: true });
             }
-        }, 10000);
+        });
 
+        document.getElementById('reject-battle-btn').addEventListener('click', () => {
+            if (socket && socket.connected) {
+                socket.emit('respond_challenge', { challenger_uid: currentOpponentUid, accepted: false });
+            }
+            closeMatchPanel();
+        });
+
+        document.getElementById('cancel-challenge-btn').addEventListener('click', () => {
+            closeMatchPanel();
+        });
+
+        loadGame();
+        updateUI();
+        connectToOnlineServer();
     </script>
 </body>
 </html>
