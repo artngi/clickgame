@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ブロスタ風 2Dアクション プロ版 3.3.3 (編成シミュレータ＆賞金稼ぎ＆画面最適化)</title>
-    <!-- Socket.ioのクライアントライブラリをCDN経由でロード -->
-    <script src="https://brawl-online.onrender.com"></script>
+    <title>ブロスタ風 2Dアクション オンラインプロ版 3.4.0</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght=800;900&display=swap');
         
@@ -37,15 +35,10 @@
             background-size: 30px 30px;
             background-image: radial-gradient(#ffffff0a 1px, transparent 1px);
             display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20;
-            padding: 8px 15px; overflow: hidden;
+            padding: 10px 15px; overflow: hidden;
         }
-        
-        .header-area {
-            display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 900px; margin-bottom: 2px;
-        }
-
         h1 {
-            font-size: 1.6rem; color: #f1c40f; letter-spacing: 2px;
+            font-size: 1.8rem; margin-bottom: 4px; color: #f1c40f; letter-spacing: 2px;
             text-shadow: 0 3px 0 #c29d0b, 0 6px 8px rgba(0,0,0,0.6);
             -webkit-text-stroke: 1.5px #111;
             animation: pulseTitle 2s ease-in-out infinite alternate;
@@ -56,47 +49,66 @@
             100% { transform: scale(1.02); }
         }
 
-        /* プレイヤープロファイル(名前変更/セーブ機能) */
-        .profile-area {
-            display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 20px; border: 1.5px solid var(--panel-border);
+        /* オンライン＆名前設定エリア (ヘッダー部分) */
+        .header-controls {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 100%; max-width: 900px; padding: 0 10px; margin-bottom: 4px;
+            position: relative;
         }
-        .profile-area label { font-size: 0.75rem; color: #00d2d3; font-weight: bold; }
-        .profile-area input {
-            background: #101020; border: 1px solid #4a4a7a; color: #fff; border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; font-family: var(--font-main); width: 100px; font-weight: bold; outline: none;
+        .profile-box {
+            display: flex; align-items: center; gap: 8px;
         }
+        .profile-box label { font-size: 0.8rem; color: #00d2d3; font-weight: bold; }
+        .name-input {
+            background: #151522; border: 2px solid var(--panel-border); border-radius: 8px;
+            color: #fff; padding: 4px 8px; font-family: var(--font-main); font-weight: bold;
+            font-size: 0.8rem; width: 140px; outline: none; pointer-events: auto;
+        }
+        .name-input:focus { border-color: #00d2d3; }
 
-        /* オンライン＆接続管理用の小さな丸いボタン */
-        .btn-round-online {
-            width: 32px; height: 32px; border-radius: 50%; border: 2.5px solid #2ecc71; background: #1d1d35; color: #fff; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; pointer-events: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        /* オンラインロビーの円形ボタン */
+        .btn-online-lobby {
+            width: 36px; height: 36px; border-radius: 50%; border: none;
+            background: var(--btn-blue); color: #fff; font-size: 1.2rem; cursor: pointer;
+            box-shadow: 0 3px 0 var(--btn-blue-shadow); display: flex; align-items: center;
+            justify-content: center; pointer-events: auto; transition: transform 0.1s;
         }
-        .btn-round-online:active { transform: scale(0.9); }
-        .btn-round-online.disconnected { border-color: #e74c3c; }
+        .btn-online-lobby:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--btn-blue-shadow); }
+
+        /* ロッカールーム退出ボタン */
+        .btn-leave-room {
+            background: var(--btn-red); color: #fff; font-family: var(--font-main);
+            font-size: 0.75rem; font-weight: bold; padding: 4px 10px; border-radius: 6px;
+            border: none; cursor: pointer; box-shadow: 0 2px 0 var(--btn-red-shadow);
+            margin-left: 8px; pointer-events: auto; display: none;
+        }
+        .btn-leave-room:active { transform: translateY(1px); box-shadow: 0 0 0; }
 
         /* 本格フレンドバトル編成シミュレーター UI */
         .battle-setup-container {
-            display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 900px;
-            background: rgba(29, 29, 53, 0.95); padding: 8px 12px; border-radius: 16px;
+            display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 900px;
+            background: rgba(29, 29, 53, 0.95); padding: 10px 15px; border-radius: 16px;
             border: 3px solid var(--panel-border); box-shadow: 0 8px 24px rgba(0,0,0,0.7);
-            flex-grow: 1; max-height: calc(100vh - 105px); min-height: 0;
+            flex-grow: 1; max-height: calc(100vh - 120px); min-height: 0;
         }
         
         .setup-row {
             display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 2px solid rgba(255,255,255,0.08); padding-bottom: 3px;
+            border-bottom: 2px solid rgba(255,255,255,0.08); padding-bottom: 4px;
         }
 
         .mode-selection-area {
             display: flex; align-items: center; gap: 8px;
         }
-        .mode-label { font-size: 0.85rem; color: #00d2d3; font-weight: bold; text-shadow: 1px 1px 0 #000; }
+        .mode-label { font-size: 0.9rem; color: #00d2d3; font-weight: bold; text-shadow: 1px 1px 0 #000; }
         
         /* チームスロットレイアウト */
         .teams-grid {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; flex-grow: 1; min-height: 0;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; flex-grow: 1; min-height: 0;
         }
 
         .team-box {
-            background: rgba(15, 15, 26, 0.6); border-radius: 12px; padding: 6px;
+            background: rgba(15, 15, 26, 0.6); border-radius: 12px; padding: 8px;
             border: 2px dashed rgba(255,255,255,0.15);
             display: flex; flex-direction: column; min-height: 0; height: 100%;
         }
@@ -104,61 +116,53 @@
         .team-red { border-color: rgba(231, 76, 60, 0.5); background: rgba(231, 76, 60, 0.04); }
 
         .team-title {
-            font-size: 0.8rem; font-weight: 900; margin-bottom: 4px; display: flex; justify-content: space-between;
+            font-size: 0.85rem; font-weight: 900; margin-bottom: 6px; display: flex; justify-content: space-between;
             flex-shrink: 0;
         }
         .team-blue .team-title { color: #3498db; }
         .team-red .team-title { color: #e74c3c; }
 
-        /* スロットリスト自体をスクロール可能にすることで、11人表示等に対応し画面内収まりを保証 */
+        /* スロットリスト */
         .slots-list {
-            display: flex; flex-direction: column; gap: 4px; overflow-y: auto; flex-grow: 1; min-height: 0;
+            display: flex; flex-direction: column; gap: 5px; overflow-y: auto; flex-grow: 1; min-height: 0;
             padding-right: 4px;
         }
-        .slots-list::-webkit-scrollbar {
-            width: 4px;
-        }
-        .slots-list::-webkit-scrollbar-track {
-            background: rgba(255,255,255,0.02);
-            border-radius: 2px;
-        }
-        .slots-list::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.25);
-            border-radius: 2px;
-        }
+        .slots-list::-webkit-scrollbar { width: 4px; }
+        .slots-list::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 2px; }
+        .slots-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 2px; }
 
-        /* スロットカードスタイル (高さを抑えて情報密度をアップ) */
+        /* スロットカード */
         .slot-card {
             display: flex; align-items: center; justify-content: space-between;
             background: #23233c; border: 2px solid #3d3d5c; border-radius: 8px;
-            padding: 4px 6px; cursor: pointer; transition: transform 0.1s, border-color 0.1s;
+            padding: 5px 8px; cursor: pointer; transition: transform 0.1s, border-color 0.1s;
             pointer-events: auto; flex-shrink: 0;
         }
         .slot-card:hover { border-color: #52528c; }
         .slot-card.player-self { border-color: #2ecc71; background: rgba(46, 204, 113, 0.08); }
-        .slot-card.player-online { border-color: #3498db; background: rgba(52, 152, 219, 0.08); }
+        .slot-card.player-other-online { border-color: #00d2d3; background: rgba(0, 210, 211, 0.08); }
         .slot-card.disabled-slot { opacity: 0.4; border-style: dotted; background: #151522; }
 
-        .slot-left { display: flex; align-items: center; gap: 5px; }
+        .slot-left { display: flex; align-items: center; gap: 6px; }
         .slot-icon {
-            width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center;
-            justify-content: center; font-size: 0.95rem; border: 1.5px solid rgba(255,255,255,0.2);
+            width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; font-size: 1.1rem; border: 1.5px solid rgba(255,255,255,0.2);
             flex-shrink: 0;
         }
         .slot-info { display: flex; flex-direction: column; }
-        .slot-name { font-size: 0.7rem; font-weight: 900; line-height: 1.1; }
-        .slot-details { font-size: 0.65rem; color: #a5a5c5; line-height: 1.1; }
+        .slot-name { font-size: 0.75rem; font-weight: 900; line-height: 1.1; }
+        .slot-details { font-size: 0.7rem; color: #a5a5c5; line-height: 1.1; }
 
         .slot-right { display: flex; gap: 3px; align-items: center; }
         .badge {
-            padding: 1px 4px; border-radius: 4px; font-size: 0.58rem; font-weight: bold; color: #fff;
+            padding: 1px 4px; border-radius: 4px; font-size: 0.6rem; font-weight: bold; color: #fff;
             white-space: nowrap;
         }
         .badge-gadget { background: #2ecc71; }
         .badge-sp { background: #f1c40f; color: #111; }
         .badge-disabled { background: #7f8c8d; }
 
-        /* モーダルダイアログ */
+        /* モーダル・サイドパネルダイアログ */
         .modal {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: none; align-items: center;
@@ -169,27 +173,67 @@
             border-radius: 16px; width: 100%; max-width: 440px; padding: 12px 15px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 8px;
         }
-        .modal-header { font-size: 1.05rem; font-weight: 900; color: #f1c40f; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header { font-size: 1.1rem; font-weight: 900; color: #f1c40f; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
         
         select {
-            appearance: none; padding: 6px 10px; border-radius: 8px; border: 2.5px solid #00d2d3;
-            background: #1e1e2f; color: #fff; font-size: 0.8rem; font-family: var(--font-main); font-weight: bold;
+            appearance: none; padding: 8px 12px; border-radius: 8px; border: 2.5px solid #00d2d3;
+            background: #1e1e2f; color: #fff; font-size: 0.85rem; font-family: var(--font-main); font-weight: bold;
             outline: none; cursor: pointer; box-shadow: 0 3px 0 #008f8f; transition: transform 0.1s; width: 100%;
         }
         select:active { transform: translateY(3px); box-shadow: 0 0 0 #008f8f; }
 
         .modal-buttons { display: flex; gap: 10px; margin-top: 5px; justify-content: flex-end; }
         .btn-modal {
-            padding: 6px 15px; border-radius: 8px; border: none; font-family: var(--font-main); font-weight: 900; cursor: pointer; font-size: 0.8rem;
+            padding: 6px 15px; border-radius: 8px; border: none; font-family: var(--font-main); font-weight: 900; cursor: pointer; font-size: 0.85rem;
         }
         .btn-save { background: var(--btn-green); color: #fff; box-shadow: 0 3px 0 var(--btn-green-shadow); }
         .btn-save:active { transform: translateY(3px); box-shadow: 0 0 0 var(--btn-green-shadow); }
         .btn-cancel { background: #7f8c8d; color: #fff; box-shadow: 0 3px 0 #5f6c6d; }
         .btn-cancel:active { transform: translateY(3px); box-shadow: 0 0 0 #5f6c6d; }
 
+        /* ロビーサイドパネル (右上オンラインボタンでスライドイン) */
+        #lobbyPanel {
+            position: fixed; top: 0; right: -320px; width: 300px; height: 100%;
+            background: rgba(29, 29, 53, 0.98); border-left: 3px solid var(--panel-border);
+            box-shadow: -5px 0 25px rgba(0,0,0,0.8); transition: right 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+            z-index: 90; display: flex; flex-direction: column; padding: 15px; pointer-events: auto;
+        }
+        #lobbyPanel.open { right: 0; }
+        .lobby-header {
+            font-size: 1rem; font-weight: 900; color: #00d2d3; border-bottom: 2px solid rgba(255,255,255,0.1);
+            padding-bottom: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .lobby-list {
+            flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+        }
+        .lobby-list::-webkit-scrollbar { width: 4px; }
+        .lobby-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+        
+        .lobby-user-card {
+            background: #23233c; border: 1.5px solid #3d3d5c; border-radius: 8px;
+            padding: 8px; display: flex; align-items: center; justify-content: space-between;
+        }
+        .lobby-user-info { display: flex; flex-direction: column; }
+        .lobby-user-name { font-size: 0.8rem; font-weight: bold; }
+        .lobby-user-brawler { font-size: 0.7rem; color: #a5a5c5; }
+        .lobby-user-actions { display: flex; gap: 4px; align-items: center; }
+        
+        .btn-invite {
+            background: var(--btn-yellow); color: #111; font-family: var(--font-main);
+            font-size: 0.7rem; font-weight: bold; padding: 3px 8px; border: none; border-radius: 4px;
+            cursor: pointer; box-shadow: 0 1.5px 0 var(--btn-yellow-shadow);
+        }
+        .btn-invite:active { transform: translateY(1px); box-shadow: 0 0 0; }
+        
+        .btn-fav {
+            background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #7f8c8d;
+            padding: 2px;
+        }
+        .btn-fav.active { color: #f1c40f; }
+
         /* ボトムアクションバー */
         .bottom-action-bar {
-            display: flex; width: 100%; max-width: 900px; justify-content: center; gap: 12px; align-items: center; margin-top: 4px;
+            display: flex; width: 100%; max-width: 900px; justify-content: center; gap: 12px; align-items: center; margin-top: 6px;
             flex-shrink: 0;
         }
         .bottom-action-bar select { width: auto; min-width: 180px; padding: 6px 10px; }
@@ -203,62 +247,6 @@
             pointer-events: auto;
         }
         .btn-start:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-yellow-shadow); }
-
-        /* オンラインリスト専用UI */
-        .online-list-modal-content {
-            max-width: 500px; width: 100%;
-        }
-        .online-players-container {
-            display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; padding-right: 4px; margin-top: 4px;
-        }
-        .online-player-row {
-            display: flex; justify-content: space-between; align-items: center; background: #23233c; border: 1.5px solid #3d3d5c; padding: 6px 10px; border-radius: 10px;
-        }
-        .online-player-left {
-            display: flex; align-items: center; gap: 8px;
-        }
-        .online-player-name {
-            font-size: 0.85rem; font-weight: bold;
-        }
-        .online-player-status {
-            font-size: 0.65rem; padding: 1px 6px; border-radius: 4px; font-weight: bold;
-        }
-        .status-idle { background: #2ecc71; color: #fff; }
-        .status-lobby { background: #3498db; color: #fff; }
-        .status-playing { background: #e74c3c; color: #fff; }
-
-        .online-player-actions {
-            display: flex; gap: 6px; align-items: center;
-        }
-        .btn-favorite {
-            background: none; border: none; color: #f1c40f; font-size: 1.2rem; cursor: pointer; outline: none; padding: 0 4px;
-        }
-        .btn-invite {
-            background: var(--btn-blue); color: #fff; border: none; padding: 4px 10px; font-size: 0.75rem; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 2px 0 var(--btn-blue-shadow);
-        }
-        .btn-invite:active { transform: translateY(2px); box-shadow: none; }
-        .btn-invite:disabled { background: #7f8c8d; box-shadow: none; cursor: default; }
-
-        /* サーバー設定入力用 */
-        .server-config-area {
-            display: flex; gap: 4px; width: 100%; margin-top: 5px;
-        }
-        .server-config-area input {
-            flex-grow: 1; background: #101020; border: 1px solid #4a4a7a; color: #fff; border-radius: 6px; padding: 4px 8px; font-size: 0.75rem; font-family: var(--font-main); outline: none;
-        }
-        .btn-connect {
-            background: #9b59b6; color: #fff; border: none; padding: 4px 12px; font-size: 0.75rem; font-weight: bold; border-radius: 6px; cursor: pointer;
-        }
-
-        /* 招待受信ダイアログ */
-        #inviteToast {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1d1d35; border: 3px solid #3498db; border-radius: 12px; padding: 12px 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.8); display: none; align-items: center; gap: 15px; z-index: 200; pointer-events: auto;
-        }
-        .invite-toast-text { font-size: 0.85rem; font-weight: bold; color: #fff; }
-        .invite-toast-buttons { display: flex; gap: 8px; }
-        .btn-toast { border: none; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
-        .btn-toast-accept { background: #2ecc71; color: #fff; }
-        .btn-toast-decline { background: #e74c3c; color: #fff; }
 
         /* ゲーム内HUD */
         #hud-top {
@@ -325,9 +313,11 @@
         #rotatePrompt h2 { color: #fff; font-size: 2rem; }
         @media screen and (orientation: portrait) {
             #rotatePrompt { display: flex; flex-direction: column; }
-            #menu, #gameCanvas, #uiLayer, #resultsScreen, .modal { display: none !important; }
+            #menu, #gameCanvas, #uiLayer, #resultsScreen, .modal, #lobbyPanel { display: none !important; }
         }
     </style>
+    <!-- Socket.IOクライアントのロード -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
 
@@ -337,23 +327,20 @@
 
     <!-- メニュー画面 -->
     <div id="menu">
-        <div class="header-area">
-            <h1>BRAWL CLONE</h1>
-            
-            <!-- プレイヤー名プロファイル設定エリア -->
-            <div class="profile-area">
+        <div class="header-controls">
+            <div class="profile-box">
                 <label>名前:</label>
-                <input type="text" id="playerNameInput" value="ブロワラー" maxlength="10">
-                
-                <!-- オンラインプレイヤーリストを開く小さな丸ボタン -->
-                <button class="btn-round-online disconnected" id="btnOnlineList" title="オンラインプレイヤーリスト">👥</button>
+                <input type="text" class="name-input" id="playerNameInput" placeholder="ブロワラー">
+                <button class="btn-leave-room" id="btnLeaveRoom">ルームを退出</button>
             </div>
+            <h1>BRAWL CLONE</h1>
+            <button class="btn-online-lobby" id="btnOpenLobby" title="オンラインロビー">🌐</button>
         </div>
         
         <div class="battle-setup-container">
             <div class="setup-row">
-                <div style="font-size:0.95rem; font-weight: 900; color:#fff;" id="setupSubtitle">🛡️ メンバー編成シミュレーター</div>
-                <div style="font-size:0.75rem; color:#a5a5c5;" id="setupHelpText">枠タップでキャラ選択。オンラインロビー時はスロットを選択！</div>
+                <div style="font-size:0.95rem; font-weight: 900; color:#fff;" id="setupPanelTitle">🛡️ メンバー編成シミュレーター</div>
+                <div style="font-size:0.75rem; color:#a5a5c5;">枠タップでキャラ/スキルカスタム！いつでも自分がどのチームに入るかも変更可能！</div>
             </div>
 
             <div class="teams-grid">
@@ -393,48 +380,27 @@
                 </select>
             </div>
             <button class="btn-start" id="btnStart">BATTLE START</button>
-            <button class="btn-start" id="btnLeaveLobby" style="background:var(--btn-red); box-shadow:0 4px 0 var(--btn-red-shadow); display:none; color:#fff; font-size:1rem; padding: 8px 15px;">ロビー退室</button>
         </div>
     </div>
 
-    <!-- オンラインプレイヤーリストモーダル -->
-    <div class="modal" id="onlineModal">
-        <div class="modal-content online-list-modal-content">
-            <div class="modal-header">
-                <span>👥 オンラインプレイヤー一覧</span>
-                <button style="background:none; border:none; color:#ff4d4d; font-size:1.2rem; cursor:pointer;" id="btnOnlineModalClose">❌</button>
-            </div>
-            
-            <div style="font-size:0.75rem; color:#a5a5c5;">オンラインのプレイヤーをロビーに招待しましょう。お気に入りは優先表示されます。</div>
-            
-            <div class="online-players-container" id="onlinePlayersContainer">
-                <!-- 動的にオンラインプレイヤーが挿入されます -->
-            </div>
-
-            <!-- マルチサーバー接続用パネル -->
-            <div style="border-top: 1.5px solid rgba(255,255,255,0.1); margin-top:5px; padding-top:5px;">
-                <label style="font-size:0.75rem; color:#00d2d3; font-weight:bold;">マッチングサーバーURL</label>
-                <div class="server-config-area">
-                    <input type="text" id="serverUrlInput" value="http://localhost:5000" placeholder="接続先サーバーアドレス">
-                    <button class="btn-connect" id="btnConnectServer">接続</button>
-                </div>
-            </div>
+    <!-- オンラインロビーパネル (スライド式) -->
+    <div id="lobbyPanel">
+        <div class="lobby-header">
+            <span>🌐 オンラインロビー</span>
+            <button class="btn-fav" id="btnCloseLobby" style="color:#fff; font-size:0.95rem; font-weight:bold;">✕</button>
         </div>
-    </div>
-
-    <!-- 招待通知用のトーストダイアログ -->
-    <div id="inviteToast">
-        <div class="invite-toast-text" id="inviteToastText">プレイヤーさんからロビーへの招待が届きました。</div>
-        <div class="invite-toast-buttons">
-            <button class="btn-toast btn-toast-decline" id="btnInviteDecline">拒否</button>
-            <button class="btn-toast btn-toast-accept" id="btnInviteAccept">参加</button>
+        <div class="lobby-list" id="lobbyUserList">
+            <!-- 動的にオンラインプレイヤーが挿入されます -->
         </div>
     </div>
 
     <!-- スロット編集用モーダル -->
     <div class="modal" id="editModal">
         <div class="modal-content">
-            <div class="modal-header" id="modalTitle">スロット編集</div>
+            <div class="modal-header" id="modalTitle">
+                <span>スロット編集</span>
+                <span id="modalTeamSwitchTitle" style="font-size:0.8rem; color:#3498db; cursor:pointer;">チームを切り替える 🔁</span>
+            </div>
             
             <div style="display:flex; flex-direction:column; gap:3px;">
                 <label style="font-size:0.8rem; color:#00d2d3; font-weight:bold;">キャラクター</label>
@@ -454,6 +420,18 @@
             <div class="modal-buttons">
                 <button class="btn-modal btn-cancel" id="btnModalCancel">キャンセル</button>
                 <button class="btn-modal btn-save" id="btnModalSave">設定を適用</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 招待ダイアログ -->
+    <div class="modal" id="inviteModal" style="z-index: 110;">
+        <div class="modal-content" style="max-width: 320px; text-align: center;">
+            <div class="modal-header" style="justify-content: center; color: #f1c40f;">🤝 招待が届きました</div>
+            <p id="inviteModalText" style="font-size: 0.85rem; margin: 10px 0;"></p>
+            <div class="modal-buttons" style="justify-content: center;">
+                <button class="btn-modal btn-cancel" id="btnInviteReject">拒否</button>
+                <button class="btn-modal btn-save" id="btnInviteAccept">参加する</button>
             </div>
         </div>
     </div>
@@ -605,322 +583,240 @@ const CHAR_DATA = {
 };
 
 /** ==========================================
- * オンラインマルチプレイ・同期コアロジック
+ * オンラインロビー 接続・管理
  * ========================================== */
+const SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:5000' 
+    : 'https://brawl-online.onrender.com/'; // ★必要に応じて自身のRenderのURL等に設定します
+
+const socket = io(SERVER_URL, { autoConnect: true });
+
 const OnlineManager = {
-    socket: null,
-    connected: false,
-    playersList: [],
-    lobby: null, // 現在参加中のロビーデータ
-    favorites: [], // お気に入りプレイヤーのSID or名前のリスト
+    uid: null,
+    name: 'ブロワラー',
+    friends: [],
+    onlinePlayers: [],
+    currentRoomId: null,
+    isHost: false,
+    roomPlayers: [], // ルーム内のプレイヤーデータリスト
+    currentInviteId: null,
 
     init() {
-        // セーブデータ（お気に入りプレイヤー、自分の名前、サーバーアドレス）のロード
-        this.loadSaveData();
-
-        document.getElementById('btnConnectServer').addEventListener('click', () => {
-            const url = document.getElementById('serverUrlInput').value;
-            this.connect(url);
-        });
-
-        // ページロード時にセーブされたアドレスに自動接続を試みる
-        const savedUrl = localStorage.getItem('brawl_server_url') || 'http://localhost:5000';
-        document.getElementById('serverUrlInput').value = savedUrl;
-        this.connect(savedUrl);
-
-        // トースト招待応答のボタン
-        document.getElementById('btnInviteAccept').addEventListener('click', () => {
-            this.respondInvite('accept');
-        });
-        document.getElementById('btnInviteDecline').addEventListener('click', () => {
-            this.respondInvite('decline');
-        });
-
-        document.getElementById('btnLeaveLobby').addEventListener('click', () => {
-            this.leaveLobby();
-        });
-    },
-
-    loadSaveData() {
-        // 名前
-        const savedName = localStorage.getItem('brawl_player_name');
-        if (savedName) {
-            document.getElementById('playerNameInput').value = savedName;
-        } else {
-            localStorage.setItem('brawl_player_name', 'ブロワラー');
-        }
-
-        // お気に入り
-        const savedFavs = localStorage.getItem('brawl_favorites');
-        if (savedFavs) {
-            this.favorites = JSON.parse(savedFavs);
-        }
-
-        // 名前の変更検知でサーバーと同期
-        document.getElementById('playerNameInput').addEventListener('change', (e) => {
-            const name = e.target.value.trim() || 'ブロワラー';
-            localStorage.setItem('brawl_player_name', name);
-            if (this.connected) {
-                const selfSlot = SlotsManager.slots[0];
-                this.socket.emit('join_server', {
-                    name: name,
-                    brawler: selfSlot.brawler,
-                    gadget: selfSlot.gadget,
-                    sp: selfSlot.sp
-                });
-            }
-        });
-    },
-
-    saveFavorites() {
-        localStorage.setItem('brawl_favorites', JSON.stringify(this.favorites));
-    },
-
-    connect(url) {
-        if (this.socket) {
-            this.socket.disconnect();
-        }
-
-        localStorage.setItem('brawl_server_url', url);
+        // 保存された名前・UID・お気に入りのロード
+        this.uid = localStorage.getItem('brawl_clone_uid') || null;
+        this.name = localStorage.getItem('brawl_clone_name') || 'ブロワラー';
         
         try {
-            this.socket = io(url, {
-                transports: ['websocket'],
-                timeout: 5000
-            });
-        } catch (err) {
-            console.error("サーバーへの接続に失敗しました: ", err);
-            return;
+            this.friends = JSON.parse(localStorage.getItem('brawl_clone_friends')) || [];
+        } catch(e) {
+            this.friends = [];
         }
 
-        this.socket.on('connect', () => {
-            this.connected = true;
-            const btn = document.getElementById('btnOnlineList');
-            btn.classList.remove('disconnected');
-            
-            // サーバーに参加登録
-            const name = document.getElementById('playerNameInput').value || 'ブロワラー';
-            const selfSlot = SlotsManager.slots[0];
-            this.socket.emit('join_server', {
-                name: name,
-                brawler: selfSlot.brawler,
-                gadget: selfSlot.gadget,
-                sp: selfSlot.sp
-            });
-        });
-
-        this.socket.on('disconnect', () => {
-            this.connected = false;
-            this.lobby = null;
-            document.getElementById('btnOnlineList').classList.add('disconnected');
-            document.getElementById('btnLeaveLobby').style.display = 'none';
-            document.getElementById('btnStart').style.display = 'block';
-            this.renderOnlineList();
-        });
-
-        // オンラインプレイヤー一覧の更新
-        this.socket.on('online_players', (list) => {
-            this.playersList = list;
-            this.renderOnlineList();
-        });
-
-        // 招待をうけた時の処理
-        this.socket.on('receive_invite', (data) => {
-            this.activeInvite = data; // { sender_id, sender_name }
-            const toast = document.getElementById('inviteToast');
-            document.getElementById('inviteToastText').textContent = `🔔 ${data.sender_name} さんからロビーへの招待が届きました。`;
-            toast.style.display = 'flex';
-        });
-
-        // 招待が拒否された時
-        this.socket.on('invite_declined', (data) => {
-            Game.uiEffects.push(new FloatingText(cw/2, ch/2, `${data.guest_name} さんに招待を拒否されました`, '#e74c3c', 16));
-        });
-
-        // ロビーが同期された時
-        this.socket.on('lobby_update', (lobbyData) => {
-            this.lobby = lobbyData;
-            document.getElementById('btnLeaveLobby').style.display = 'block';
-            document.getElementById('btnStart').style.display = 'block';
-            
-            if (this.lobby.host_id === this.socket.id) {
-                document.getElementById('btnStart').textContent = "BATTLE START";
-                document.getElementById('btnStart').disabled = false;
-            } else {
-                document.getElementById('btnStart').textContent = "ホストの開始を待機中...";
-                document.getElementById('btnStart').disabled = true;
+        const nameInput = document.getElementById('playerNameInput');
+        nameInput.value = this.name;
+        
+        // 名前変更リスナー
+        nameInput.addEventListener('change', (e) => {
+            let val = e.target.value.trim();
+            if(val) {
+                this.name = val;
+                localStorage.setItem('brawl_clone_name', val);
+                this.syncProfile();
             }
-
-            // モードをホストの設定に合わせる
-            document.getElementById('selMode').value = lobbyData.mode;
-            
-            // サーバーから渡されたスロット情報をローカルのスロット構成にマッピング
-            this.syncLobbySlotsToUI();
         });
 
-        // ホストが対戦を開始した時
-        this.socket.on('match_started', () => {
+        // ロビーサイドパネルの制御
+        document.getElementById('btnOpenLobby').addEventListener('click', () => {
+            document.getElementById('lobbyPanel').classList.add('open');
+        });
+        document.getElementById('btnCloseLobby').addEventListener('click', () => {
+            document.getElementById('lobbyPanel').classList.remove('open');
+        });
+
+        // 退出ボタンの制御
+        document.getElementById('btnLeaveRoom').addEventListener('click', () => {
+            socket.emit('leave_room');
+        });
+
+        this.setupSocketListeners();
+        
+        // 接続直後のプロファイル同期
+        if (socket.connected) {
+            this.syncProfile();
+        }
+    },
+
+    setupSocketListeners() {
+        socket.on('connect', () => {
+            this.syncProfile();
+        });
+
+        socket.on('registration_success', (data) => {
+            this.uid = data.uid;
+            localStorage.setItem('brawl_clone_uid', this.uid);
+        });
+
+        socket.on('update_players', (players) => {
+            this.onlinePlayers = players;
+            this.renderLobbyList();
+        });
+
+        // 招待が届いたとき
+        socket.on('challenge_received', (data) => {
+            this.currentInviteId = data.invite_id;
+            document.getElementById('inviteModalText').textContent = `${data.challenger_name} さんからマルチプレイの招待が届きました！`;
+            document.getElementById('inviteModal').style.display = 'flex';
+        });
+
+        socket.on('challenge_rejected', (data) => {
+            alert(data.msg);
+        });
+
+        // 部屋に参加したとき
+        socket.on('room_joined', (data) => {
+            this.currentRoomId = data.room_id;
+            this.isHost = data.is_host;
+            document.getElementById('btnLeaveRoom').style.display = 'inline-block';
+            document.getElementById('setupPanelTitle').textContent = `🛡️ オンラインルーム (ROOM: ${this.isHost ? 'ホスト' : 'ゲスト'})`;
+            
+            // ゲストは開始ボタンやモード選択をロック/同期
+            const startBtn = document.getElementById('btnStart');
+            const modeSel = document.getElementById('selMode');
+            if (!this.isHost) {
+                startBtn.textContent = 'ホストの開始待ち...';
+                startBtn.style.opacity = '0.6';
+                startBtn.disabled = true;
+                modeSel.disabled = true;
+            } else {
+                startBtn.textContent = 'BATTLE START';
+                startBtn.style.opacity = '1.0';
+                startBtn.disabled = false;
+                modeSel.disabled = false;
+            }
+        });
+
+        // 部屋のメンバーが更新されたとき
+        socket.on('room_update', (roomMembers) => {
+            this.roomPlayers = roomMembers;
+            SlotsManager.syncWithRoomPlayers(roomMembers);
+        });
+
+        // ルームから退出したとき
+        socket.on('room_left', () => {
+            this.currentRoomId = null;
+            this.isHost = false;
+            this.roomPlayers = [];
+            document.getElementById('btnLeaveRoom').style.display = 'none';
+            document.getElementById('setupPanelTitle').textContent = `🛡️ メンバー編成シミュレーター`;
+            
+            const startBtn = document.getElementById('btnStart');
+            const modeSel = document.getElementById('selMode');
+            startBtn.textContent = 'BATTLE START';
+            startBtn.style.opacity = '1.0';
+            startBtn.disabled = false;
+            modeSel.disabled = false;
+            
+            SlotsManager.init(); // 従来の設定に戻す
+        });
+
+        // ゲームスタートの合図
+        socket.on('game_start_signal', (data) => {
             document.getElementById('menu').style.display = 'none';
             document.getElementById('gameCanvas').style.display = 'block';
             Input.initLayout();
             
-            // ロビー設定に基づいてローカルゲームをビルド、対戦相手などの情報を統合
-            const mode = document.getElementById('selMode').value;
-            const selfSlot = SlotsManager.slots[0];
-            Game.init(mode, selfSlot.brawler, true); // true: オンライン対戦
+            // オンラインゲームモードで同期開始
+            Game.init(data.mode, SlotsManager.slots[0].brawler);
         });
 
-        // リアルタイム移動同期受信
-        this.socket.on('game_sync_receive', (data) => {
-            if (Game.state !== 'playing') return;
-            const targetChar = Game.entities.find(e => e.onlineId === data.sender_sid);
-            if (targetChar) {
-                targetChar.x = data.x;
-                targetChar.y = data.y;
-                targetChar.hp = data.hp;
-                targetChar.maxHp = data.maxHp;
-                targetChar.facing = data.facing;
-                targetChar.z = data.z;
-                targetChar.invisibleTimer = data.invisibleTimer;
-                targetChar.shield = data.shield;
+        // 招待承認/拒否ボタンイベント
+        document.getElementById('btnInviteAccept').addEventListener('click', () => {
+            if(this.currentInviteId) {
+                socket.emit('respond_challenge', { invite_id: this.currentInviteId, accepted: true });
             }
+            document.getElementById('inviteModal').style.display = 'none';
         });
 
-        // リアルタイム攻撃動作同期受信
-        this.socket.on('game_sync_action_receive', (data) => {
-            if (Game.state !== 'playing') return;
-            const targetChar = Game.entities.find(e => e.onlineId === data.sender_sid);
-            if (targetChar) {
-                targetChar.executeAttack(data.angle, data.type);
+        document.getElementById('btnInviteReject').addEventListener('click', () => {
+            if(this.currentInviteId) {
+                socket.emit('respond_challenge', { invite_id: this.currentInviteId, accepted: false });
             }
+            document.getElementById('inviteModal').style.display = 'none';
         });
     },
 
-    toggleFavorite(name) {
-        const idx = this.favorites.indexOf(name);
-        if (idx > -1) {
-            this.favorites.splice(idx, 1);
+    syncProfile() {
+        const mySlot = SlotsManager.slots[0];
+        socket.emit('register_player', {
+            uid: this.uid,
+            name: this.name,
+            brawler: mySlot ? mySlot.brawler : 'shelly',
+            gadget: mySlot ? mySlot.gadget : 'random',
+            sp: mySlot ? mySlot.sp : 'random',
+            team_id: mySlot ? mySlot.team : 1
+        });
+    },
+
+    toggleFriend(uid) {
+        let idx = this.friends.indexOf(uid);
+        if (idx !== -1) {
+            this.friends.splice(idx, 1);
         } else {
-            this.favorites.push(name);
+            this.friends.push(uid);
         }
-        this.saveFavorites();
-        this.renderOnlineList();
+        localStorage.setItem('brawl_clone_friends', JSON.stringify(this.friends));
+        this.renderLobbyList();
     },
 
-    sendInvite(targetId) {
-        if (!this.connected) return;
-        this.socket.emit('send_invite', { target_id: targetId });
-        Game.uiEffects.push(new FloatingText(cw/2, ch/2, "招待を送信しました！", '#2ecc71', 16));
-    },
+    renderLobbyList() {
+        const listContainer = document.getElementById('lobbyUserList');
+        listContainer.innerHTML = '';
 
-    respondInvite(response) {
-        document.getElementById('inviteToast').style.display = 'none';
-        if (!this.connected || !this.activeInvite) return;
-        this.socket.emit('respond_invite', {
-            sender_id: this.activeInvite.sender_id,
-            response: response
+        // 自分を除外
+        let filteredPlayers = this.onlinePlayers.filter(p => p.uid !== this.uid);
+
+        // お気に入りのフレンドを優先的に並び替える
+        filteredPlayers.sort((a, b) => {
+            let aFav = this.friends.includes(a.uid) ? 1 : 0;
+            let bFav = this.friends.includes(b.uid) ? 1 : 0;
+            return bFav - aFav;
         });
-        this.activeInvite = null;
-    },
 
-    leaveLobby() {
-        if (!this.connected) return;
-        this.socket.emit('leave_lobby');
-        this.lobby = null;
-        document.getElementById('btnLeaveLobby').style.display = 'none';
-        document.getElementById('btnStart').textContent = "BATTLE START";
-        document.getElementById('btnStart').disabled = false;
-        
-        // 通常のスタンドアロンスロットリストに戻す
-        SlotsManager.init();
-    },
-
-    renderOnlineList() {
-        const container = document.getElementById('onlinePlayersContainer');
-        container.innerHTML = '';
-
-        if (!this.connected) {
-            container.innerHTML = `<div style="text-align:center; padding:20px; font-size:0.8rem; color:#e74c3c;">オフライン状態です。マッチングサーバーに接続してください。</div>`;
+        if (filteredPlayers.length === 0) {
+            listContainer.innerHTML = '<div style="font-size:0.8rem; text-align:center; color:#a5a5c5; margin-top:20px;">他のプレイヤーはいません</div>';
             return;
         }
 
-        if (this.playersList.length <= 1) {
-            container.innerHTML = `<div style="text-align:center; padding:20px; font-size:0.8rem; color:#7f8c8d;">他のオンラインプレイヤーはいません。</div>`;
-            return;
-        }
+        filteredPlayers.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'lobby-user-card';
+            
+            let isFav = this.friends.includes(p.uid);
+            let bData = CHAR_DATA[p.brawler] || { name: '選択中...', icon: '🟣' };
 
-        // オンラインプレイヤーのソート（1:お気に入り優先 2:名前）
-        let sortedList = this.playersList.filter(p => p.id !== this.socket.id);
-        sortedList.sort((a, b) => {
-            const aFav = this.favorites.includes(a.name) ? 1 : 0;
-            const bFav = this.favorites.includes(b.name) ? 1 : 0;
-            if (aFav !== bFav) return bFav - aFav; // お気に入り優先
-            return a.name.localeCompare(b.name);
-        });
-
-        sortedList.forEach(p => {
-            const isFav = this.favorites.includes(p.name);
-            const row = document.createElement('div');
-            row.className = 'online-player-row';
-
-            let statusLabel = '待機中';
-            let statusClass = 'status-idle';
-            if (p.status === 'lobby') { statusLabel = 'ロビー内'; statusClass = 'status-lobby'; }
-            if (p.status === 'playing') { statusLabel = '戦闘中'; statusClass = 'status-playing'; }
-
-            row.innerHTML = `
-                <div class="online-player-left">
-                    <button class="btn-favorite" data-name="${p.name}">${isFav ? '★' : '☆'}</button>
-                    <span class="online-player-name">${p.name}</span>
-                    <span class="online-player-status ${statusClass}">${statusLabel}</span>
+            card.innerHTML = `
+                <div class="lobby-user-info">
+                    <span class="lobby-user-name">${p.name}</span>
+                    <span class="lobby-user-brawler">${bData.icon} ${bData.name}</span>
                 </div>
-                <div class="online-player-actions">
-                    <button class="btn-invite" data-id="${p.id}" ${p.status !== 'idle' ? 'disabled' : ''}>招待</button>
+                <div class="lobby-user-actions">
+                    <button class="btn-fav ${isFav ? 'active' : ''}" data-uid="${p.uid}">${isFav ? '★' : '☆'}</button>
+                    <button class="btn-invite" data-uid="${p.uid}">招待</button>
                 </div>
             `;
 
-            // お気に入り切り替え
-            row.querySelector('.btn-favorite').addEventListener('click', (e) => {
-                const name = e.target.getAttribute('data-name');
-                this.toggleFavorite(name);
+            // イベントバインド
+            card.querySelector('.btn-fav').addEventListener('click', () => {
+                this.toggleFriend(p.uid);
             });
 
-            // 招待ボタン
-            row.querySelector('.btn-invite').addEventListener('click', (e) => {
-                const id = e.target.getAttribute('data-id');
-                this.sendInvite(id);
+            card.querySelector('.btn-invite').addEventListener('click', () => {
+                socket.emit('send_challenge', { target_uid: p.uid });
+                alert(`${p.name}さんを招待しました！`);
             });
 
-            container.appendChild(row);
+            listContainer.appendChild(card);
         });
-    },
-
-    syncLobbySlotsToUI() {
-        if (!this.lobby) return;
-
-        // 一旦全てのボットを含む、従来の17スロット構造にする。
-        // 空いている枠はボットで補填される。
-        SlotsManager.slots.forEach((slot, index) => {
-            // スロット割り当てをサーバーのlobby.members内の該当プレイヤーのもので上書き
-            const matchedMember = this.lobby.members.find(m => m.slot === index);
-            if (matchedMember) {
-                slot.enabled = true;
-                slot.name = matchedMember.name;
-                slot.brawler = matchedMember.brawler;
-                slot.gadget = matchedMember.gadget;
-                slot.sp = matchedMember.sp;
-                slot.isPlayer = (matchedMember.id === this.socket.id);
-                slot.onlineId = matchedMember.id; // オンライン同期用のIDを記録
-            } else {
-                // 誰も入っていないスロット。
-                // プレイヤーをオンライン以外の通常ボットとしてマーク。
-                slot.isPlayer = false;
-                slot.onlineId = null;
-                // ボットのスロット設定は、従来どおり個人選択可能。
-            }
-        });
-
-        SlotsManager.render();
     }
 };
 
@@ -939,42 +835,104 @@ const SlotsManager = {
         // プレイヤー自身 (Slot 0 - Blue Team)
         this.slots.push({
             isPlayer: true,
-            onlineId: null,
             team: 1, // 1: Blue, 2: Red
             brawler: 'pius', // デフォルトをピアスに
             gadget: 'shield_absorb',
             sp: 'auto_aim',
             enabled: true,
-            name: 'YOU (プレイヤー)'
+            name: OnlineManager.name || 'YOU'
         });
 
         // 味方スロット (Slot 1, 2 - Blue Team)
-        this.slots.push({ isPlayer: false, onlineId: null, team: 1, brawler: 'colt', gadget: 'one', sp: 'million', enabled: true, name: '味方ボットA' });
-        this.slots.push({ isPlayer: false, onlineId: null, team: 1, brawler: 'primo', gadget: 'lariat', sp: 'speed', enabled: true, name: '味方ボットB' });
+        this.slots.push({ isPlayer: false, team: 1, brawler: 'colt', gadget: 'one', sp: 'million', enabled: true, name: '味方ボットA', onlinePlayer: null });
+        this.slots.push({ isPlayer: false, team: 1, brawler: 'primo', gadget: 'lariat', sp: 'speed', enabled: true, name: '味方ボットB', onlinePlayer: null });
 
         // 敵スロット (Slot 3, 4, 5 - Red Team)
-        this.slots.push({ isPlayer: false, onlineId: null, team: 2, brawler: 'gus', gadget: 'cracker', sp: 'master', enabled: true, name: '敵ボットA' });
-        this.slots.push({ isPlayer: false, onlineId: null, team: 2, brawler: 'mortis', gadget: 'spinner', sp: 'longdash', enabled: true, name: '敵ボットB' });
-        this.slots.push({ isPlayer: false, onlineId: null, team: 2, brawler: 'kit', gadget: 'cardboard', sp: 'fastcharge', enabled: true, name: '敵ボットC' });
+        this.slots.push({ isPlayer: false, team: 2, brawler: 'gus', gadget: 'cracker', sp: 'master', enabled: true, name: '敵ボットA', onlinePlayer: null });
+        this.slots.push({ isPlayer: false, team: 2, brawler: 'mortis', gadget: 'spinner', sp: 'longdash', enabled: true, name: '敵ボットB', onlinePlayer: null });
+        this.slots.push({ isPlayer: false, team: 2, brawler: 'kit', gadget: 'cardboard', sp: 'fastcharge', enabled: true, name: '敵ボットC', onlinePlayer: null });
 
         // ショーダウン用スロット (最大11敵)
         for (let i = 1; i <= 11; i++) {
             this.slots.push({
                 isPlayer: false,
-                onlineId: null,
                 team: i + 1, // 各自別のチーム
                 brawler: 'random',
                 gadget: 'random',
                 sp: 'random',
                 enabled: true,
-                name: `敵ボット${i}`
+                name: `敵ボット${i}`,
+                onlinePlayer: null
             });
         }
 
         this.render();
     },
 
+    // オンラインルームに入っている他プレイヤーデータとスロット同期
+    syncWithRoomPlayers(roomMembers) {
+        // 全ボットスロットにクリア
+        this.slots.forEach((s, idx) => {
+            if (idx > 0) {
+                s.onlinePlayer = null;
+                // 元の名前へ戻す
+                if (idx === 1) s.name = '味方ボットA';
+                else if (idx === 2) s.name = '味方ボットB';
+                else if (idx === 3) s.name = '敵ボットA';
+                else if (idx === 4) s.name = '敵ボットB';
+                else if (idx === 5) s.name = '敵ボットC';
+            }
+        });
+
+        let blueBotIndex = 1;
+        let redBotIndex = 3;
+
+        roomMembers.forEach(m => {
+            if (m.uid === OnlineManager.uid) {
+                // 自分のスロット0同期
+                const selfSlot = this.slots[0];
+                selfSlot.team = m.team_id;
+                selfSlot.brawler = m.brawler;
+                selfSlot.gadget = m.gadget;
+                selfSlot.sp = m.sp;
+            } else {
+                // 他オンラインプレイヤーを空いているスロットへマッピング
+                if (m.team_id === 1) {
+                    if (blueBotIndex <= 2) {
+                        const s = this.slots[blueBotIndex];
+                        s.name = m.name;
+                        s.brawler = m.brawler;
+                        s.gadget = m.gadget;
+                        s.sp = m.sp;
+                        s.team = 1;
+                        s.enabled = true;
+                        s.onlinePlayer = m; // オンラインプレイヤーマーク
+                        blueBotIndex++;
+                    }
+                } else {
+                    if (redBotIndex <= 5) {
+                        const s = this.slots[redBotIndex];
+                        s.name = m.name;
+                        s.brawler = m.brawler;
+                        s.gadget = m.gadget;
+                        s.sp = m.sp;
+                        s.team = 2;
+                        s.enabled = true;
+                        s.onlinePlayer = m; // オンラインプレイヤーマーク
+                        redBotIndex++;
+                    }
+                }
+            }
+        });
+
+        this.render();
+    },
+
+    // 現在のモードに合わせて枠の可視状態、編成数を切り替える
     render() {
+        // 自分の名前を反映
+        this.slots[0].name = OnlineManager.name || 'YOU';
+
         const mode = document.getElementById('selMode').value;
         const blueSlotsList = document.getElementById('blueSlots');
         const redSlotsList = document.getElementById('redSlots');
@@ -988,8 +946,8 @@ const SlotsManager = {
         this.slots.forEach((slot, index) => {
             // ショーダウン時の調整
             if (mode === 'showdown') {
-                if (slot.isPlayer || slot.onlineId) {
-                    // プレイヤー自身/またはロビーでの他のプレイヤー
+                if (slot.isPlayer) {
+                    // プレイヤー枠を表示
                     blueSlotsList.appendChild(this.createCardElement(slot, index));
                     if (slot.enabled) blueCount++;
                 } else if (index >= 6 && index < 17) {
@@ -998,7 +956,7 @@ const SlotsManager = {
                     if (slot.enabled) redCount++;
                 }
             } else {
-                // 3v3モード (gemgrab, wipeout, bounty, knockout)
+                // 3v3モード
                 if (index < 6) {
                     if (slot.team === 1) {
                         blueSlotsList.appendChild(this.createCardElement(slot, index));
@@ -1017,15 +975,11 @@ const SlotsManager = {
 
     createCardElement(slot, index) {
         const card = document.createElement('div');
-        
-        let cardTypeClass = '';
-        if (slot.isPlayer) {
-            cardTypeClass = 'player-self';
-        } else if (slot.onlineId) {
-            cardTypeClass = 'player-online';
-        }
-
-        card.className = `slot-card ${cardTypeClass} ${!slot.enabled ? 'disabled-slot' : ''}`;
+        let classes = `slot-card`;
+        if (slot.isPlayer) classes += ' player-self';
+        else if (slot.onlinePlayer) classes += ' player-other-online';
+        if (!slot.enabled) classes += ' disabled-slot';
+        card.className = classes;
         
         let charName = '';
         let charIcon = '❓';
@@ -1061,36 +1015,35 @@ const SlotsManager = {
             }
         }
 
-        // オンラインロビー時は"YOU"ではなく自分の名前を表示
-        let displayName = slot.name;
-        if (slot.isPlayer) {
-            displayName = document.getElementById('playerNameInput').value + " (YOU)";
+        let badgeHtml = '';
+        if (!slot.enabled) {
+            badgeHtml = '<span class="badge badge-disabled">不参加</span>';
+        } else if (slot.onlinePlayer) {
+            badgeHtml = `<span class="badge" style="background:#00d2d3;">🌐 P: ${slot.onlinePlayer.name}</span> <span class="badge badge-gadget">🔧 ${gadgetLabel}</span>`;
+        } else {
+            badgeHtml = `<span class="badge badge-gadget">🔧 ${gadgetLabel}</span> <span class="badge badge-sp">⭐ ${spLabel}</span>`;
         }
 
         card.innerHTML = `
             <div class="slot-left">
                 <div class="slot-icon" style="background-color: ${charColor}33; border-color: ${charColor};">${charIcon}</div>
                 <div class="slot-info">
-                    <span class="slot-name">${displayName}</span>
+                    <span class="slot-name">${slot.name}</span>
                     <span class="slot-details" style="color: ${charColor}; font-weight: bold;">${charName}</span>
                 </div>
             </div>
             <div class="slot-right">
-                ${!slot.enabled ? '<span class="badge badge-disabled">不参加</span>' : `
-                    <span class="badge badge-gadget">🔧 ${gadgetLabel}</span>
-                    <span class="badge badge-sp">⭐ ${spLabel}</span>
-                `}
+                ${badgeHtml}
             </div>
         `;
 
         card.addEventListener('click', () => {
-            if (OnlineManager.lobby) {
-                // オンラインロビーに入っている場合は、タップでスロットをサーバーへ移動申請する
-                OnlineManager.socket.emit('select_slot', { slot: index });
-            } else {
-                // 通常ローカル編成の編集
-                this.openEditModal(index);
+            // 他オンラインプレイヤーのスロットは編集不可
+            if (slot.onlinePlayer) {
+                alert("この枠はオンラインの他プレイヤーが参加しています。編集できません。");
+                return;
             }
+            this.openEditModal(index);
         });
 
         return card;
@@ -1102,10 +1055,17 @@ const SlotsManager = {
         const modal = document.getElementById('editModal');
         const modalTitle = document.getElementById('modalTitle');
         const charSelect = document.getElementById('modalCharSelect');
+        const switchTeamBtn = document.getElementById('modalTeamSwitchTitle');
 
-        // タップしたスロットの本来の名前を使用
         modalTitle.textContent = `${slot.name} のカスタム設定`;
         
+        // プレイヤー自身の場合のみチームスイッチリンクを表示
+        if (slot.isPlayer && OnlineManager.currentRoomId) {
+            switchTeamBtn.style.display = 'inline';
+        } else {
+            switchTeamBtn.style.display = 'none';
+        }
+
         // キャラクター選択肢の構築
         charSelect.innerHTML = '';
         if (slot.isPlayer) {
@@ -1181,26 +1141,18 @@ const SlotsManager = {
         }
 
         document.getElementById('editModal').style.display = 'none';
-        this.render();
-
-        // 自分がロビーに入っている場合は、カスタム装備変更をサーバーにも即座に同期
-        if (OnlineManager.lobby && index === 0) {
-            OnlineManager.socket.emit('sync_character_custom', {
-                brawler: slot.brawler,
-                gadget: slot.gadget,
-                sp: slot.sp
-            });
+        
+        // 自分の設定を変更した場合はサーバーにプロファイルを同期
+        if (slot.isPlayer) {
+            OnlineManager.syncProfile();
+        } else {
+            this.render();
         }
     }
 };
 
 document.getElementById('selMode').addEventListener('change', () => {
     SlotsManager.render();
-    if (OnlineManager.lobby && OnlineManager.lobby.host_id === OnlineManager.socket.id) {
-        OnlineManager.socket.emit('update_lobby_settings', {
-            mode: document.getElementById('selMode').value
-        });
-    }
 });
 
 document.getElementById('modalCharSelect').addEventListener('change', () => {
@@ -1215,12 +1167,12 @@ document.getElementById('btnModalSave').addEventListener('click', () => {
     SlotsManager.saveModalSettings();
 });
 
-// オンラインダイアログ開閉
-document.getElementById('btnOnlineList').addEventListener('click', () => {
-    document.getElementById('onlineModal').style.display = 'flex';
-});
-document.getElementById('btnOnlineModalClose').addEventListener('click', () => {
-    document.getElementById('onlineModal').style.display = 'none';
+// オンラインチーム切り替えスイッチイベント
+document.getElementById('modalTeamSwitchTitle').addEventListener('click', () => {
+    const slot = SlotsManager.slots[0];
+    slot.team = slot.team === 1 ? 2 : 1;
+    OnlineManager.syncProfile();
+    document.getElementById('editModal').style.display = 'none';
 });
 
 SlotsManager.init();
@@ -1520,11 +1472,12 @@ class Ghost extends Entity {
     }
 }
 
+// ピアスの弾薬
 class PiusAmmo extends Entity {
     constructor(x, y, owner) {
         super(x, y, 22);
         this.owner = owner;
-        this.pickupDelay = 30; 
+        this.pickupDelay = 30;
         this.anim = Math.random() * Math.PI;
     }
     update() {
@@ -1566,7 +1519,7 @@ class PiusAmmo extends Entity {
         ctx.save(); ctx.translate(this.x, this.y + Math.sin(this.anim)*5);
         ctx.fillStyle = this.pickupDelay > 0 ? '#7f8c8d' : '#3498db';
         ctx.globalAlpha = this.pickupDelay > 0 ? 0.6 : 1.0;
-        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill(); 
+        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
         ctx.restore();
     }
@@ -1634,6 +1587,7 @@ class AreaEffect extends Entity {
     }
 }
 
+// 青い星（タイブレーク用の真ん中スター）
 class BountyCenterStar extends Entity {
     constructor(x, y) {
         super(x, y, 16);
@@ -1700,37 +1654,32 @@ class Character extends Entity {
         this.ghostGauge = 0;
         this.shield = 0;
         this.longDashGauge = 0;
+
         this.attackIntervalTimer = 0;
+        this.pushVx = 0; this.pushVy = 0; this.pushTimer = 0;
+        this.bountyStars = 2;
 
-        this.pushVx = 0;
-        this.pushVy = 0;
-        this.pushTimer = 0;
-
-        this.bountyStars = 2; 
-
+        // キット固有
         this.invisibleTimer = 0;
         this.ridingTarget = null;
         this.ridingTimer = 0;
         this.kitStunCooldown = 0;
 
+        // チェスター固有
         this.chesterGauge = 0;
         this.chesterSuperTypes = ['explode', 'stun', 'heal', 'poison', 'ice'];
         this.chesterSuperType = this.chesterSuperTypes[Math.floor(Math.random() * this.chesterSuperTypes.length)];
         this.candyBuffTimer = 0;
         this.candyBuffType = '';
         
+        // ピアス固有
         if (this.type === 'pius') {
             this.piusReloading = false;
             this.piusHCDelayTimer = 0;
         }
 
-        // オンライン対戦時の一意ID
-        this.onlineId = null;
-
         if (customSlot) {
-            // スロット設定
-            this.name = customSlot.isPlayer ? document.getElementById('playerNameInput').value : customSlot.name;
-            this.onlineId = customSlot.onlineId || null;
+            this.name = customSlot.name;
             
             if (customSlot.gadget === 'random') {
                 this.gadget = this.data.gadgets[Math.floor(Math.random() * this.data.gadgets.length)].id;
@@ -1745,9 +1694,9 @@ class Character extends Entity {
             }
         } else {
             if(isPlayer) {
-                this.gadget = 'dash';
-                this.sp = 'hyper';
-                this.name = document.getElementById('playerNameInput').value;
+                this.gadget = 'shield_absorb';
+                this.sp = 'auto_aim';
+                this.name = OnlineManager.name || "YOU";
             } else {
                 this.gadget = this.data.gadgets[Math.floor(Math.random()*this.data.gadgets.length)].id;
                 this.sp = this.data.sps[Math.floor(Math.random()*this.data.sps.length)].id;
@@ -1822,6 +1771,7 @@ class Character extends Entity {
     die(attacker) {
         this.hp = 0;
         this.deaths++; 
+        
         this.effects = [];
         
         if (this.ridingTarget) {
@@ -1864,7 +1814,7 @@ class Character extends Entity {
                 } else {
                     Game.score.t2 += starsGained;
                 }
-                attacker.bountyStars = (attacker.bountyStars || 2) + 1; 
+                attacker.bountyStars = (attacker.bountyStars || 2) + 1;
                 Game.uiEffects.push(new FloatingText(attacker.x, attacker.y - 60, `+${starsGained} ⭐ (TOTAL)`, '#f1c40f', 22));
             }
             this.bountyStars = 2;
@@ -1882,8 +1832,8 @@ class Character extends Entity {
                     this.hp = this.maxHp;
                     let sp = Game.getSpawn(this.team);
                     this.x = sp.x; this.y = sp.y; this.ammo = this.maxAmmo;
-                    this.pushTimer = 0; 
-                    this.bountyStars = 2; 
+                    this.pushTimer = 0;
+                    this.bountyStars = 2;
                     this.invincible = true; setTimeout(()=>this.invincible=false, 3000);
                     if(this.type === 'pius') this.piusReloading = false;
                 }
@@ -1913,32 +1863,17 @@ class Character extends Entity {
                 if (this.ammo >= 1 && !this.piusReloading) {
                     this.ammo--; 
                     this.executeAttack(angle, 'normal');
-                    this.attackIntervalTimer = 12; 
-                    // リアルタイム通信同期
-                    if (Game.isOnline && this.isPlayer) {
-                        OnlineManager.socket.emit('game_sync_action', { angle: angle, type: 'normal' });
-                    }
+                    this.attackIntervalTimer = 12;
                 }
             } else if (this.ammo >= 1) {
                 this.ammo--; 
                 this.executeAttack(angle, 'normal');
-                this.attackIntervalTimer = 12; 
-                if (Game.isOnline && this.isPlayer) {
-                    OnlineManager.socket.emit('game_sync_action', { angle: angle, type: 'normal' });
-                }
+                this.attackIntervalTimer = 12;
             }
         } else if (btnType === 'super' && this.superCharge >= this.maxSuperCharge) {
-            this.superCharge = 0; 
-            this.executeAttack(angle, 'super');
-            if (Game.isOnline && this.isPlayer) {
-                OnlineManager.socket.emit('game_sync_action', { angle: angle, type: 'super' });
-            }
+            this.superCharge = 0; this.executeAttack(angle, 'super');
         } else if (btnType === 'gadget' && this.gadgetCooldown <= 0) {
-            this.gadgetCooldown = 600; 
-            this.executeAttack(angle, 'gadget');
-            if (Game.isOnline && this.isPlayer) {
-                OnlineManager.socket.emit('game_sync_action', { angle: angle, type: 'gadget' });
-            }
+            this.gadgetCooldown = 600; this.executeAttack(angle, 'gadget');
         }
     }
     
@@ -1954,7 +1889,7 @@ class Character extends Entity {
         Game.uiEffects.push(new FloatingText(this.x, this.y - 30, "+AMMO", '#3498db', 14));
         
         if (fireBullet) {
-            let target = Game.findClosestEnemy(this, 600); 
+            let target = Game.findClosestEnemy(this, 600);
             let angle = this.facing;
             if (target) {
                 angle = Math.atan2(target.y - this.y, target.x - this.x);
@@ -2102,9 +2037,9 @@ class Character extends Entity {
                 Game.entities.forEach(e => {
                     if (e !== this && e.hp > 0 && e.team !== this.team && dist(this.x, this.y, e.x, e.y) < 150) {
                         let ang = Math.atan2(e.y - this.y, e.x - this.x);
-                        e.pushVx = Math.cos(ang) * 12; 
+                        e.pushVx = Math.cos(ang) * 12;
                         e.pushVy = Math.sin(ang) * 12;
-                        e.pushTimer = 10; 
+                        e.pushTimer = 10;
                         
                         for(let i=0; i<8; i++) {
                             Game.particles.push(new Particle(e.x, e.y, '#f1c40f', 4, (Math.random()-0.5)*8, (Math.random()-0.5)*8, 12));
@@ -2360,7 +2295,7 @@ class Character extends Entity {
                 this.executePiusSuper(targetX, targetY, superRadius, dmgMult);
                 
                 if (this.hcActive) {
-                    this.piusHCDelayTimer = 30; 
+                    this.piusHCDelayTimer = 30;
                     this.piusHCTargetX = targetX;
                     this.piusHCTargetY = targetY;
                     this.piusHCDmgMult = dmgMult;
@@ -2404,9 +2339,6 @@ class Character extends Entity {
 
     update() {
         if(this.hp <= 0 && this.z === 0) return;
-
-        // オンライン対戦時は、自身以外のリアルタイム同期位置・移動補正を緩やかに
-        const isRemotePlayer = (Game.isOnline && !this.isPlayer && this.onlineId !== null);
 
         if (this.attackIntervalTimer > 0) {
             this.attackIntervalTimer = Math.max(0, this.attackIntervalTimer - Game.timeScale);
@@ -2617,7 +2549,7 @@ class Character extends Entity {
                         if (this.hcActive) {
                             Game.entities.forEach(e => {
                                 if (e !== this && e.hp > 0 && e.team !== this.team && dist(this.x, this.y, e.x, e.y) < 140) {
-                                    e.takeDamage(1200 * 1.25, this); 
+                                    e.takeDamage(1200 * 1.25, this);
                                     e.effects.push({ type: 'stun', time: 60 });
                                 }
                             });
@@ -2625,7 +2557,7 @@ class Character extends Entity {
                         } else {
                             let target = Game.findClosestEnemy(this, 120);
                             if (target && this.kitStunCooldown <= 0) {
-                                target.takeDamage(1200, this); 
+                                target.takeDamage(1200, this);
                                 this.ridingTarget = target;
                                 this.ridingTimer = 90;
                                 
@@ -2704,32 +2636,13 @@ class Character extends Entity {
                 }
             }
         } else {
-            // 移動処理
             if(this.isPlayer) {
                 if(Input.leftJoy.active) {
                     let speed = this.getSpeed() * Input.leftJoy.mag;
                     dx = Input.leftJoy.nx * speed * Game.timeScale; dy = Input.leftJoy.ny * speed * Game.timeScale;
                     if(Input.leftJoy.mag > 0.1) this.facing = Math.atan2(dy, dx);
                 }
-                
-                // 自身の位置をオンラインの他のプレイヤーへブロードキャスト
-                if (Game.isOnline && (Game.syncTicks % 2 === 0)) {
-                    OnlineManager.socket.emit('game_sync_state', {
-                        x: this.x,
-                        y: this.y,
-                        hp: this.hp,
-                        maxHp: this.maxHp,
-                        facing: this.facing,
-                        z: this.z,
-                        invisibleTimer: this.invisibleTimer,
-                        shield: this.shield
-                    });
-                }
-            } else if (isRemotePlayer) {
-                // オンライン対戦時：他のオンラインプレイヤーはサーバーから送られてくる座標へ徐々に補正しなめらかにする
-                // (dx, dyはそのまま適用せず、オンライン受信イベント側で即座に位置を補正し、ここでは摩擦のみ適用)
             } else {
-                // ボット
                 this.updateBotAI();
                 if(this.aiMoving) {
                     let speed = this.getSpeed();
@@ -2739,7 +2652,7 @@ class Character extends Entity {
             }
         }
 
-        if(this.z === 0 && !isRemotePlayer) {
+        if(this.z === 0) {
             let finalDx = dx + pushDx;
             let finalDy = dy + pushDy;
 
@@ -2764,7 +2677,6 @@ class Character extends Entity {
             if((dx!==0 || dy!==0) && Math.random()<0.2 * Game.timeScale) Game.particles.push(new Particle(this.x, this.y+10, '#ecf0f1', 3, 0, 0, 15));
         }
 
-        // アイテム回収
         for(let i=Game.items.length-1; i>=0; i--) {
             let it = Game.items[i];
             if(dist(this.x, this.y, it.x, it.y) < this.r + it.r) {
@@ -2777,6 +2689,9 @@ class Character extends Entity {
         }
     }
 
+    /**
+     * 高性能ボットAIルーチン (弾よけ・状況判断強化)
+     */
     updateBotAI() {
         this.aiTimer -= Game.timeScale;
         
@@ -3461,8 +3376,9 @@ class Bullet extends Entity {
                             Game.areaEffects.push(new PiusAmmo(ax, ay, this.owner));
                         }
 
-                        e.takeDamage(finalDmg, this.owner);
-                        
+                        if (this.textDmg) {
+                            e.takeDamage(finalDmg, this.owner);
+                        }
                         if (!this.isGhostAttack) {
                             this.owner.chargeSuper(finalDmg * 0.05);
                         }
@@ -3552,7 +3468,7 @@ class Item extends Entity {
                 } else if (minDist === topDist) {
                     this.y = w.y - this.r - 2;
                 } else {
-                    this.y = w.y + w.h + this.r + 2;
+                    this.y = w.h + this.r + 2;
                 }
             }
         }
@@ -3585,23 +3501,24 @@ const Game = {
     state: 'menu', mode: 'gemgrab', mapW: 2000, mapH: 1600, 
     entities: [], bullets: [], items: [], ghosts: [], particles: [], uiEffects: [], map: [], areaEffects: [],
     score: { t1: 0, t2: 0, cd: -1 }, gemTimer: 0, poisonRadius: 2000,
+    
     spectateX: 0, spectateY: 0,
+    
     koRound: 1,
     koWinsT1: 0,
     koWinsT2: 0,
     koRoundOverTimer: 0,
     koRestarting: false,
+    
     globalStats: {},
+    
     lastTime: 0,
     timeScale: 1.0, 
+
     bountyCenterStarSpawned: false,
 
-    // オンライン対戦機能の有効化ステート
-    isOnline: false,
-    syncTicks: 0,
-
-    init(mode, charType, isOnline = false) {
-        this.state = 'playing'; this.mode = mode; this.isOnline = isOnline; this.syncTicks = 0;
+    init(mode, charType) {
+        this.state = 'playing'; this.mode = mode;
         this.entities=[]; this.bullets=[]; this.items=[]; this.ghosts=[]; this.particles=[]; this.uiEffects=[]; this.map=[]; this.areaEffects=[];
         this.score = { t1: 0, t2: 0, cd: -1 };
         this.spectateX = 0; this.spectateY = 0;
@@ -3615,6 +3532,7 @@ const Game = {
         this.koWinsT2 = 0;
         this.koRoundOverTimer = 0;
         this.koRestarting = false;
+
         this.bountyCenterStarSpawned = false;
         
         if(mode === 'showdown') { this.mapW=3200; this.mapH=3200; this.poisonRadius=2400; }
@@ -3626,11 +3544,6 @@ const Game = {
         document.getElementById('uiLayer').style.display = 'block';
         document.getElementById('kill-log').innerHTML = '';
         document.getElementById('resultsScreen').style.display = 'none';
-
-        if (this.isOnline && OnlineManager.connected) {
-            // 対戦開始メッセージのブロードキャスト
-            OnlineManager.socket.emit('start_match');
-        }
     },
     
     setupRound() {
@@ -3667,7 +3580,7 @@ const Game = {
             let pType = playerSlot.brawler;
             if (pType === 'random') pType = keys[Math.floor(Math.random() * keys.length)];
             
-            player = new Character(pType, true, 1, pSpawn.x, pSpawn.y, playerSlot);
+            player = new Character(pType, true, playerSlot.team, pSpawn.x, pSpawn.y, playerSlot);
             player.kills = prevKills;
             player.deaths = prevDeaths;
             this.entities.push(player);
@@ -3680,21 +3593,19 @@ const Game = {
         }
 
         if (mode === 'showdown') {
-            // ショーダウンモード
             for (let i = 6; i < 17; i++) {
                 const s = SlotsManager.slots[i];
                 if (s && s.enabled) {
                     let bType = s.brawler;
                     if (bType === 'random') bType = keys[Math.floor(Math.random() * keys.length)];
                     
-                    let spawn = this.getSpawn(i - 4); 
+                    let spawn = this.getSpawn(i - 4);
                     let bot = new Character(bType, false, i - 4, spawn.x, spawn.y, s);
                     this.entities.push(bot);
                 }
             }
         } else {
-            // 3v3モード 
-            // 味方チーム (スロット 1, 2)
+            // 3v3モード (味方・敵チームスロット同期展開)
             for (let i = 1; i <= 2; i++) {
                 const s = SlotsManager.slots[i];
                 if (s && s.enabled) {
@@ -3702,12 +3613,13 @@ const Game = {
                     if (bType === 'random') bType = keys[Math.floor(Math.random() * keys.length)];
                     
                     let spawn = this.getSpawn(1);
-                    let bot = new Character(bType, false, 1, spawn.x, spawn.y, s);
+                    // 他オンラインプレイヤーの場合はAIではなくオンライン同期表示に（名前と設定を引き継ぐ）
+                    let isOnlineOther = s.onlinePlayer ? true : false;
+                    let bot = new Character(bType, isOnlineOther, 1, spawn.x, spawn.y, s);
                     this.entities.push(bot);
                 }
             }
 
-            // 敵チーム (スロット 3, 4, 5)
             for (let i = 3; i <= 5; i++) {
                 const s = SlotsManager.slots[i];
                 if (s && s.enabled) {
@@ -3715,7 +3627,8 @@ const Game = {
                     if (bType === 'random') bType = keys[Math.floor(Math.random() * keys.length)];
                     
                     let spawn = this.getSpawn(2);
-                    let bot = new Character(bType, false, 2, spawn.x, spawn.y, s);
+                    let isOnlineOther = s.onlinePlayer ? true : false;
+                    let bot = new Character(bType, isOnlineOther, 2, spawn.x, spawn.y, s);
                     this.entities.push(bot);
                 }
             }
@@ -3725,12 +3638,15 @@ const Game = {
     generateMap() {
         let mw = this.mapW, mh = this.mapH; let bs = 60;
         this.map = [];
+        
         this.map.push({x: mw/4, y: mh/4, w: bs*1.5, h: bs*3});
         this.map.push({x: mw*3/4 - bs*1.5, y: mh*3/4 - bs*3, w: bs*1.5, h: bs*3});
+        
         this.map.push({x: mw/2 - bs, y: bs*2, w: bs*2, h: bs});
         this.map.push({x: mw/2 - bs, y: mh - bs*3, w: bs*2, h: bs});
-        this.map.push({x: mw/2 - bs*2, y: mh/2 - bs*3.5, w: bs*4, h: bs*1.5}); 
-        this.map.push({x: mw/2 - bs*2, y: mh/2 + bs*2, w: bs*4, h: bs*1.5}); 
+
+        this.map.push({x: mw/2 - bs*2, y: mh/2 - bs*3.5, w: bs*4, h: bs*1.5});
+        this.map.push({x: mw/2 - bs*2, y: mh/2 + bs*2, w: bs*4, h: bs*1.5});
     },
     
     getSpawn(team) {
@@ -3754,8 +3670,7 @@ const Game = {
     
     update() {
         if(this.state !== 'playing') return;
-        this.syncTicks++;
-
+        
         if(this.mode === 'gemgrab') {
             this.gemTimer += this.timeScale;
             if(this.gemTimer > 300) {
@@ -3781,7 +3696,7 @@ const Game = {
             let starExists = this.areaEffects.some(ae => ae instanceof BountyCenterStar);
             if (!starExists) {
                 this.gemTimer += this.timeScale;
-                if (this.gemTimer > 450) { 
+                if (this.gemTimer > 450) {
                     this.areaEffects.push(new BountyCenterStar(this.mapW / 2, this.mapH / 2));
                     this.gemTimer = 0;
                     Game.uiEffects.push(new FloatingText(this.mapW/2, this.mapH/2 - 40, "⭐ 青スター出現！", '#3498db', 20));
@@ -3872,6 +3787,7 @@ const Game = {
     
     draw(ctx, cam) {
         ctx.fillStyle = '#1e272e'; ctx.fillRect(-cam.x, -cam.y, this.mapW, this.mapH);
+        
         ctx.save(); ctx.translate(-cam.x, -cam.y);
         
         ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 2;
@@ -3920,6 +3836,7 @@ const Game = {
                         ctx.strokeStyle = 'rgba(231,76,60,0.5)';
                     }
                     ctx.lineWidth = 2;
+
                     ctx.translate(player.x, player.y);
                     
                     if (player.type === 'shelly') {
@@ -4166,6 +4083,7 @@ const Game = {
                             ctx.fill(); ctx.stroke();
                         }
                     }
+                    
                     ctx.restore();
                 }
             }
@@ -4250,13 +4168,13 @@ const Game = {
         statsArray.forEach(data => {
             let tr = document.createElement('tr');
             
-            if (data.name === document.getElementById('playerNameInput').value || data.name === "YOU") {
+            if (data.name === OnlineManager.name) {
                 tr.className = 'highlight';
             }
 
             let teamText = "";
             if (this.mode === 'showdown') {
-                teamText = (data.name === document.getElementById('playerNameInput').value || data.name === "YOU") ? "プレイヤー" : "ボット / 敵";
+                teamText = data.name === OnlineManager.name ? "プレイヤー" : "ボット / 敵";
             } else {
                 teamText = data.team === 1 ? "🟢 味方チーム" : "🔴 敵チーム";
             }
@@ -4444,4 +4362,113 @@ function drawUI() {
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     ctx.strokeText(remainingSec + "s", b.cx, b.cy);
-                    ctx.fillText(remainingSec + "s", b.cx, b.cy
+                    ctx.fillText(remainingSec + "s", b.cx, b.cy);
+                }
+            }
+        }
+    }
+    
+    if(player && player.hp > 0) {
+        let bw = 200; let bx = cw/2 - bw/2; let by = ch - 50;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(bx, by, bw, 20);
+        ctx.fillStyle = '#2ecc71'; ctx.fillRect(bx, by, bw * (player.hp/player.maxHp), 20);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, 20);
+        ctx.fillStyle = '#fff'; ctx.font = '900 16px Nunito'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.strokeText(player.hp, cw/2, by+10); ctx.fillText(player.hp, cw/2, by+10);
+        
+        let slotW = bw / player.maxAmmo;
+        for(let i=0; i<player.maxAmmo; i++) {
+            let sx = bx + i*slotW;
+            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(sx, by+25, slotW-4, 12);
+            if (player.type === 'pius') {
+                if (player.piusReloading) {
+                    let maxTimer = player.reloadTime * player.maxAmmo;
+                    if (player.sp === 'no_gap') maxTimer /= 1.2;
+                    let r = player.reloadTimer / maxTimer;
+                    if (r > i / player.maxAmmo) {
+                        let fillRatio = Math.min(1, (r - (i/player.maxAmmo)) * player.maxAmmo);
+                        ctx.fillStyle = '#e67e22'; ctx.fillRect(sx, by+25, (slotW-4)*fillRatio, 12);
+                    }
+                } else {
+                    if(player.ammo > i) {
+                        ctx.fillStyle = '#f39c12'; ctx.fillRect(sx, by+25, slotW-4, 12);
+                    }
+                }
+            } else {
+                if(player.ammo > i) {
+                    ctx.fillStyle = '#f39c12'; ctx.fillRect(sx, by+25, slotW-4, 12);
+                } else if (player.ammo === i) {
+                    let aRatio = player.reloadTimer / (player.type==='shelly'&&player.hcActive ? player.reloadTime/3 : player.reloadTime);
+                    ctx.fillStyle = '#e67e22'; ctx.fillRect(sx, by+25, (slotW-4)*aRatio, 12);
+                }
+            }
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(sx, by+25, slotW-4, 12);
+        }
+    }
+}
+
+/** ==========================================
+ * メインループ
+ * ========================================== */
+function loop(now) {
+    requestAnimationFrame(loop);
+    
+    if (!Game.lastTime) Game.lastTime = now;
+    let elapsed = now - Game.lastTime;
+    Game.lastTime = now;
+    
+    if (elapsed > 160) elapsed = 160; 
+    
+    Game.timeScale = elapsed / (1000 / 60);
+
+    if(Game.state !== 'playing') return;
+    
+    Game.update();
+    cam.update(player);
+    
+    ctx.clearRect(0,0,cw,ch);
+    
+    ctx.save();
+    ctx.scale(cam.zoom, cam.zoom);
+    Game.draw(ctx, cam);
+    ctx.restore();
+    
+    drawUI();
+}
+
+document.getElementById('btnStart').addEventListener('click', () => {
+    const selMode = document.getElementById('selMode').value;
+    
+    if (OnlineManager.currentRoomId) {
+        // オンラインの場合は全員同時開始要求を投げる
+        if (OnlineManager.isHost) {
+            socket.emit('trigger_game_start', { mode: selMode });
+        } else {
+            alert("開始できるのはホストのみです。しばらくお待ちください。");
+        }
+    } else {
+        // シングルプレイヤー（従来通りローカル開始）
+        document.getElementById('menu').style.display = 'none';
+        document.getElementById('gameCanvas').style.display = 'block';
+        Input.initLayout();
+        
+        const selfSlot = SlotsManager.slots[0];
+        Game.init(selMode, selfSlot.brawler);
+    }
+});
+
+document.getElementById('btnCloseResults').addEventListener('click', () => {
+    document.getElementById('resultsScreen').style.display = 'none';
+    document.getElementById('menu').style.display = 'flex';
+    SlotsManager.render();
+});
+
+Input.initLayout();
+requestAnimationFrame((now) => {
+    Game.lastTime = now;
+    loop(now);
+});
+
+</script>
+</body>
+</html>
