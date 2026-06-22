@@ -440,7 +440,7 @@ const CHAR_DATA = {
         superChargeRate: 1.0,
         gadgets: [
             { id: 'cardboard', name: '段ボール箱 (3秒間透明化する)' },
-            { id: 'fastfood', name: 'ファストフード (自分を1000回復)' }
+            { id: 'fastfood', name: 'ファストフード (自分を3000回復)' }
         ],
         sps: [
             { id: 'fastcharge', name: 'ファストチャージ (時間チャージ速度1.5倍)' },
@@ -1744,8 +1744,8 @@ class Character extends Entity {
                     this.invisibleTimer = 180;
                     Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "INVISIBLE", '#fff', 18));
                 } else if (this.gadget === 'fastfood') {
-                    this.hp = Math.min(this.maxHp, this.hp + 1000);
-                    Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "+1000", '#2ecc71', 18));
+                    this.hp = Math.min(this.maxHp, this.hp + 3000);
+                    Game.uiEffects.push(new FloatingText(this.x, this.y - 50, "+3000", '#2ecc71', 18));
                 }
             }
         }
