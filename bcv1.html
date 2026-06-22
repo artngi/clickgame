@@ -1662,17 +1662,17 @@ class Character extends Entity {
         }
         else if (this.type === 'mortis') {
             if (type === 'normal') {
-                let rangeMult = 1 + this.longDashGauge * 2; 
+                let rangeMult = 1 + this.longDashGauge; 
                 this.longDashGauge = 0;
                 let dashDist = 150 * rangeMult;
                 this.dashTimer = dashDist / 15;
                 this.dashVx = Math.cos(angle) * 15;
                 this.dashVy = Math.sin(angle) * 15;
-                this.mortisNormalDmg = 1500 * dmgMult;
+                this.mortisNormalDmg = 2000 * dmgMult;
                 this.mortisHitTargets = new Set();
                 this.isMortisHCInvincible = this.hcActive;
             } else if (type === 'super') {
-                let b = new Bullet(this, angle, 16, 600, 2000 * dmgMult, 30, 'super');
+                let b = new Bullet(this, angle, 16, 600, 1800 * dmgMult, 30, 'super');
                 b.pierce = true;
                 b.isMortisSuper = true;
                 Game.bullets.push(b);
