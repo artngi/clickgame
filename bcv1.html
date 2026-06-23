@@ -1568,9 +1568,9 @@ class Character extends Entity {
                 }
             } else if (type === 'gadget') {
                 if(this.gadget === 'one') {
-                    Game.bullets.push(new Bullet(this, angle, 30, this.data.range*1.5, 250*6*0.33 * dmgMult, 15, 'gadget')); 
+                    Game.bullets.push(new Bullet(this, angle, 20, this.data.range*1.5, 250*6*0.33 * dmgMult, 25, 'gadget')); 
                 } else if (this.gadget === 'slow') {
-                    let b = new Bullet(this, angle, 30, this.data.range, 0, 15, 'gadget'); 
+                    let b = new Bullet(this, angle, 20, this.data.range, 0, 25, 'gadget'); 
                     b.textDmg = false; b.pierce = true; b.effects.push({type:'slow', time:180}); Game.bullets.push(b);
                 }
             }
