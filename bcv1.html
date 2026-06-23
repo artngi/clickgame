@@ -1560,17 +1560,17 @@ class Character extends Entity {
                 let count = this.sp === 'million' ? 8 : 6;
                 let sizeMult = this.sp === 'big' ? 1.5 : 1;
                 for(let i=0; i<count; i++) {
-                    this.fireQueue.push({ delay: i*4, angle: angle+(Math.random()-0.5)*0.06, speed: 15, range: this.data.range, dmg: 280*dmgMult, size: 7*sizeMult, type:'normal', hcColt: this.hcActive }); 
+                    this.fireQueue.push({ delay: i*4, angle: angle+(Math.random()-0.5)*0.06, speed: 15, range: this.data.range, dmg: 720*dmgMult, size: 7*sizeMult, type:'normal', hcColt: this.hcActive }); 
                 }
             } else if (type === 'super') {
                 for(let i=0; i<12; i++) {
-                    this.fireQueue.push({ delay: i*3, angle: angle+(Math.random()-0.5)*0.08, speed: 17, range: this.data.range*1.2, dmg: 280*dmgMult, size: 12, type:'super', pierce: true, wallBreak: true }); 
+                    this.fireQueue.push({ delay: i*3, angle: angle+(Math.random()-0.5)*0.08, speed: 17, range: this.data.range*1.2, dmg: 640*dmgMult, size: 12, type:'super', pierce: true, wallBreak: true }); 
                 }
             } else if (type === 'gadget') {
                 if(this.gadget === 'one') {
-                    Game.bullets.push(new Bullet(this, angle, 20, this.data.range*1.5, 250*6*0.33 * dmgMult, 25, 'gadget')); 
+                    Game.bullets.push(new Bullet(this, angle, 20, this.data.range*1.5, 1200 * dmgMult, 25, 'gadget')); 
                 } else if (this.gadget === 'slow') {
-                    let b = new Bullet(this, angle, 20, this.data.range, 0, 25, 'gadget'); 
+                    let b = new Bullet(this, angle, 20, this.data.range, 600, 25, 'gadget'); 
                     b.textDmg = false; b.pierce = true; b.effects.push({type:'slow', time:180}); Game.bullets.push(b);
                 }
             }
