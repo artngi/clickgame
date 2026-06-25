@@ -1662,7 +1662,7 @@ class Character extends Entity {
         }
         else if (this.type === 'mortis') {
             if (type === 'normal') {
-                let rangeMult = 1 + this.longDashGauge; 
+                let rangeMult = 1 + this.longDashGauge　*　2; 
                 this.longDashGauge = 0;
                 let dashDist = 150 * rangeMult;
                 this.dashTimer = dashDist / 15;
