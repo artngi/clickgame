@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用事忘れ防止タスクマネージャー</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome (Icons) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* タスク一覧などで1行に収めるためのスタイル */
+        .truncate-1line {
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* スムーズなアコーディオンアニメーション用 */
+        .accordion-content {
+            transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+        }
+        .accordion-content.open {
+            max-height: 500px; /* 十分な高さ */
+            opacity: 1;
+        }
+        /* スクロールバーの非表示（モバイルライクな見た目のため） */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col pb-20">
+
+    <!-- ヘッダー -->
+    <header class="bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md sticky top-0 z-40 px-4 py-3.5 flex justify-between items-center">
+        <div>
+            <h1 class="text-xl font-bold tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-clipboard-check text-yellow-300"></i>
+                <span>TaskKeep</span>
+            </h1>
+            <p id="current-date-display" class="text-xs text-indigo-100 mt-0.5 font-medium"></p>
+        </div>
+        <div class="flex items-center gap-2">
+            <!-- リアルタイム同期ボタン（デモ・確認用） -->
+            <button onclick="checkHabitResets(true)" class="bg-indigo-500/50 hover:bg-indigo-500 text-white text-xs px-2.5 py-1.5 rounded-lg border border-indigo-400/30 transition flex items-center gap-1">
+                <i class="fa-solid fa-rotate"></i> 同期確認
+            </button>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ領域（スワイプ・スクロール可能） -->
+    <main class="flex-1 max-w-md w-full mx-auto px-4 py-4 overflow-y-auto no-scrollbar">
+        
+        <!-- フィルタータブ (横スクロール可能) -->
+        <div class="flex gap-1.5 overflow-x-auto pb-3 mb-4 no-scrollbar -mx-4 px-4">
+            <button onclick="setFilter('all')" id="tab-all" class="tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-indigo-600 text-white">
+                すべて
+            </button>
+            <button onclick="setFilter('active')" id="tab-active" class="tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-white text-slate-600 border border-slate-100 hover:bg-slate-50">
+                未完了
+            </button>
+            <button onclick="setFilter('completed')" id="tab-completed" class="tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-white text-slate-600 border border-slate-100 hover:bg-slate-50">
+                完了
+            </button>
+            <button onclick="setFilter('important')" id="tab-important" class="tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-white text-slate-600 border border-slate-100 hover:bg-slate-50">
+                <i class="fa-solid fa-star text-amber-500 mr-1"></i>重要
+            </button>
+            <button onclick="setFilter('habit')" id="tab-habit" class="tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-white text-slate-600 border border-slate-100 hover:bg-slate-50">
+                <i class="fa-solid fa-arrows-spin text-emerald-500 mr-1"></i>習慣
+            </button>
+            <button onclick="setFilter('deadline')" id="tab-deadline" class="tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-white text-slate-600 border border-slate-100 hover:bg-slate-50">
+                <i class="fa-solid fa-clock text-rose-500 mr-1"></i>期限あり
+            </button>
+        </div>
+
+        <!-- 進行状況ミニサマリー -->
+        <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm border border-slate-100 flex justify-between items-center">
+            <div>
+                <h2 class="text-sm font-semibold text-slate-500">本日の進捗状況</h2>
+                <p id="summary-text" class="text-lg font-bold text-slate-800 mt-1">タスクがありません</p>
+            </div>
+            <div class="relative w-12 h-12 flex items-center justify-center">
+                <svg class="w-full h-full transform -rotate-90">
+                    <circle cx="24" cy="24" r="20" stroke="#f1f5f9" stroke-width="4" fill="transparent" />
+                    <circle id="progress-circle" cx="24" cy="24" r="20" stroke="#6366f1" stroke-width="4" fill="transparent" 
+                            stroke-dasharray="125.6" stroke-dashoffset="125.6" stroke-linecap="round" class="transition-all duration-500" />
+                </svg>
+                <span id="progress-percent" class="absolute text-xs font-bold text-indigo-600">0%</span>
+            </div>
+        </div>
+
+        <!-- タスク一覧リスト -->
+        <div id="task-list" class="space-y-3 pb-8">
+            <!-- JavaScriptで動的に生成 -->
+        </div>
+
+        <!-- 空白時のプレースホルダー -->
+        <div id="empty-state" class="hidden flex flex-col items-center justify-center py-12 text-slate-400 text-center">
+            <div class="bg-slate-100 p-4 rounded-full mb-3">
+                <i class="fa-solid fa-list-check text-4xl text-slate-300"></i>
+            </div>
+            <p class="font-medium text-slate-500">表示するタスクがありません</p>
+            <p class="text-xs text-slate-400 mt-1">右下の「＋」ボタンから追加してみましょう！</p>
+        </div>
+    </main>
+
+    <!-- フローティングアクションボタン (タスク追加) -->
+    <button onclick="openAddModal()" class="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-indigo-300 active:scale-95 z-40">
+        <i class="fa-solid fa-plus text-2xl"></i>
+    </button>
+
+    <!-- ==================== タスク追加/編集モーダル ==================== -->
+    <div id="task-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end justify-center hidden opacity-0 transition-opacity duration-300">
+        <!-- モーダル本体: スワイプ・上下スクロール可能なように設定 -->
+        <div id="modal-content" class="bg-white w-full max-w-md rounded-t-3xl max-h-[90vh] flex flex-col transform translate-y-full transition-transform duration-300 shadow-2xl">
+            
+            <!-- モーダルヘッダー -->
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 id="modal-title" class="text-lg font-bold text-slate-800">タスクの追加</h3>
+                <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- モーダルボディ（スクロール可能領域） -->
+            <div class="p-6 overflow-y-auto space-y-4 no-scrollbar flex-1">
+                <input type="hidden" id="modal-task-id">
+
+                <!-- タスク名 -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">用事の内容 <span class="text-rose-500">*</span></label>
+                    <textarea id="task-title" rows="2" placeholder="忘れたくない用事を入力してください..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition resize-none"></textarea>
+                </div>
+
+                <!-- 重要マーク -->
+                <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-150">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-star text-amber-500 text-lg"></i>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-700">重要マークをつける</p>
+                            <p class="text-xs text-slate-400">一覧で優先的に確認できます</p>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="task-important" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                </div>
+
+                <!-- タスク種別選択 (一回限り / 習慣化) -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">タスクの種類</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" onclick="setTaskType('once')" id="type-btn-once" class="py-2.5 px-4 rounded-xl border text-sm font-medium transition flex items-center justify-center gap-2 bg-indigo-50 border-indigo-200 text-indigo-700">
+                            <i class="fa-solid fa-calendar-day"></i> 1回限りのタスク
+                        </button>
+                        <button type="button" onclick="setTaskType('habit')" id="type-btn-habit" class="py-2.5 px-4 rounded-xl border text-sm font-medium transition flex items-center justify-center gap-2 bg-white border-slate-200 text-slate-600 hover:bg-slate-50">
+                            <i class="fa-solid fa-arrows-spin"></i> 習慣化タスク
+                        </button>
+                    </div>
+                </div>
+
+                <!-- フォーム動的分岐 A: 1回限り (期限設定) -->
+                <div id="form-section-once" class="space-y-4">
+                    <div class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/50">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                                <i class="fa-solid fa-clock text-rose-500"></i> 期限を設定する
+                            </span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="has-deadline" onchange="toggleDeadlineInput()" class="sr-only peer">
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+                        <div id="deadline-input-container" class="hidden mt-3">
+                            <input type="datetime-local" id="task-deadline" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- フォーム動的分岐 B: 習慣化設定 -->
+                <div id="form-section-habit" class="space-y-4 hidden">
+                    <div class="bg-emerald-50/40 p-4 rounded-2xl border border-emerald-100/50 space-y-3.5">
+                        <!-- 実施曜日選択 -->
+                        <div>
+                            <span class="text-xs font-bold text-emerald-800 uppercase tracking-wider block mb-2">繰り返す曜日 <span class="text-rose-500">*</span></span>
+                            <div class="flex justify-between gap-1">
+                                <button type="button" onclick="toggleDay(1)" id="day-1" class="day-btn w-9 h-9 rounded-full bg-white border border-slate-200 text-slate-600 text-xs font-semibold flex items-center justify-center transition active:scale-90">月</button>
+                                <button type="button" onclick="toggleDay(2)" id="day-2" class="day-btn w-9 h-9 rounded-full bg-white border border-slate-200 text-slate-600 text-xs font-semibold flex items-center justify-center transition active:scale-90">火</button>
+                                <button type="button" onclick="toggleDay(3)" id="day-3" class="day-btn w-9 h-9 rounded-full bg-white border border-slate-200 text-slate-600 text-xs font-semibold flex items-center justify-center transition active:scale-90">水</button>
+                                <button type="button" onclick="toggleDay(4)" id="day-4" class="day-btn w-9 h-9 rounded-full bg-white border border-slate-200 text-slate-600 text-xs font-semibold flex items-center justify-center transition active:scale-90">木</button>
+                                <button type="button" onclick="toggleDay(5)" id="day-5" class="day-btn w-9 h-9 rounded-full bg-white border border-slate-200 text-slate-600 text-xs font-semibold flex items-center justify-center transition active:scale-90">金</button>
+                                <button type="button" onclick="toggleDay(6)" id="day-6" class="day-btn w-9 h-9 rounded-full bg-white border border-slate-200 text-slate-600 text-xs font-semibold flex items-center justify-center transition active:scale-90">土</button>
+                                <button type="button" onclick="toggleDay(0)" id="day-0" class="day-btn w-9 h-9 rounded-full bg-white border border-slate-200 text-slate-600 text-xs font-semibold flex items-center justify-center transition active:scale-90">日</button>
+                            </div>
+                        </div>
+
+                        <!-- 習慣の有効期間 -->
+                        <div>
+                            <span class="text-xs font-bold text-emerald-800 uppercase tracking-wider block mb-2">有効期間</span>
+                            <div class="grid grid-cols-2 gap-2 mb-2">
+                                <button type="button" onclick="setHabitPeriodType('infinite')" id="period-btn-infinite" class="py-2 px-3 rounded-lg border text-xs font-semibold transition bg-emerald-100 border-emerald-200 text-emerald-800">
+                                    無制限
+                                </button>
+                                <button type="button" onclick="setHabitPeriodType('limited')" id="period-btn-limited" class="py-2 px-3 rounded-lg border text-xs font-semibold transition bg-white border-slate-200 text-slate-600">
+                                    期間指定
+                                </button>
+                            </div>
+                            <div id="habit-period-inputs" class="hidden grid grid-cols-2 gap-2 mt-2">
+                                <div>
+                                    <span class="text-[10px] text-slate-400 block mb-0.5">開始日</span>
+                                    <input type="date" id="habit-start" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none text-xs">
+                                </div>
+                                <div>
+                                    <span class="text-[10px] text-slate-400 block mb-0.5">終了日</span>
+                                    <input type="date" id="habit-end" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none text-xs">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- モーダルフッター -->
+            <div class="px-6 py-4 border-t border-slate-100 shrink-0 bg-slate-50 flex gap-3 rounded-b-3xl">
+                <button onclick="closeModal()" type="button" class="flex-1 py-3 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-xl text-sm font-bold transition">
+                    キャンセル
+                </button>
+                <button onclick="saveTask()" type="button" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-indigo-200">
+                    保存する
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==================== 通知トーストメッセージ ==================== -->
+    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2.5 rounded-full text-xs font-semibold shadow-xl flex items-center gap-2 pointer-events-none transition-all duration-300 opacity-0 scale-95 z-50">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toast-message">メッセージ</span>
+    </div>
+
+    <!-- ==================== JavaScript ロジック ==================== -->
+    <script>
+        // --- 状態管理 ---
+        let tasks = [];
+        let currentFilter = 'all'; // all, active, completed, important, habit, deadline
+        let selectedTaskType = 'once'; // once, habit
+        let selectedDays = []; // 0:日, 1:月, ... 6:土
+        let habitPeriodType = 'infinite'; // infinite, limited
+        let openTaskIds = new Set(); // アコーディオンで開いているタスクIDのセット
+        let lastCheckDate = ""; // 日付変更チェック用
+
+        // --- 初期設定・起動時処理 ---
+        window.addEventListener('DOMContentLoaded', () => {
+            initApp();
+            
+            // 定期的な日付変更チェック（1分ごと）
+            setInterval(() => {
+                checkHabitResets();
+                updateDateTimeDisplay();
+            }, 60000);
+        });
+
+        // アプリ初期化
+        function initApp() {
+            // ローカルストレージからロード
+            const savedTasks = localStorage.getItem('taskkeep_tasks');
+            const savedLastCheck = localStorage.getItem('taskkeep_last_check');
+            
+            if (savedTasks) {
+                tasks = JSON.parse(savedTasks);
+            } else {
+                // 初回起動時のサンプルデータ
+                tasks = getSampleTasks();
+                saveToLocalStorage();
+            }
+
+            if (savedLastCheck) {
+                lastCheckDate = savedLastCheck;
+            } else {
+                lastCheckDate = getTodayDateString();
+                localStorage.setItem('taskkeep_last_check', lastCheckDate);
+            }
+
+            // 日付表示の更新と、習慣タスクの今日のリセット確認
+            updateDateTimeDisplay();
+            checkHabitResets();
+            
+            // UI描画
+            renderTasks();
+        }
+
+        // サンプルデータの生成
+        function getSampleTasks() {
+            const now = new Date();
+            const tomorrow = new Date(now);
+            tomorrow.setDate(now.getDate() + 1);
+            
+            return [
+                {
+                    id: "sample-1",
+                    title: "牛乳とパンを買いにスーパーへ行く（これは長いタスクのサンプルです。タップすると詳細が見え、編集したり削除したりできます。）",
+                    completed: false,
+                    important: true,
+                    type: "once",
+                    hasDeadline: true,
+                    deadline: formatLocalDateTime(tomorrow),
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    id: "sample-2",
+                    title: "毎朝コップ1杯の水を飲む",
+                    completed: false,
+                    important: false,
+                    type: "habit",
+                    days: [0, 1, 2, 3, 4, 5, 6], // 毎日
+                    periodType: "infinite",
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    id: "sample-3",
+                    title: "ゴミ出し（可燃ごみ）",
+                    completed: true,
+                    important: false,
+                    type: "habit",
+                    days: [2, 5], // 火・金
+                    periodType: "infinite",
+                    createdAt: new Date().toISOString()
+                }
+            ];
+        }
+
+        // --- 時間管理ユーティリティ ---
+        function getTodayDateString() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        function updateDateTimeDisplay() {
+            const now = new Date();
+            const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+            const formatted = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日(${weekdays[now.getDay()]}) ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            document.getElementById('current-date-display').innerText = formatted;
+        }
+
+        // 習慣タスクのリセット処理（日を跨いだときに未完了に戻す）
+        // forceCheck = true で手動同期
+        function checkHabitResets(forceCheck = false) {
+            const todayStr = getTodayDateString();
+            const todayDay = new Date().getDay(); // 0-6
+
+            if (forceCheck || todayStr !== lastCheckDate) {
+                let updatedCount = 0;
+                
+                tasks.forEach(task => {
+                    if (task.type === 'habit') {
+                        // 今日の曜日が含まれているか
+                        const isScheduledForToday = task.days.includes(todayDay);
+                        
+                        // 期間内かチェック
+                        let isWithinPeriod = true;
+                        if (task.periodType === 'limited') {
+                            const todayTime = new Date(todayStr).getTime();
+                            const startTime = task.startDate ? new Date(task.startDate).getTime() : 0;
+                            const endTime = task.endDate ? new Date(task.endDate).getTime() : Infinity;
+                            isWithinPeriod = (todayTime >= startTime && todayTime <= endTime);
+                        }
+
+                        if (isScheduledForToday && isWithinPeriod) {
+                            // 日を跨いだ or 手動強制チェックで「今日」対象の習慣タスクなら「未完了」に強制リセット
+                            if (task.completed) {
+                                task.completed = false;
+                                updatedCount++;
+                            }
+                        }
+                    }
+                });
+
+                lastCheckDate = todayStr;
+                localStorage.setItem('taskkeep_last_check', lastCheckDate);
+                saveToLocalStorage();
+                renderTasks();
+
+                if (forceCheck) {
+                    showToast(`現実の時間に同期しました。${updatedCount}個の今日実施する習慣をリセットしました。`, "fa-solid fa-sync text-indigo-400");
+                }
+            }
+        }
+
+        // --- データ永続化 ---
+        function saveToLocalStorage() {
+            localStorage.setItem('taskkeep_tasks', JSON.stringify(tasks));
+        }
+
+        // --- 画面表示制御 (Render) ---
+        function renderTasks() {
+            const listEl = document.getElementById('task-list');
+            const emptyEl = document.getElementById('empty-state');
+            listEl.innerHTML = '';
+
+            // フィルター適用
+            const filteredTasks = tasks.filter(task => {
+                if (currentFilter === 'active') return !task.completed;
+                if (currentFilter === 'completed') return task.completed;
+                if (currentFilter === 'important') return task.important;
+                if (currentFilter === 'habit') return task.type === 'habit';
+                if (currentFilter === 'deadline') return task.type === 'once' && task.hasDeadline;
+                return true; // all
+            });
+
+            // ソート（重要を上に、作成日時降順）
+            filteredTasks.sort((a, b) => {
+                if (a.important && !b.important) return -1;
+                if (!a.important && b.important) return 1;
+                return new Date(b.createdAt) - new Date(a.createdAt);
+            });
+
+            if (filteredTasks.length === 0) {
+                emptyEl.classList.remove('hidden');
+            } else {
+                emptyEl.classList.add('hidden');
+                
+                filteredTasks.forEach(task => {
+                    const isOpen = openTaskIds.has(task.id);
+                    const card = createTaskCard(task, isOpen);
+                    listEl.appendChild(card);
+                });
+            }
+
+            updateSummary();
+        }
+
+        // タスクカードのHTMLを構築
+        function createTaskCard(task, isOpen) {
+            const card = document.createElement('div');
+            card.className = `bg-white rounded-2xl shadow-sm border transition-all duration-200 overflow-hidden ${
+                task.completed ? 'border-slate-100 opacity-75' : task.important ? 'border-amber-200 bg-amber-50/10' : 'border-slate-100'
+            }`;
+            card.id = `task-card-${task.id}`;
+
+            const weekdayNames = ["日", "月", "火", "水", "木", "金", "土"];
+            
+            // 期限表示の構築
+            let badgeHTML = '';
+            if (task.type === 'habit') {
+                const dayLabels = task.days.map(d => weekdayNames[d]).join('');
+                badgeHTML = `<span class="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5"><i class="fa-solid fa-arrows-spin"></i> 習慣 (${dayLabels})</span>`;
+            } else if (task.type === 'once' && task.hasDeadline && task.deadline) {
+                const deadlineDate = new Date(task.deadline);
+                const isOverdue = !task.completed && deadlineDate < new Date();
+                badgeHTML = `<span class="${isOverdue ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-600'} text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                    <i class="fa-solid fa-clock"></i> ${formatDisplayDate(task.deadline)} ${isOverdue ? ' (期限超過)' : ''}
+                </span>`;
+            }
+
+            // 重要バッジ
+            const importantBadge = task.important ? `<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5"><i class="fa-solid fa-star"></i> 重要</span>` : '';
+
+            card.innerHTML = `
+                <!-- 簡易/メインエリア -->
+                <div class="p-3.5 flex items-center justify-between gap-3 cursor-pointer select-none" onclick="toggleAccordion('${task.id}')">
+                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                        <!-- クイック完了・未完了スイッチボタン -->
+                        <button onclick="event.stopPropagation(); toggleTaskComplete('${task.id}')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 transition shrink-0 ${
+                            task.completed 
+                            ? 'bg-emerald-500 border-emerald-500 text-white' 
+                            : task.important ? 'border-amber-400 hover:bg-amber-50' : 'border-slate-300 hover:bg-slate-50'
+                        }">
+                            ${task.completed ? '<i class="fa-solid fa-check text-xs"></i>' : ''}
+                        </button>
+
+                        <div class="flex-1 min-w-0">
+                            <!-- タスク名（1行表示） -->
+                            <h3 class="text-sm font-semibold transition truncate-1line ${
+                                task.completed ? 'line-through text-slate-400' : 'text-slate-800'
+                            }">
+                                ${escapeHTML(task.title)}
+                            </h3>
+                            <!-- バッジ類 -->
+                            <div class="flex flex-wrap gap-1.5 mt-1">
+                                ${badgeHTML}
+                                ${importantBadge}
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 展開状態を表す矢印 -->
+                    <div class="text-slate-400 transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}" id="arrow-${task.id}">
+                        <i class="fa-solid fa-chevron-down text-xs"></i>
+                    </div>
+                </div>
+
+                <!-- 詳細アコーディオンエリア -->
+                <div id="details-${task.id}" class="accordion-content ${isOpen ? 'open' : ''}">
+                    <div class="px-4 pb-4 pt-1 border-t border-slate-50 space-y-3 bg-slate-50/50">
+                        <!-- タスク全文書出し -->
+                        <div class="text-xs text-slate-600 leading-relaxed bg-white p-3 rounded-xl border border-slate-150 whitespace-pre-wrap select-text">
+                            ${escapeHTML(task.title)}
+                        </div>
+
+                        <!-- 習慣の有効期限・作成日の情報 -->
+                        ${task.type === 'habit' && task.periodType === 'limited' ? `
+                            <div class="text-[11px] text-slate-500 flex items-center gap-1">
+                                <i class="fa-solid fa-calendar"></i>
+                                <span>有効期間: ${task.startDate || '未定'} 〜 ${task.endDate || '未定'}</span>
+                            </div>
+                        ` : ''}
+
+                        <!-- アクションコントロール -->
+                        <div class="flex items-center justify-between pt-1 gap-2">
+                            <div class="flex gap-2">
+                                <!-- 完了・未完了の切り替え -->
+                                <button onclick="toggleTaskComplete('${task.id}')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                                    task.completed 
+                                    ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' 
+                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                                }">
+                                    <i class="fa-solid ${task.completed ? 'fa-rotate-left' : 'fa-check'}"></i>
+                                    <span>${task.completed ? '未完了にする' : '完了にする'}</span>
+                                </button>
+                                
+                                <!-- 編集ボタン -->
+                                <button onclick="openEditModal('${task.id}')" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                    <span>編集</span>
+                                </button>
+                            </div>
+
+                            <!-- 削除ボタン -->
+                            <button onclick="deleteTask('${task.id}')" class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                                <i class="fa-solid fa-trash"></i>
+                                <span>削除</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return card;
+        }
+
+        // アコーディオンの開閉制御
+        function toggleAccordion(id) {
+            const details = document.getElementById(`details-${id}`);
+            const arrow = document.getElementById(`arrow-${id}`);
+            
+            if (openTaskIds.has(id)) {
+                openTaskIds.delete(id);
+                details.classList.remove('open');
+                arrow.classList.remove('rotate-180');
+            } else {
+                openTaskIds.add(id);
+                details.classList.add('open');
+                arrow.classList.add('rotate-180');
+            }
+        }
+
+        // 進捗状況サマリーの更新
+        function updateSummary() {
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.completed).length;
+            const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            const summaryText = document.getElementById('summary-text');
+            const progressCircle = document.getElementById('progress-circle');
+            const progressPercent = document.getElementById('progress-percent');
+
+            if (total === 0) {
+                summaryText.innerText = "タスクがありません";
+                progressPercent.innerText = "0%";
+                progressCircle.style.strokeDashoffset = 125.6; // 空
+            } else {
+                summaryText.innerText = `完了 ${completed} / 全体 ${total}`;
+                progressPercent.innerText = `${progress}%`;
+                
+                // SVGサークルのダッシュオフセット計算 (半径r=20, 周長2*PI*r ≈ 125.6)
+                const strokeDashoffset = 125.6 - (progress / 100) * 125.6;
+                progressCircle.style.strokeDashoffset = strokeDashoffset;
+            }
+        }
+
+        // --- タスク操作 (CUD) ---
+
+        // 完了状態トグル
+        function toggleTaskComplete(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveToLocalStorage();
+                renderTasks();
+                showToast(
+                    task.completed ? "タスクを完了にしました！" : "タスクを未完了に戻しました", 
+                    task.completed ? "fa-solid fa-circle-check text-emerald-400" : "fa-solid fa-clock text-indigo-400"
+                );
+            }
+        }
+
+        // タスク削除
+        function deleteTask(id) {
+            // 確認のカスタムモーダル等でもいいですが、UXを最優先にトースト復活機能などでカバーするか、単純にリストから除外。
+            tasks = tasks.filter(t => t.id !== id);
+            openTaskIds.delete(id);
+            saveToLocalStorage();
+            renderTasks();
+            showToast("タスクを削除しました", "fa-solid fa-trash text-slate-400");
+        }
+
+        // --- タスク追加/編集モーダルの制御 ---
+
+        // タスク追加用で開く
+        function openAddModal() {
+            document.getElementById('modal-title').innerText = "タスクの追加";
+            document.getElementById('modal-task-id').value = "";
+            document.getElementById('task-title').value = "";
+            document.getElementById('task-important').checked = false;
+            
+            // デフォルト: 1回限りのタスク、期限なし
+            setTaskType('once');
+            document.getElementById('has-deadline').checked = false;
+            toggleDeadlineInput();
+            document.getElementById('task-deadline').value = formatLocalDateTime(new Date());
+
+            // 習慣化設定の初期化
+            selectedDays = [];
+            updateDayButtonsUI();
+            setHabitPeriodType('infinite');
+            document.getElementById('habit-start').value = getTodayDateString();
+            document.getElementById('habit-end').value = getTodayDateString();
+
+            showModal();
+        }
+
+        // タスク編集用で開く
+        function openEditModal(id) {
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            document.getElementById('modal-title').innerText = "タスクの編集";
+            document.getElementById('modal-task-id').value = task.id;
+            document.getElementById('task-title').value = task.title;
+            document.getElementById('task-important').checked = task.important || false;
+
+            if (task.type === 'habit') {
+                setTaskType('habit');
+                selectedDays = [...task.days];
+                updateDayButtonsUI();
+                setHabitPeriodType(task.periodType || 'infinite');
+                if (task.periodType === 'limited') {
+                    document.getElementById('habit-start').value = task.startDate || getTodayDateString();
+                    document.getElementById('habit-end').value = task.endDate || getTodayDateString();
+                }
+            } else {
+                setTaskType('once');
+                document.getElementById('has-deadline').checked = task.hasDeadline || false;
+                toggleDeadlineInput();
+                if (task.hasDeadline && task.deadline) {
+                    document.getElementById('task-deadline').value = task.deadline;
+                } else {
+                    document.getElementById('task-deadline').value = formatLocalDateTime(new Date());
+                }
+            }
+
+            showModal();
+        }
+
+        function showModal() {
+            const modal = document.getElementById('task-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.add('opacity-100');
+                content.classList.remove('translate-y-full');
+            }, 10);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('task-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('opacity-100');
+            content.classList.add('translate-y-full');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // タスク種別のUI切り替え
+        function setTaskType(type) {
+            selectedTaskType = type;
+            const onceBtn = document.getElementById('type-btn-once');
+            const habitBtn = document.getElementById('type-btn-habit');
+            const onceSec = document.getElementById('form-section-once');
+            const habitSec = document.getElementById('form-section-habit');
+
+            if (type === 'once') {
+                onceBtn.className = "py-2.5 px-4 rounded-xl border text-sm font-medium transition flex items-center justify-center gap-2 bg-indigo-50 border-indigo-200 text-indigo-700";
+                habitBtn.className = "py-2.5 px-4 rounded-xl border text-sm font-medium transition flex items-center justify-center gap-2 bg-white border-slate-200 text-slate-600 hover:bg-slate-50";
+                onceSec.classList.remove('hidden');
+                habitSec.classList.add('hidden');
+            } else {
+                onceBtn.className = "py-2.5 px-4 rounded-xl border text-sm font-medium transition flex items-center justify-center gap-2 bg-white border-slate-200 text-slate-600 hover:bg-slate-50";
+                habitBtn.className = "py-2.5 px-4 rounded-xl border text-sm font-medium transition flex items-center justify-center gap-2 bg-emerald-50 border-emerald-200 text-emerald-700";
+                onceSec.classList.add('hidden');
+                habitSec.classList.remove('hidden');
+            }
+        }
+
+        // 期限入力の切り替え
+        function toggleDeadlineInput() {
+            const hasDeadline = document.getElementById('has-deadline').checked;
+            const container = document.getElementById('deadline-input-container');
+            if (hasDeadline) {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        // 習慣の曜日選択トグル
+        function toggleDay(dayNum) {
+            const index = selectedDays.indexOf(dayNum);
+            if (index > -1) {
+                selectedDays.splice(index, 1);
+            } else {
+                selectedDays.push(dayNum);
+            }
+            updateDayButtonsUI();
+        }
+
+        // 曜日のUI更新
+        function updateDayButtonsUI() {
+            const allBtns = document.querySelectorAll('.day-btn');
+            allBtns.forEach(btn => {
+                btn.className = "day-btn w-9 h-9 rounded-full bg-white border border-slate-200 text-slate-600 text-xs font-semibold flex items-center justify-center transition active:scale-90";
+            });
+
+            selectedDays.forEach(day => {
+                const btn = document.getElementById(`day-${day}`);
+                if (btn) {
+                    btn.className = "day-btn w-9 h-9 rounded-full bg-emerald-600 text-white border border-emerald-600 text-xs font-bold flex items-center justify-center transition active:scale-90 shadow-sm shadow-emerald-100";
+                }
+            });
+        }
+
+        // 習慣期間指定の切り替え
+        function setHabitPeriodType(type) {
+            habitPeriodType = type;
+            const infBtn = document.getElementById('period-btn-infinite');
+            const limBtn = document.getElementById('period-btn-limited');
+            const inputs = document.getElementById('habit-period-inputs');
+
+            if (type === 'infinite') {
+                infBtn.className = "py-2 px-3 rounded-lg border text-xs font-semibold transition bg-emerald-100 border-emerald-200 text-emerald-800";
+                limBtn.className = "py-2 px-3 rounded-lg border text-xs font-semibold transition bg-white border-slate-200 text-slate-600";
+                inputs.classList.add('hidden');
+            } else {
+                infBtn.className = "py-2 px-3 rounded-lg border text-xs font-semibold transition bg-white border-slate-200 text-slate-600";
+                limBtn.className = "py-2 px-3 rounded-lg border text-xs font-semibold transition bg-emerald-100 border-emerald-200 text-emerald-800";
+                inputs.classList.remove('hidden');
+            }
+        }
+
+        // タスクの保存処理（新規・編集両対応）
+        function saveTask() {
+            const id = document.getElementById('modal-task-id').value;
+            const title = document.getElementById('task-title').value.trim();
+            const important = document.getElementById('task-important').checked;
+
+            if (!title) {
+                showToast("用事の内容を入力してください", "fa-solid fa-triangle-exclamation text-rose-400");
+                return;
+            }
+
+            let taskData = {
+                id: id || 'task-' + Date.now(),
+                title: title,
+                important: important,
+                type: selectedTaskType,
+                createdAt: id ? (tasks.find(t => t.id === id)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+            };
+
+            // 編集の場合は完了状態を維持、新規は未完了から
+            if (id) {
+                const existingTask = tasks.find(t => t.id === id);
+                taskData.completed = existingTask ? existingTask.completed : false;
+            } else {
+                taskData.completed = false;
+            }
+
+            // タイプに応じた値の構築
+            if (selectedTaskType === 'once') {
+                const hasDeadline = document.getElementById('has-deadline').checked;
+                taskData.hasDeadline = hasDeadline;
+                if (hasDeadline) {
+                    const deadlineVal = document.getElementById('task-deadline').value;
+                    if (!deadlineVal) {
+                        showToast("期限の日時を入力してください", "fa-solid fa-triangle-exclamation text-rose-400");
+                        return;
+                    }
+                    taskData.deadline = deadlineVal;
+                }
+            } else {
+                // 習慣化タスク
+                if (selectedDays.length === 0) {
+                    showToast("繰り返す曜日を1つ以上選択してください", "fa-solid fa-triangle-exclamation text-rose-400");
+                    return;
+                }
+                taskData.days = [...selectedDays];
+                taskData.periodType = habitPeriodType;
+                if (habitPeriodType === 'limited') {
+                    const start = document.getElementById('habit-start').value;
+                    const end = document.getElementById('habit-end').value;
+                    if (!start || !end) {
+                        showToast("有効期間の開始日と終了日を入力してください", "fa-solid fa-triangle-exclamation text-rose-400");
+                        return;
+                    }
+                    taskData.startDate = start;
+                    taskData.endDate = end;
+                }
+            }
+
+            if (id) {
+                // 編集
+                const index = tasks.findIndex(t => t.id === id);
+                if (index > -1) {
+                    tasks[index] = taskData;
+                }
+                showToast("タスクを更新しました", "fa-solid fa-circle-check text-emerald-400");
+            } else {
+                // 新規追加
+                tasks.push(taskData);
+                showToast("新しい用事を追加しました！", "fa-solid fa-circle-check text-emerald-400");
+            }
+
+            saveToLocalStorage();
+            renderTasks();
+            closeModal();
+        }
+
+        // --- フィルター操作 ---
+        function setFilter(filterType) {
+            currentFilter = filterType;
+            
+            // タブのアクティブスタイルをリセット
+            const tabs = document.querySelectorAll('.tab-btn');
+            tabs.forEach(tab => {
+                tab.className = "tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-white text-slate-600 border border-slate-100 hover:bg-slate-50";
+            });
+
+            // 選択したタブのスタイルを更新
+            const activeTab = document.getElementById(`tab-${filterType}`);
+            if (activeTab) {
+                if (filterType === 'important') {
+                    activeTab.className = "tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-amber-500 text-white";
+                } else if (filterType === 'habit') {
+                    activeTab.className = "tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-emerald-600 text-white";
+                } else if (filterType === 'deadline') {
+                    activeTab.className = "tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-rose-500 text-white";
+                } else {
+                    activeTab.className = "tab-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition shadow-sm bg-indigo-600 text-white";
+                }
+            }
+
+            renderTasks();
+        }
+
+        // --- ユーティリティ ---
+
+        // 安全なHTML表示用エスケープ
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag] || tag)
+            );
+        }
+
+        // 期限表示の日本語フォーマット
+        function formatDisplayDate(dateStr) {
+            const d = new Date(dateStr);
+            const y = d.getFullYear();
+            const m = d.getMonth() + 1;
+            const date = d.getDate();
+            const h = String(d.getHours()).padStart(2, '0');
+            const min = String(d.getMinutes()).padStart(2, '0');
+            return `${m}/${date} ${h}:${min}`;
+        }
+
+        // input[type="datetime-local"] 用のフォーマット (YYYY-MM-DDTHH:MM)
+        function formatLocalDateTime(date) {
+            const tzOffset = date.getTimezoneOffset() * 60000;
+            const localISOTime = (new Date(date - tzOffset)).toISOString().slice(0, 16);
+            return localISOTime;
+        }
+
+        // トーストメッセージ表示
+        function showToast(message, iconClass) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMessage.innerText = message;
+            toastIcon.className = iconClass;
+
+            toast.classList.remove('opacity-0', 'scale-95');
+            toast.classList.add('opacity-100', 'scale-100');
+
+            // 既存のタイムアウトをクリアして再セット
+            if (window.toastTimeout) clearTimeout(window.toastTimeout);
+            window.toastTimeout = setTimeout(() => {
+                toast.classList.remove('opacity-100', 'scale-100');
+                toast.classList.add('opacity-0', 'scale-95');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
+
