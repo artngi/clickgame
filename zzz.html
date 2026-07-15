@@ -1,0 +1,2159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ゼンレスゾーンゼロ 2D - ホロウ・サバイバー</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #0b0c10;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        /* アニメーション用 */
+        @keyframes flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .warning-flash {
+            animation: flash 0.15s infinite;
+        }
+        /* スローモーション(極限回避)時の特殊画面フィルター */
+        .dodge-slow-mode {
+            filter: grayscale(0.8) contrast(1.2) brightness(0.9);
+        }
+        /* ネオン効果 */
+        .neon-border-yellow {
+            box-shadow: 0 0 10px #f59e0b, inset 0 0 5px #f59e0b;
+        }
+        .neon-border-blue {
+            box-shadow: 0 0 10px #3b82f6, inset 0 0 5px #3b82f6;
+        }
+        .neon-border-red {
+            box-shadow: 0 0 10px #ef4444, inset 0 0 5px #ef4444;
+        }
+        /* ドロップシャドウテキスト */
+        .text-shadow-neon {
+            text-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+        }
+    </style>
+</head>
+<body class="w-full h-screen flex items-center justify-center relative select-none">
+
+    <!-- ゲーム全体コンテナ（アスペクト比 16:9 ターゲット） -->
+    <div id="game-container" class="relative w-full max-w-[1024px] aspect-[16/9] bg-black overflow-hidden border-4 border-zinc-800 rounded-lg shadow-2xl flex flex-col">
+        
+        <!-- ================= START SCREEN ================= -->
+        <div id="start-screen" class="absolute inset-0 bg-zinc-950 flex flex-col justify-between p-6 z-50">
+            <!-- 背景グラフィック風装飾 -->
+            <div class="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(18,18,18,0.8)_2px,transparent_2px),linear-gradient(90deg,rgba(18,18,18,0.8)_2px,transparent_2px)] bg-[size:20px_20px]"></div>
+            
+            <div class="flex justify-between items-center z-10">
+                <span class="text-[#FFFD01] font-orbitron font-black text-sm tracking-widest border border-[#FFFD01] px-2 py-0.5">PROT_TYPE // H.O.L.O.W_SYS</span>
+                <span class="text-zinc-500 font-orbitron text-xs">VER. 2.0.26</span>
+            </div>
+
+            <!-- タイトルロゴ -->
+            <div class="text-center my-auto z-10 flex flex-col items-center">
+                <h1 class="text-5xl md:text-6xl font-black italic tracking-tighter text-white flex items-center gap-1">
+                    <span class="bg-[#FFFD01] text-black px-3 py-1 skew-x-[-10deg] font-orbitron font-black">ZENLESS</span>
+                    <span class="text-zinc-100 font-orbitron tracking-tight ml-1 font-black">2D:STRIKER</span>
+                </h1>
+                <p class="text-zinc-400 text-xs md:text-sm mt-3 tracking-widest uppercase font-orbitron">Hollow Zero Combat Simulator</p>
+                <div class="h-[2px] w-48 bg-[#FFFD01] mt-4 opacity-70"></div>
+            </div>
+
+            <!-- 操作 & スタート -->
+            <div class="flex flex-col items-center gap-4 z-10">
+                <button id="btn-to-char-select" class="px-10 py-3 bg-[#FFFD01] text-black font-black text-lg skew-x-[-6deg] hover:bg-white transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(255,253,1,0.5)]">
+                    システム起動 [ENTER]
+                </button>
+                <div class="flex gap-4 text-xs text-zinc-500 mt-2">
+                    <span><i class="fa-solid fa-cloud"></i> 自動セーブ対応</span>
+                    <span>|</span>
+                    <span>推奨環境: PC (キーボード) / スマホ (タッチ)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= CHARACTER SELECT SCREEN ================= -->
+        <div id="char-select-screen" class="absolute inset-0 bg-zinc-950 flex flex-col p-6 z-40 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-black text-white italic"><span class="text-[#FFFD01]">■</span> 出撃メンバー選択 (3人選出)</h2>
+                <div class="text-zinc-400 text-xs font-orbitron bg-zinc-900 px-3 py-1 rounded border border-zinc-800">
+                    SELECTED: <span id="selected-count" class="text-[#FFFD01] font-bold">0</span>/3
+                </div>
+            </div>
+
+            <!-- キャラクターリスト -->
+            <div class="grid grid-cols-3 gap-4 my-auto">
+                <!-- アンビー -->
+                <div id="char-card-anby" class="char-card cursor-pointer border-2 border-zinc-800 bg-zinc-900 rounded-lg p-3 transition-all hover:border-zinc-500 flex flex-col justify-between" data-id="anby">
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs bg-yellow-500 text-black px-1.5 font-bold rounded">斬撃 / 強攻</span>
+                        <span class="text-xs text-zinc-400 font-orbitron font-bold">ANBY</span>
+                    </div>
+                    <!-- アバタープレビュー -->
+                    <div class="my-4 flex justify-center items-center h-24 relative">
+                        <div class="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center border border-yellow-500 overflow-hidden relative">
+                            <!-- SVG風アバター -->
+                            <svg class="w-12 h-12 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="8" r="4" fill="#a7f3d0"/>
+                                <path d="M4 20c0-3 3-4 8-4s8 1 8 4" fill="#10b981"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-sm font-bold text-white">アンビー・デマラ</div>
+                        <div class="text-[10px] text-zinc-400 mt-1">電撃を帯びた高速の斬撃。素早く無駄のない攻撃が特徴。</div>
+                    </div>
+                </div>
+
+                <!-- ビリー -->
+                <div id="char-card-billy" class="char-card cursor-pointer border-2 border-zinc-800 bg-zinc-900 rounded-lg p-3 transition-all hover:border-zinc-500 flex flex-col justify-between" data-id="billy">
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs bg-red-500 text-white px-1.5 font-bold rounded">物理 / 強攻</span>
+                        <span class="text-xs text-zinc-400 font-orbitron font-bold">BILLY</span>
+                    </div>
+                    <!-- アバタープレビュー -->
+                    <div class="my-4 flex justify-center items-center h-24">
+                        <div class="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center border border-red-500 overflow-hidden relative">
+                            <svg class="w-12 h-12 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="8" r="4" fill="#fca5a5"/>
+                                <path d="M4 20c0-3 3-4 8-4s8 1 8 4" fill="#ef4444"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-sm font-bold text-white">ビリー・キッド</div>
+                        <div class="text-[10px] text-zinc-400 mt-1">二丁拳銃による中〜遠距離射撃。コンボ数が爆発的に伸びる。</div>
+                    </div>
+                </div>
+
+                <!-- ニコ -->
+                <div id="char-card-nicole" class="char-card cursor-pointer border-2 border-zinc-800 bg-zinc-900 rounded-lg p-3 transition-all hover:border-zinc-500 flex flex-col justify-between" data-id="nicole">
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs bg-purple-600 text-white px-1.5 font-bold rounded">エーテル / 支援</span>
+                        <span class="text-xs text-zinc-400 font-orbitron font-bold">NICOLE</span>
+                    </div>
+                    <!-- アバタープレビュー -->
+                    <div class="my-4 flex justify-center items-center h-24">
+                        <div class="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center border border-purple-500 overflow-hidden relative">
+                            <svg class="w-12 h-12 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="8" r="4" fill="#e9d5ff"/>
+                                <path d="M4 20c0-3 3-4 8-4s8 1 8 4" fill="#a855f7"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-sm font-bold text-white">ニコ・デマラ</div>
+                        <div class="text-[10px] text-zinc-400 mt-1">特殊武器によるブラックホール弾。敵を吸引し大ダメージを与える。</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下部エリア -->
+            <div class="flex justify-between items-center mt-4">
+                <button id="btn-back-to-title" class="px-4 py-2 text-zinc-400 text-sm hover:text-white">
+                    タイトルへ戻る
+                </button>
+                <button id="btn-start-game" class="px-8 py-2.5 bg-zinc-700 text-zinc-500 font-bold rounded-md cursor-not-allowed transition-all" disabled>
+                    メンバーを確定して次へ
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= STAGE SELECT SCREEN ================= -->
+        <div id="stage-select-screen" class="absolute inset-0 bg-zinc-950 flex flex-col p-6 z-30 hidden">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-xl font-black text-white italic"><span class="text-[#FFFD01]">■</span> ホロウ進入ポイント選択</h2>
+                <div class="flex items-center gap-2">
+                    <button id="btn-tutorial-trigger" class="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded transition-all">
+                        <i class="fa-solid fa-graduation-cap"></i> チュートリアル
+                    </button>
+                    <button id="btn-reset-data" class="px-2 py-1 bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-white text-[10px] rounded transition-all">
+                        進捗初期化
+                    </button>
+                </div>
+            </div>
+
+            <!-- ステージグリッド (20ステージ) -->
+            <div id="stages-grid" class="grid grid-cols-5 gap-3 my-auto max-h-[220px] overflow-y-auto pr-1">
+                <!-- JSで動的に生成 -->
+            </div>
+
+            <div class="flex justify-between items-center mt-3">
+                <button id="btn-back-to-char" class="px-4 py-2 text-zinc-400 text-sm hover:text-white">
+                    キャラクター変更
+                </button>
+                <div class="text-zinc-500 text-xs">
+                    ※クリアすると次のステージがアンロックされます。
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= GAMEPLAY SCREEN (CANVAS & HUD) ================= -->
+        <div id="gameplay-screen" class="absolute inset-0 bg-zinc-900 z-20 hidden flex flex-col justify-between">
+            
+            <!-- HUD TOP: キャラステータス、ステージ、デシベルゲージ -->
+            <div class="absolute top-0 left-0 right-0 p-3 flex justify-between items-start pointer-events-none z-30">
+                
+                <!-- 左上：プレイ中キャラHP + チームメンバー控え -->
+                <div class="flex flex-col gap-1.5">
+                    <!-- 現在操作中キャラ -->
+                    <div class="flex items-center gap-2 bg-black/60 px-3 py-1.5 rounded border border-zinc-700">
+                        <!-- キャラ名アイコン -->
+                        <div class="w-8 h-8 rounded-full border-2 border-[#FFFD01] flex items-center justify-center font-bold text-xs text-black bg-[#FFFD01]" id="hud-active-avatar">
+                            A
+                        </div>
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-2">
+                                <span class="text-white font-black text-xs" id="hud-active-name">アンビー</span>
+                                <span class="text-[9px] bg-yellow-500 text-black px-1 font-bold rounded" id="hud-active-type">強攻</span>
+                            </div>
+                            <!-- HPバー -->
+                            <div class="w-32 h-2 bg-zinc-800 rounded overflow-hidden mt-1 relative">
+                                <div id="hud-active-hp-bar" class="h-full bg-[#FFFD01] transition-all duration-100" style="width: 100%;"></div>
+                            </div>
+                            <span class="text-[9px] text-zinc-300 font-orbitron mt-0.5" id="hud-active-hp-text">1000/1000</span>
+                        </div>
+                    </div>
+
+                    <!-- 控えメンバー（2体） -->
+                    <div class="flex gap-2">
+                        <div id="sub-char-1" class="flex items-center gap-1.5 bg-black/70 px-2 py-1 rounded border border-zinc-800 text-[10px]">
+                            <span class="w-5 h-5 rounded-full bg-zinc-700 text-white font-bold flex items-center justify-center text-[9px]" id="sub-char-1-avatar">B</span>
+                            <div class="flex flex-col">
+                                <span class="text-zinc-300" id="sub-char-1-name">ビリー</span>
+                                <div class="w-16 h-1 bg-zinc-800 rounded overflow-hidden mt-0.5">
+                                    <div id="sub-char-1-hp" class="h-full bg-emerald-500" style="width: 100%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="sub-char-2" class="flex items-center gap-1.5 bg-black/70 px-2 py-1 rounded border border-zinc-800 text-[10px]">
+                            <span class="w-5 h-5 rounded-full bg-zinc-700 text-white font-bold flex items-center justify-center text-[9px]" id="sub-char-2-avatar">N</span>
+                            <div class="flex flex-col">
+                                <span class="text-zinc-300" id="sub-char-2-name">ニコ</span>
+                                <div class="w-16 h-1 bg-zinc-800 rounded overflow-hidden mt-0.5">
+                                    <div id="sub-char-2-hp" class="h-full bg-emerald-500" style="width: 100%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 中央上：情報＆通知、デシベルゲージ -->
+                <div class="flex flex-col items-center">
+                    <!-- ステージ名 -->
+                    <div class="bg-black/80 px-4 py-1 rounded border border-[#FFFD01]/30 flex items-center gap-2">
+                        <span class="text-xs text-[#FFFD01] font-orbitron font-bold tracking-widest" id="hud-stage-name">STAGE 01</span>
+                        <span class="text-[10px] text-zinc-400" id="hud-stage-objective">すべての敵を殲滅せよ</span>
+                    </div>
+                    <!-- 回避クールタイム表示 -->
+                    <div id="hud-dodge-cooldown" class="mt-1.5 text-[9px] text-[#FFFD01] tracking-widest uppercase hidden font-orbitron">
+                        Dodge Overheat
+                    </div>
+                    <!-- 特殊攻撃ゲージ（エネルギー） -->
+                    <div class="mt-1 flex items-center gap-1.5 bg-black/50 px-2 py-0.5 rounded text-[9px]">
+                        <span class="text-sky-400 font-bold">ENERGY:</span>
+                        <div class="w-20 h-1.5 bg-zinc-800 rounded overflow-hidden">
+                            <div id="hud-energy-bar" class="h-full bg-sky-400" style="width: 60%;"></div>
+                        </div>
+                        <span class="text-sky-300 font-orbitron" id="hud-energy-text">60/100</span>
+                    </div>
+                </div>
+
+                <!-- 右上：デシベルゲージ（必殺技）＆コンボ数 -->
+                <div class="flex flex-col items-end gap-1">
+                    <!-- デシベル（終結）ゲージ -->
+                    <div class="bg-black/60 px-3 py-1.5 rounded border border-zinc-700 flex flex-col items-end">
+                        <div class="flex justify-between w-28 items-center">
+                            <span class="text-[9px] text-zinc-400 font-bold">DECIBEL</span>
+                            <span class="text-xs font-black text-amber-400 font-orbitron" id="hud-decibel-text">0Pt</span>
+                        </div>
+                        <div class="w-28 h-2 bg-zinc-800 rounded overflow-hidden mt-1 relative">
+                            <div id="hud-decibel-bar" class="h-full bg-amber-400 transition-all duration-100" style="width: 0%;"></div>
+                        </div>
+                        <span id="hud-ultimate-prompt" class="text-[9px] text-amber-300 font-bold animate-pulse mt-0.5 hidden">終結スキル発動可能 [R]</span>
+                    </div>
+
+                    <!-- コンボ数表示 -->
+                    <div id="combo-container" class="flex flex-col items-end opacity-0 transition-opacity duration-200">
+                        <span class="text-3xl font-black italic text-shadow-neon text-[#FFFD01] font-orbitron" id="hud-combo-count">0</span>
+                        <span class="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">Combos</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- メインゲーム描画エリア (Canvas) -->
+            <canvas id="game-canvas" class="w-full h-full bg-zinc-950"></canvas>
+
+            <!-- チュートリアルポップアップ (戦闘中にオーバーレイ表示される) -->
+            <div id="tutorial-overlay" class="absolute inset-x-4 bottom-24 bg-black/90 border border-[#FFFD01] rounded-lg p-3 z-40 text-white hidden flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-[#FFFD01] text-black flex items-center justify-center font-bold text-lg">!</div>
+                <div class="flex-1">
+                    <h4 class="text-xs font-bold text-[#FFFD01]" id="tutorial-title">チュートリアル：基本移動</h4>
+                    <p class="text-[11px] text-zinc-200 mt-0.5" id="tutorial-desc">A / Dキー（または左右ボタン）で左右に移動します。</p>
+                </div>
+                <button id="btn-tutorial-skip" class="px-2 py-1 bg-zinc-800 text-zinc-400 hover:text-white text-[9px] rounded font-bold">
+                    スキップ
+                </button>
+            </div>
+
+            <!-- 特殊カットイン演出（必殺技用） -->
+            <div id="ultimate-cutin" class="absolute inset-0 bg-black/90 z-40 flex items-center justify-center hidden">
+                <div class="relative w-full h-40 bg-zinc-900 border-y-4 border-[#FFFD01] overflow-hidden flex items-center justify-between px-12 transform rotate-1">
+                    <!-- 斜め背景ストライプ -->
+                    <div class="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#FFF_10px,#FFF_20px)]"></div>
+                    <div class="flex flex-col z-10">
+                        <span class="text-[#FFFD01] font-orbitron font-black tracking-widest text-sm" id="cutin-character-title">SPECIAL AGENT</span>
+                        <h3 class="text-4xl md:text-5xl font-black text-white italic tracking-tighter" id="cutin-character-name">ANBY DEMARA</h3>
+                        <p class="text-zinc-400 text-xs mt-1" id="cutin-ultimate-name">終結スキル: サンダーストライク</p>
+                    </div>
+                    <div class="text-right z-10">
+                        <span class="text-5xl md:text-7xl font-black italic text-[#FFFD01] font-orbitron tracking-tighter">ULTIMATE</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= MOBILE CONTROLLER ================= -->
+            <!-- スマホ操作用にタッチパネル対応。PC環境でも邪魔にならないようにコンパクト、または非表示切り替え可能。 -->
+            <div id="mobile-controls" class="absolute bottom-2 left-0 right-0 p-3 flex justify-between items-end pointer-events-none z-30 select-none">
+                
+                <!-- 左側：ジョイスティック / 左右移動ボタン -->
+                <div class="flex gap-3 pointer-events-auto">
+                    <button id="ctrl-left" class="w-14 h-14 bg-black/60 rounded-full border border-zinc-600 active:bg-[#FFFD01]/40 flex items-center justify-center text-white text-lg">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <button id="ctrl-right" class="w-14 h-14 bg-black/60 rounded-full border border-zinc-600 active:bg-[#FFFD01]/40 flex items-center justify-center text-white text-lg">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <!-- 中央：交代ボタン(キャラクター切り替え) -->
+                <div class="flex gap-2 pointer-events-auto">
+                    <button id="ctrl-switch" class="px-4 py-2 bg-zinc-900/80 rounded border border-[#FFFD01]/60 text-white font-bold text-xs active:bg-[#FFFD01] active:text-black flex flex-col items-center shadow-lg">
+                        <span class="text-[9px] text-[#FFFD01]">SWITCH</span>
+                        <span>キャラ交代 [Space]</span>
+                    </button>
+                </div>
+
+                <!-- 右側：攻撃、特殊、必殺技、回避 -->
+                <div class="grid grid-cols-2 gap-2 pointer-events-auto">
+                    <!-- 回避 [Shift] -->
+                    <button id="ctrl-dodge" class="w-12 h-12 bg-blue-900/60 rounded-full border border-blue-400 active:bg-blue-400 flex flex-col items-center justify-center text-white text-[10px]">
+                        <i class="fa-solid fa-wind text-xs"></i>
+                        <span>回避</span>
+                    </button>
+                    <!-- 特殊攻撃 [E] -->
+                    <button id="ctrl-special" class="w-12 h-12 bg-sky-900/60 rounded-full border border-sky-400 active:bg-sky-400 flex flex-col items-center justify-center text-white text-[10px]">
+                        <i class="fa-solid fa-bolt text-xs"></i>
+                        <span>特殊</span>
+                    </button>
+                    <!-- 必殺技 [R] -->
+                    <button id="ctrl-ult" class="w-12 h-12 bg-amber-900/60 rounded-full border border-amber-400 active:bg-amber-400 flex flex-col items-center justify-center text-white text-[10px] col-span-2 h-10 rounded-lg">
+                        <i class="fa-solid fa-star text-xs"></i>
+                        <span>終結スキル (必殺技)</span>
+                    </button>
+                    <!-- 通常攻撃 [J] -->
+                    <button id="ctrl-attack" class="w-16 h-16 bg-red-950/80 rounded-full border-2 border-red-500 active:bg-red-500 flex flex-col items-center justify-center text-white text-xs col-span-2 shadow-lg">
+                        <i class="fa-solid fa-gavel text-base"></i>
+                        <span class="font-bold">通常攻撃</span>
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- ================= MODAL OVERLAYS (GAME OVER, STAGE CLEAR, PAUSE) ================= -->
+        <!-- ゲームオーバー -->
+        <div id="gameover-screen" class="absolute inset-0 bg-black/90 z-50 flex flex-col items-center justify-center hidden">
+            <h2 class="text-4xl font-black text-red-600 italic tracking-wider font-orbitron">MISSION FAILED</h2>
+            <p class="text-zinc-500 text-xs mt-2 uppercase tracking-widest">Signal Connection Lost / Ethereal Corrupted</p>
+            <div class="flex gap-4 mt-8">
+                <button id="btn-gameover-retry" class="px-6 py-2 bg-[#FFFD01] text-black font-bold text-sm rounded hover:bg-white transition-all">
+                    再挑戦
+                </button>
+                <button id="btn-gameover-exit" class="px-6 py-2 bg-zinc-800 text-white font-bold text-sm rounded hover:bg-zinc-700 transition-all">
+                    基地に戻る
+                </button>
+            </div>
+        </div>
+
+        <!-- ステージクリア -->
+        <div id="stage-clear-screen" class="absolute inset-0 bg-black/95 z-50 flex flex-col items-center justify-center hidden">
+            <span class="text-[#FFFD01] font-orbitron font-bold tracking-widest text-xs mb-1">HOLLOW CLEAR</span>
+            <h2 class="text-5xl font-black text-white italic tracking-tighter">MISSION COMPLETE</h2>
+            <p class="text-zinc-400 text-xs mt-2">ホロウ内の有害エーテリアスの排除を完了しました。</p>
+
+            <!-- スコア/評価 -->
+            <div class="mt-6 border border-zinc-800 bg-zinc-900/60 p-4 rounded-lg w-72 flex flex-col gap-2">
+                <div class="flex justify-between text-xs">
+                    <span class="text-zinc-400">最大コンボ数:</span>
+                    <span class="text-white font-bold font-orbitron" id="clear-max-combo">24</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                    <span class="text-zinc-400">極限回避回数:</span>
+                    <span class="text-white font-bold font-orbitron" id="clear-perfect-dodge">3</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                    <span class="text-zinc-400">パリィ支援回数:</span>
+                    <span class="text-white font-bold font-orbitron" id="clear-parry-count">2</span>
+                </div>
+                <div class="h-[1px] bg-zinc-800 my-1"></div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-zinc-400">総合調査評価:</span>
+                    <span class="text-2xl font-black text-[#FFFD01] font-orbitron italic" id="clear-rating">S</span>
+                </div>
+            </div>
+
+            <div class="flex gap-4 mt-8">
+                <button id="btn-clear-next" class="px-8 py-2.5 bg-[#FFFD01] text-black font-bold text-sm rounded hover:bg-white transition-all">
+                    次のステージへ
+                </button>
+                <button id="btn-clear-menu" class="px-6 py-2.5 bg-zinc-800 text-white font-bold text-sm rounded hover:bg-zinc-700 transition-all">
+                    ステージ選択へ
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ゲームロジック用スクリプト -->
+    <script>
+        // --- ゲーム状態管理 ---
+        const GAME_STATES = {
+            START: 'start',
+            CHAR_SELECT: 'char_select',
+            STAGE_SELECT: 'stage_select',
+            PLAYING: 'playing',
+            GAMEOVER: 'gameover',
+            STAGE_CLEAR: 'stage_clear'
+        };
+
+        let currentState = GAME_STATES.START;
+
+        // キャラクター詳細データ
+        const CHARACTER_DB = {
+            anby: {
+                id: 'anby',
+                name: 'アンビー・デマラ',
+                avatar: 'A',
+                type: '強攻',
+                element: '電気/斬撃',
+                maxHp: 1000,
+                color: '#f59e0b', // イエロー
+                bulletType: 'melee',
+                normalDmg: 45,
+                specialDmg: 120,
+                ultDmg: 450,
+                atkRange: 80,
+                desc: '電撃を帯びたブレード。安定した連続コンボが可能。'
+            },
+            billy: {
+                id: 'billy',
+                name: 'ビリー・キッド',
+                avatar: 'B',
+                type: '強攻',
+                element: '物理/射撃',
+                maxHp: 850,
+                color: '#ef4444', // レッド
+                bulletType: 'ranged',
+                normalDmg: 20, // 連射
+                specialDmg: 90,
+                ultDmg: 380,
+                atkRange: 220,
+                desc: '二丁拳銃。中・遠距離から安全にコンボ数を稼げる。'
+            },
+            nicole: {
+                id: 'nicole',
+                name: 'ニコ・デマラ',
+                avatar: 'N',
+                type: '支援',
+                element: 'エーテル/打撃',
+                maxHp: 950,
+                color: '#a855f7', // パープル
+                bulletType: 'ether',
+                normalDmg: 35,
+                specialDmg: 140, // 吸引
+                ultDmg: 400,
+                atkRange: 130,
+                desc: '重火器によるエーテル爆発。敵を一箇所に引き寄せる。'
+            }
+        };
+
+        // セーブデータの読み込み
+        let saveProgress = {
+            tutorialDone: false,
+            unlockedStages: 1 // 初期ステージは1
+        };
+
+        function loadSavedData() {
+            try {
+                const saved = localStorage.getItem('zz2_save_data_02');
+                if (saved) {
+                    saveProgress = JSON.parse(saved);
+                }
+            } catch (e) {
+                console.error("Failed to load save data", e);
+            }
+        }
+
+        function saveGameData() {
+            try {
+                localStorage.setItem('zz2_save_data_02', JSON.stringify(saveProgress));
+            } catch (e) {
+                console.error("Failed to save data", e);
+            }
+        }
+
+        // --- ゲームエンジン基本変数 ---
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'zenless-2d-casual';
+
+        // キャンバスサイズ動的リサイズ (16:9をキープしつつ)
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('load', resizeCanvas);
+
+        // --- ゲーム内各種オブジェクト・状態変数 ---
+        let selectedCharacters = []; // 選択したキャラクターIDの配列
+        let team = []; // 実装時の実インスタンスが入る配列
+        let activeCharIndex = 0; // 現在操作中のキャラクターインデックス
+
+        let currentStageId = 1;
+        let isTutorialActive = false;
+        let tutorialStep = 0;
+
+        let comboCount = 0;
+        let maxComboInStage = 0;
+        let comboResetTimer = 0;
+
+        let decibelPoints = 0; // 必殺技ゲージ (0 - 3000, 3000でMAX)
+        let energyPoints = 50; // 特殊攻撃用エネルギー (0 - 100)
+
+        // 回避管理
+        let dodgeCount = 0;
+        let dodgeCooldown = 0;
+        let isInvulnerable = false;
+        let invulnerableTimer = 0;
+        let isSlowMoActive = false;
+        let slowMoTimer = 0;
+
+        // キー入力状態
+        const keys = {
+            a: false,
+            d: false,
+            ArrowLeft: false,
+            ArrowRight: false,
+            j: false, // 攻撃
+            e: false, // 特殊
+            r: false, // 必殺
+            Shift: false, // 回避
+            ' ': false // 交代
+        };
+
+        // プレイヤークラス定義
+        class Character {
+            constructor(config) {
+                this.id = config.id;
+                this.name = config.name;
+                this.avatar = config.avatar;
+                this.type = config.type;
+                this.element = config.element;
+                this.color = config.color;
+                
+                this.maxHp = config.maxHp;
+                this.hp = config.maxHp;
+                this.bulletType = config.bulletType;
+                
+                this.normalDmg = config.normalDmg;
+                this.specialDmg = config.specialDmg;
+                this.ultDmg = config.ultDmg;
+                this.atkRange = config.atkRange;
+
+                this.x = 100;
+                this.y = 300; // 地面は300とする
+                this.vy = 0;
+                this.width = 40;
+                this.height = 60;
+                this.direction = 1; // 1:右, -1:左
+                
+                this.isAttacking = false;
+                this.atkAnimFrame = 0;
+                this.atkType = 'normal'; // 'normal', 'special', 'ult'
+                
+                this.state = 'idle'; // 'idle', 'run', 'hurt', 'dash', 'dead'
+                this.stateTimer = 0;
+            }
+
+            takeDamage(amt) {
+                if (isInvulnerable || this.state === 'dash' || this.hp <= 0) return;
+                this.hp = Math.max(0, this.hp - amt);
+                this.state = 'hurt';
+                this.stateTimer = 15;
+                comboCount = 0; // 被弾でコンボ途切れる
+                triggerScreenShake();
+                
+                // HP 0 なら死亡
+                if (this.hp <= 0) {
+                    this.state = 'dead';
+                    // 他のキャラへ強制チェンジ
+                    setTimeout(() => {
+                        autoSwitchOnDeath();
+                    }, 500);
+                }
+            }
+        }
+
+        // 敵クラス定義
+        class Enemy {
+            constructor(type, x, y, hp, isBoss = false) {
+                this.type = type; // 'melee', 'ranged', 'heavy', 'boss'
+                this.isBoss = isBoss;
+                this.x = x;
+                this.y = y;
+                this.vy = 0;
+                this.width = isBoss ? 80 : (type === 'heavy' ? 55 : 35);
+                this.height = isBoss ? 110 : (type === 'heavy' ? 75 : 50);
+                this.maxHp = hp;
+                this.hp = hp;
+                this.speed = isBoss ? 1.5 : (type === 'heavy' ? 1.0 : 2.0);
+                this.color = isBoss ? '#991b1b' : (type === 'heavy' ? '#374151' : '#1e293b');
+                
+                this.state = 'idle'; // 'idle', 'walk', 'attack_prep', 'attack', 'hurt'
+                this.stateTimer = 0;
+                this.warningTimer = 0; // 攻撃警告タイマー
+                this.warningType = 'yellow'; // 'red'(極限回避のみ) または 'yellow'(パリィ可)
+                this.attackCooldown = 60 + Math.random() * 120;
+                
+                this.direction = -1;
+            }
+
+            update(playerX) {
+                if (this.hp <= 0) return;
+
+                if (this.x < playerX) {
+                    this.direction = 1;
+                } else {
+                    this.direction = -1;
+                }
+
+                if (this.stateTimer > 0) {
+                    this.stateTimer--;
+                    if (this.stateTimer === 0) {
+                        this.state = 'idle';
+                    }
+                }
+
+                // 行動AI
+                if (this.state === 'idle' || this.state === 'walk') {
+                    this.attackCooldown--;
+                    
+                    // 近づく
+                    const dist = Math.abs(this.x - playerX);
+                    let optimalDist = this.type === 'ranged' ? 220 : 40;
+                    if (this.isBoss) optimalDist = 120;
+
+                    if (dist > optimalDist + 10) {
+                        this.state = 'walk';
+                        this.x += this.direction * this.speed;
+                    } else if (dist < optimalDist - 10) {
+                        this.state = 'walk';
+                        this.x -= this.direction * this.speed; // 離れる
+                    } else {
+                        this.state = 'idle';
+                    }
+
+                    // 攻撃準備移行
+                    if (this.attackCooldown <= 0 && dist < (this.type === 'ranged' ? 280 : 130)) {
+                        this.state = 'attack_prep';
+                        this.warningTimer = 35; // 35フレーム警告
+                        this.warningType = Math.random() > 0.4 ? 'yellow' : 'red'; // パリィ可能 or 回避のみ
+                        this.stateTimer = 35;
+                        this.attackCooldown = this.isBoss ? 90 : (120 + Math.random() * 120);
+                    }
+                } else if (this.state === 'attack_prep') {
+                    this.warningTimer--;
+                    if (this.warningTimer <= 0) {
+                        this.state = 'attack';
+                        this.stateTimer = 20;
+                        // 攻撃判定実行
+                        this.performAttack();
+                    }
+                }
+            }
+
+            performAttack() {
+                // 攻撃のエフェクトを発生
+                createVisualEffect('enemy_slash', this.x + this.direction * 30, this.y, this.direction, this.isBoss ? 'red' : 'yellow');
+                
+                // 距離判定
+                const activeChar = team[activeCharIndex];
+                if (!activeChar) return;
+
+                const dist = Math.abs(this.x - activeChar.x);
+                const verticalMatch = Math.abs(this.y - activeChar.y) < 50;
+
+                let attackReach = this.type === 'ranged' ? 300 : 70;
+                if (this.isBoss) attackReach = 140;
+
+                if (dist <= attackReach && verticalMatch) {
+                    // 通常時のみダメージ適用
+                    if (!isInvulnerable && activeChar.state !== 'dash') {
+                        let dmg = this.isBoss ? 150 : (this.type === 'heavy' ? 80 : 40);
+                        activeChar.takeDamage(dmg);
+                    }
+                }
+                
+                // 遠距離タイプなら弾を出す
+                if (this.type === 'ranged') {
+                    spawnEnemyProjectile(this.x, this.y, this.direction);
+                }
+            }
+
+            takeDamage(amt) {
+                if (this.hp <= 0) return;
+                this.hp = Math.max(0, this.hp - amt);
+                this.state = 'hurt';
+                this.stateTimer = 10;
+                
+                // ダメージ数エフェクト
+                createDamageText(amt, this.x, this.y - 20);
+                createVisualEffect('hit_spark', this.x, this.y, this.direction);
+
+                if (this.hp <= 0) {
+                    createVisualEffect('explosion', this.x, this.y, 1);
+                }
+            }
+        }
+
+        // ゲーム内の弾、エフェクト、ダメージ表記
+        let enemyProjectiles = [];
+        let playerProjectiles = [];
+        let visualEffects = [];
+        let damageTexts = [];
+        let particles = [];
+
+        function spawnEnemyProjectile(x, y, dir) {
+            enemyProjectiles.push({
+                x: x,
+                y: y + 20,
+                vx: dir * 5,
+                width: 15,
+                height: 6,
+                color: '#ef4444'
+            });
+        }
+
+        function createVisualEffect(type, x, y, dir, customColor = '') {
+            visualEffects.push({
+                type: type,
+                x: x,
+                y: y,
+                dir: dir,
+                color: customColor,
+                life: type === 'explosion' ? 25 : 12,
+                maxLife: type === 'explosion' ? 25 : 12
+            });
+        }
+
+        function createDamageText(text, x, y) {
+            damageTexts.push({
+                text: text,
+                x: x + (Math.random() - 0.5) * 15,
+                y: y,
+                vy: -1.5,
+                life: 35
+            });
+        }
+
+        function createDustParticle(x, y) {
+            particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 2,
+                vy: (Math.random() - 0.5) * 1 - 0.5,
+                size: Math.random() * 5 + 2,
+                color: 'rgba(255,255,255,0.2)',
+                life: 20
+            });
+        }
+
+        // カメラ制御
+        let cameraX = 0;
+        let shakeTimer = 0;
+        let shakeIntensity = 0;
+
+        function triggerScreenShake(amt = 8, dur = 10) {
+            shakeTimer = dur;
+            shakeIntensity = amt;
+        }
+
+        // --- チュートリアル指示データ ---
+        const TUTORIAL_STEPS = [
+            {
+                title: "ホロウ調査：移動操作",
+                desc: "A / D キー (または画面左の矢印ボタン) で左右に移動します。右へ進みましょう。",
+                check: () => {
+                    const char = team[activeCharIndex];
+                    return char && char.x > 250;
+                }
+            },
+            {
+                title: "通常攻撃コンボ",
+                desc: "J キー (または通常攻撃ボタン) で通常攻撃を繰り出します。敵に攻撃をヒットさせて、5コンボを達成しましょう。",
+                check: () => {
+                    return comboCount >= 5;
+                }
+            },
+            {
+                title: "極限回避(ジャスト回避)",
+                desc: "敵が赤や黄色に光った瞬間、Shift キー (または回避ボタン) を押します。極限回避が発動すると、モノクロのスロー時間が発生します。極限回避を1回成功させてください。",
+                check: () => {
+                    return perfectDodgeTriggeredThisStage > 0;
+                }
+            },
+            {
+                title: "パリィ支援 (極限支援)",
+                desc: "敵が「黄色」に光った瞬間、Space キー (または交代ボタン) を押すと、無敵の交代攻撃「パリィ支援」が発動します。パリィを1回成功させましょう。",
+                check: () => {
+                    return parryTriggeredThisStage > 0;
+                }
+            },
+            {
+                title: "終結スキル (必殺技)",
+                desc: "デシベルゲージが『MAX』のとき、R キー (または終結スキルボタン) で究極のカットイン必殺技を放てます！発動しましょう。",
+                check: () => {
+                    return ultUsedThisStage > 0;
+                }
+            }
+        ];
+
+        let perfectDodgeTriggeredThisStage = 0;
+        let parryTriggeredThisStage = 0;
+        let ultUsedThisStage = 0;
+
+        // --- ステージ構成データ ---
+        // 20ステージ。各ステージごとに敵の構成が強化されます。
+        const STAGE_CONFIGS = [];
+        for (let i = 1; i <= 20; i++) {
+            STAGE_CONFIGS.push({
+                id: i,
+                name: `ホロウ零区-${String(i).padStart(2, '0')}`,
+                desc: `強襲エーテリアスを排除せよ (推奨Lv.${i})`,
+                enemies: [
+                    // レベルに応じた敵のHP・数
+                    { type: 'melee', x: 450, hp: 120 + i * 35 },
+                    { type: 'ranged', x: 650, hp: 100 + i * 30 },
+                    { type: 'heavy', x: 850, hp: 250 + i * 60 },
+                    // 高ステージは敵が増える
+                    ...(i >= 3 ? [{ type: 'melee', x: 1050, hp: 120 + i * 30 }] : []),
+                    ...(i >= 6 ? [{ type: 'ranged', x: 1250, hp: 100 + i * 30 }] : []),
+                    ...(i >= 10 ? [{ type: 'heavy', x: 1450, hp: 250 + i * 50 }] : [])
+                ],
+                boss: {
+                    type: 'boss',
+                    name: i % 5 === 0 ? '超大型破滅級エーテリアス' : '殲滅型ヘビー・ガード',
+                    hp: 800 + i * 350,
+                    x: i >= 10 ? 1800 : 1200
+                },
+                mapLength: i >= 10 ? 2200 : 1600
+            });
+        }
+
+        // --- DOMへのデータ流し込み・画面表示 ---
+
+        function initStageSelectUI() {
+            const grid = document.getElementById('stages-grid');
+            grid.innerHTML = '';
+            
+            for (let i = 1; i <= 20; i++) {
+                const isUnlocked = i <= saveProgress.unlockedStages;
+                const btn = document.createElement('button');
+                btn.className = `p-3 rounded-md border text-center flex flex-col justify-between items-center transition-all ${
+                    isUnlocked 
+                    ? 'border-[#FFFD01]/40 bg-zinc-900/80 hover:border-[#FFFD01] cursor-pointer' 
+                    : 'border-zinc-800 bg-zinc-950/40 text-zinc-600 cursor-not-allowed'
+                }`;
+                btn.disabled = !isUnlocked;
+                
+                btn.innerHTML = `
+                    <span class="text-[9px] font-orbitron font-bold tracking-widest ${isUnlocked ? 'text-[#FFFD01]' : 'text-zinc-600'}">STAGE ${String(i).padStart(2,'0')}</span>
+                    <span class="text-xs font-black mt-1 text-white">${i % 5 === 0 ? '☠ BOSS' : 'ホロウ区'}</span>
+                    <div class="mt-2 text-[9px] ${isUnlocked ? 'text-zinc-400' : 'text-zinc-600'}">
+                        ${isUnlocked ? '<i class="fa-solid fa-unlock text-teal-400"></i> 進入可' : '<i class="fa-solid fa-lock"></i> ロック'}
+                    </div>
+                `;
+
+                if (isUnlocked) {
+                    btn.addEventListener('click', () => {
+                        startStage(i, false);
+                    });
+                }
+                grid.appendChild(btn);
+            }
+        }
+
+        // キャラクターカード選択処理
+        document.querySelectorAll('.char-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const charId = card.getAttribute('data-id');
+                const idx = selectedCharacters.indexOf(charId);
+                
+                if (idx > -1) {
+                    selectedCharacters.splice(idx, 1);
+                    card.classList.remove('border-yellow-500', 'neon-border-yellow', 'scale-[1.02]');
+                } else {
+                    if (selectedCharacters.length < 3) {
+                        selectedCharacters.push(charId);
+                        card.classList.add('border-yellow-500', 'neon-border-yellow', 'scale-[1.02]');
+                    }
+                }
+                
+                document.getElementById('selected-count').innerText = selectedCharacters.length;
+                const btn = document.getElementById('btn-start-game');
+                
+                if (selectedCharacters.length === 3) {
+                    btn.removeAttribute('disabled');
+                    btn.className = "px-8 py-2.5 bg-[#FFFD01] text-black font-black rounded-md cursor-pointer transition-all hover:bg-white shadow-[0_0_10px_rgba(255,253,1,0.4)]";
+                } else {
+                    btn.setAttribute('disabled', 'true');
+                    btn.className = "px-8 py-2.5 bg-zinc-700 text-zinc-500 font-bold rounded-md cursor-not-allowed transition-all";
+                }
+            });
+        });
+
+        // 画面遷移管理関数
+        function switchScreen(state) {
+            currentState = state;
+            
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('char-select-screen').classList.add('hidden');
+            document.getElementById('stage-select-screen').classList.add('hidden');
+            document.getElementById('gameplay-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+            document.getElementById('stage-clear-screen').classList.add('hidden');
+
+            if (state === GAME_STATES.START) {
+                document.getElementById('start-screen').classList.remove('hidden');
+            } else if (state === GAME_STATES.CHAR_SELECT) {
+                document.getElementById('char-select-screen').classList.remove('hidden');
+            } else if (state === GAME_STATES.STAGE_SELECT) {
+                initStageSelectUI();
+                document.getElementById('stage-select-screen').classList.remove('hidden');
+            } else if (state === GAME_STATES.PLAYING) {
+                document.getElementById('gameplay-screen').classList.remove('hidden');
+            } else if (state === GAME_STATES.GAMEOVER) {
+                document.getElementById('gameplay-screen').classList.remove('hidden');
+                document.getElementById('gameover-screen').classList.remove('hidden');
+            } else if (state === GAME_STATES.STAGE_CLEAR) {
+                document.getElementById('gameplay-screen').classList.remove('hidden');
+                document.getElementById('stage-clear-screen').classList.remove('hidden');
+            }
+        }
+
+        // イベントバインド
+        document.getElementById('btn-to-char-select').addEventListener('click', () => {
+            switchScreen(GAME_STATES.CHAR_SELECT);
+        });
+        document.getElementById('btn-back-to-title').addEventListener('click', () => {
+            switchScreen(GAME_STATES.START);
+        });
+        document.getElementById('btn-start-game').addEventListener('click', () => {
+            switchScreen(GAME_STATES.STAGE_SELECT);
+        });
+        document.getElementById('btn-back-to-char').addEventListener('click', () => {
+            switchScreen(GAME_STATES.CHAR_SELECT);
+        });
+        document.getElementById('btn-tutorial-trigger').addEventListener('click', () => {
+            startStage(1, true); // チュートリアルとしてステージ1を起動
+        });
+        document.getElementById('btn-reset-data').addEventListener('click', () => {
+            if (confirm('ゲームデータを初期化しますか？')) {
+                saveProgress = { tutorialDone: false, unlockedStages: 1 };
+                saveGameData();
+                initStageSelectUI();
+            }
+        });
+
+        // リトライ、ゲーム終了など
+        document.getElementById('btn-gameover-retry').addEventListener('click', () => {
+            startStage(currentStageId, isTutorialActive);
+        });
+        document.getElementById('btn-gameover-exit').addEventListener('click', () => {
+            switchScreen(GAME_STATES.STAGE_SELECT);
+        });
+        document.getElementById('btn-clear-menu').addEventListener('click', () => {
+            switchScreen(GAME_STATES.STAGE_SELECT);
+        });
+        document.getElementById('btn-clear-next').addEventListener('click', () => {
+            if (currentStageId < 20) {
+                startStage(currentStageId + 1, false);
+            } else {
+                switchScreen(GAME_STATES.STAGE_SELECT);
+            }
+        });
+
+        // --- キーボード入力イベント ---
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (key === ' ' || key === 'spacebar') {
+                e.preventDefault();
+                keys[' '] = true;
+                triggerSwitch();
+            }
+            if (key === 'j') keys['j'] = true;
+            if (key === 'e') {
+                keys['e'] = true;
+                triggerSpecialAttack();
+            }
+            if (key === 'r') {
+                keys['r'] = true;
+                triggerUltimate();
+            }
+            if (e.key === 'Shift') {
+                e.preventDefault();
+                keys['Shift'] = true;
+                triggerDodge();
+            }
+            if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = true;
+            if (e.key === 'd' || e.key === 'ArrowRight') keys.d = true;
+
+            // ENTERキーでタイトル開始
+            if (e.key === 'Enter' && currentState === GAME_STATES.START) {
+                switchScreen(GAME_STATES.CHAR_SELECT);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (key === ' ') keys[' '] = false;
+            if (key === 'j') keys['j'] = false;
+            if (key === 'e') keys['e'] = false;
+            if (key === 'r') keys['r'] = false;
+            if (e.key === 'Shift') keys['Shift'] = false;
+            if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = false;
+            if (e.key === 'd' || e.key === 'ArrowRight') keys.d = false;
+        });
+
+        // --- タッチ/クリック操作イベント ---
+        function setupMobileControls() {
+            const bindBtn = (id, keyName, triggerFn = null) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                
+                // タッチ対応
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    keys[keyName] = true;
+                    if (triggerFn) triggerFn();
+                });
+                btn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    keys[keyName] = false;
+                });
+                // マウスフォールバック
+                btn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    keys[keyName] = true;
+                    if (triggerFn) triggerFn();
+                });
+                btn.addEventListener('mouseup', (e) => {
+                    e.preventDefault();
+                    keys[keyName] = false;
+                });
+                btn.addEventListener('mouseleave', () => {
+                    keys[keyName] = false;
+                });
+            };
+
+            bindBtn('ctrl-left', 'a');
+            bindBtn('ctrl-right', 'd');
+            bindBtn('ctrl-attack', 'j');
+            
+            // 特別アクション
+            const switchBtn = document.getElementById('ctrl-switch');
+            if (switchBtn) {
+                switchBtn.addEventListener('touchstart', (e) => { e.preventDefault(); triggerSwitch(); });
+                switchBtn.addEventListener('mousedown', (e) => { e.preventDefault(); triggerSwitch(); });
+            }
+
+            const specialBtn = document.getElementById('ctrl-special');
+            if (specialBtn) {
+                specialBtn.addEventListener('touchstart', (e) => { e.preventDefault(); triggerSpecialAttack(); });
+                specialBtn.addEventListener('mousedown', (e) => { e.preventDefault(); triggerSpecialAttack(); });
+            }
+
+            const ultBtn = document.getElementById('ctrl-ult');
+            if (ultBtn) {
+                ultBtn.addEventListener('touchstart', (e) => { e.preventDefault(); triggerUltimate(); });
+                ultBtn.addEventListener('mousedown', (e) => { e.preventDefault(); triggerUltimate(); });
+            }
+
+            const dodgeBtn = document.getElementById('ctrl-dodge');
+            if (dodgeBtn) {
+                dodgeBtn.addEventListener('touchstart', (e) => { e.preventDefault(); triggerDodge(); });
+                dodgeBtn.addEventListener('mousedown', (e) => { e.preventDefault(); triggerDodge(); });
+            }
+        }
+        setupMobileControls();
+
+        // --- ゲームメイン処理：ステージ開始 ---
+        let enemies = [];
+        let mapLength = 1600;
+        let isBossSpawned = false;
+        let activeBossObj = null;
+
+        function startStage(stageId, isTutorial = false) {
+            currentStageId = stageId;
+            isTutorialActive = isTutorial;
+            tutorialStep = 0;
+            
+            // 各種記録リセット
+            perfectDodgeTriggeredThisStage = 0;
+            parryTriggeredThisStage = 0;
+            ultUsedThisStage = 0;
+            comboCount = 0;
+            maxComboInStage = 0;
+            decibelPoints = 0;
+            energyPoints = 60;
+            dodgeCount = 0;
+            dodgeCooldown = 0;
+            isSlowMoActive = false;
+            isInvulnerable = false;
+            isBossSpawned = false;
+            activeBossObj = null;
+            cameraX = 0;
+
+            enemyProjectiles = [];
+            playerProjectiles = [];
+            visualEffects = [];
+            damageTexts = [];
+            particles = [];
+
+            // 選択キャラチーム構築
+            if (selectedCharacters.length < 3) {
+                // 万一未選択ならデフォルトで埋める
+                selectedCharacters = ['anby', 'billy', 'nicole'];
+            }
+
+            team = selectedCharacters.map(charId => {
+                return new Character(CHARACTER_DB[charId]);
+            });
+            activeCharIndex = 0;
+
+            // ステージ詳細データの適用
+            const conf = STAGE_CONFIGS[stageId - 1];
+            mapLength = conf.mapLength;
+            
+            // 敵の出現
+            enemies = conf.enemies.map(e => new Enemy(e.type, e.x, e.y, e.hp));
+
+            // UI更新
+            document.getElementById('hud-stage-name').innerText = isTutorial ? "TUTORIAL" : conf.name;
+            document.getElementById('hud-stage-objective').innerText = isTutorial ? "チュートリアルを達成せよ" : "すべての敵を排除せよ";
+            updateHUD();
+
+            if (isTutorial) {
+                showTutorialPopup(0);
+            } else {
+                document.getElementById('tutorial-overlay').classList.add('hidden');
+            }
+
+            switchScreen(GAME_STATES.PLAYING);
+            resizeCanvas();
+        }
+
+        // チュートリアルポップアップ更新
+        function showTutorialPopup(step) {
+            if (step >= TUTORIAL_STEPS.length) {
+                isTutorialActive = false;
+                saveProgress.tutorialDone = true;
+                saveGameData();
+                document.getElementById('tutorial-overlay').classList.add('hidden');
+                // チュートリアル終了通知
+                createDamageText("チュートリアル完了！", team[activeCharIndex].x, team[activeCharIndex].y - 40);
+                return;
+            }
+            tutorialStep = step;
+            const data = TUTORIAL_STEPS[step];
+            document.getElementById('tutorial-title').innerText = `チュートリアル: ${data.title}`;
+            document.getElementById('tutorial-desc').innerText = data.desc;
+            document.getElementById('tutorial-overlay').classList.remove('hidden');
+        }
+
+        document.getElementById('btn-tutorial-skip').addEventListener('click', (e) => {
+            e.stopPropagation();
+            isTutorialActive = false;
+            document.getElementById('tutorial-overlay').classList.add('hidden');
+        });
+
+
+        // --- 戦闘アクション関数群 ---
+
+        // 1. 通常攻撃
+        function triggerNormalAttack() {
+            const activeChar = team[activeCharIndex];
+            if (!activeChar || activeChar.state === 'hurt' || activeChar.state === 'dead') return;
+
+            if (!activeChar.isAttacking) {
+                activeChar.isAttacking = true;
+                activeChar.atkType = 'normal';
+                activeChar.atkAnimFrame = 0;
+                
+                // コンボ数増加 & ゲージ加算
+                decibelPoints = Math.min(3000, decibelPoints + 45);
+                energyPoints = Math.min(100, energyPoints + 3);
+
+                // 通常攻撃ダメージ適用
+                applyPlayerAttackDamage(activeChar.normalDmg, activeChar.atkRange, 'normal');
+            }
+        }
+
+        // 2. 特殊攻撃 (エネルギーがある場合は「強化特殊攻撃」)
+        function triggerSpecialAttack() {
+            const activeChar = team[activeCharIndex];
+            if (!activeChar || activeChar.state === 'hurt' || activeChar.state === 'dead') return;
+
+            if (!activeChar.isAttacking) {
+                const isEnhanced = energyPoints >= 40;
+                if (isEnhanced) {
+                    energyPoints -= 40;
+                }
+
+                activeChar.isAttacking = true;
+                activeChar.atkType = isEnhanced ? 'ex_special' : 'special';
+                activeChar.atkAnimFrame = 0;
+
+                const dmgMultiplier = isEnhanced ? 2.5 : 1.2;
+                const finalDmg = activeChar.specialDmg * dmgMultiplier;
+                
+                decibelPoints = Math.min(3000, decibelPoints + (isEnhanced ? 150 : 60));
+
+                // ビジュアルエフェクト
+                createVisualEffect(isEnhanced ? 'ex_slash' : 'special_slash', activeChar.x + activeChar.direction * 50, activeChar.y, activeChar.direction);
+
+                if (activeChar.id === 'nicole' && isEnhanced) {
+                    // ニコのブラックホールは敵を引き寄せる
+                    enemies.forEach(en => {
+                        if (Math.abs(en.x - activeChar.x) < 250) {
+                            en.x = activeChar.x + activeChar.direction * 80;
+                        }
+                    });
+                }
+
+                applyPlayerAttackDamage(finalDmg, activeChar.atkRange * 1.3, isEnhanced ? 'ex' : 'special');
+            }
+        }
+
+        // 3. 必殺技 (終結スキル)
+        function triggerUltimate() {
+            if (decibelPoints < 3000) return;
+            const activeChar = team[activeCharIndex];
+            if (!activeChar || activeChar.state === 'hurt' || activeChar.state === 'dead') return;
+
+            // 必殺技発動
+            decibelPoints = 0;
+            ultUsedThisStage++;
+
+            // ムービー風カットイン開始
+            const cutin = document.getElementById('ultimate-cutin');
+            document.getElementById('cutin-character-name').innerText = activeChar.name.toUpperCase();
+            document.getElementById('cutin-character-title').innerText = `${activeChar.element} / ${activeChar.type}`;
+            
+            cutin.classList.remove('hidden');
+            triggerScreenShake(15, 30);
+            
+            // 無敵
+            isInvulnerable = true;
+            invulnerableTimer = 80; // 必殺演出中〜直後無敵
+
+            setTimeout(() => {
+                cutin.classList.add('hidden');
+                
+                // 大爆発エフェクト & 超広範囲ダメージ
+                createVisualEffect('explosion', activeChar.x + activeChar.direction * 100, activeChar.y, activeChar.direction);
+                applyPlayerAttackDamage(activeChar.ultDmg, 400, 'ultimate');
+                
+                // 敵全体に大きなヒットストップ
+                enemies.forEach(en => {
+                    if (Math.abs(en.x - activeChar.x) < 400) {
+                        en.takeDamage(activeChar.ultDmg);
+                    }
+                });
+            }, 1000);
+        }
+
+        // 4. キャラクター交代 (極限支援/パリィ)
+        function triggerSwitch() {
+            if (team.length < 2) return;
+
+            // 次の生存しているキャラクターを探す
+            let nextIdx = (activeCharIndex + 1) % team.length;
+            while (team[nextIdx].hp <= 0 && nextIdx !== activeCharIndex) {
+                nextIdx = (nextIdx + 1) % team.length;
+            }
+
+            if (nextIdx === activeCharIndex) return; // 交代可能な他のキャラがいない
+
+            // 交代時の「極限支援・パリィ」判定
+            let parryTriggered = false;
+            enemies.forEach(en => {
+                if (en.state === 'attack_prep' && en.warningTimer > 0) {
+                    if (en.warningType === 'yellow') {
+                        // パリィ発動！
+                        parryTriggered = true;
+                        en.state = 'hurt';
+                        en.stateTimer = 50; // 長めのダウン
+                        en.takeDamage(120); // カウンターダメージ
+                        createVisualEffect('parry_shield', en.x - en.direction * 10, en.y, en.direction);
+                    }
+                }
+            });
+
+            if (parryTriggered) {
+                parryTriggeredThisStage++;
+                decibelPoints = Math.min(3000, decibelPoints + 400); // 必殺ゲージ大幅アップ
+                triggerScreenShake(12, 12);
+                createDamageText("極限支援パリィ！", team[activeCharIndex].x, team[activeCharIndex].y - 30);
+            }
+
+            // キャラクター位置引き継ぎ
+            const oldChar = team[activeCharIndex];
+            const newChar = team[nextIdx];
+            newChar.x = oldChar.x;
+            newChar.y = oldChar.y;
+            newChar.direction = oldChar.direction;
+            
+            // 無敵時間付与
+            isInvulnerable = true;
+            invulnerableTimer = 25; 
+
+            activeCharIndex = nextIdx;
+            
+            // 控えから出た直後に交代攻撃
+            newChar.isAttacking = true;
+            newChar.atkType = 'normal';
+            newChar.atkAnimFrame = 0;
+            applyPlayerAttackDamage(newChar.normalDmg * 1.5, newChar.atkRange, 'special');
+
+            updateHUD();
+        }
+
+        // 死亡時の強制オートスイッチ
+        function autoSwitchOnDeath() {
+            let aliveIdx = -1;
+            for (let i = 0; i < team.length; i++) {
+                if (team[i].hp > 0) {
+                    aliveIdx = i;
+                    break;
+                }
+            }
+
+            if (aliveIdx !== -1) {
+                const oldChar = team[activeCharIndex];
+                activeCharIndex = aliveIdx;
+                team[activeCharIndex].x = oldChar.x;
+                team[activeCharIndex].y = oldChar.y;
+                updateHUD();
+            } else {
+                // チーム全員死亡＝ゲームオーバー
+                switchScreen(GAME_STATES.GAMEOVER);
+            }
+        }
+
+        // 5. 回避 (極限回避)
+        function triggerDodge() {
+            if (dodgeCooldown > 0) return;
+            
+            const activeChar = team[activeCharIndex];
+            if (!activeChar || activeChar.state === 'hurt' || activeChar.state === 'dead') return;
+
+            // 移動方向へダッシュ
+            activeChar.state = 'dash';
+            activeChar.stateTimer = 15;
+            activeChar.x += activeChar.direction * 65;
+
+            dodgeCount++;
+            if (dodgeCount >= 2) {
+                dodgeCooldown = 60; // 2回連続で使うとオーバーヒート(1秒)
+                dodgeCount = 0;
+            }
+
+            // 極限回避判定
+            let perfectDodgeSuccess = false;
+            enemies.forEach(en => {
+                if (en.state === 'attack_prep' && en.warningTimer > 0) {
+                    perfectDodgeSuccess = true;
+                }
+            });
+
+            if (perfectDodgeSuccess) {
+                perfectDodgeTriggeredThisStage++;
+                isSlowMoActive = true;
+                slowMoTimer = 70; // 70フレーム(約1.2秒)スロー
+                isInvulnerable = true;
+                invulnerableTimer = 70;
+                decibelPoints = Math.min(3000, decibelPoints + 350); // 必殺ゲージ加算
+                createDamageText("極限回避！", activeChar.x, activeChar.y - 30);
+            }
+        }
+
+        // プレイヤー攻撃判定の適用
+        function applyPlayerAttackDamage(damage, range, style) {
+            const activeChar = team[activeCharIndex];
+            if (!activeChar) return;
+
+            // 攻撃エフェクト
+            createVisualEffect(style === 'ultimate' ? 'ex_slash' : 'slash', activeChar.x + activeChar.direction * (range/2), activeChar.y, activeChar.direction);
+
+            // 遠距離タイプ（ビリーなど）は前に弾丸を飛ばす
+            if (activeChar.bulletType === 'ranged' && style === 'normal') {
+                playerProjectiles.push({
+                    x: activeChar.x,
+                    y: activeChar.y + 20,
+                    vx: activeChar.direction * 12,
+                    damage: damage,
+                    width: 20,
+                    height: 4
+                });
+                return; // 直接攻撃は行わず弾丸が判定する
+            }
+
+            // 近接ダメージ判定
+            enemies.forEach(en => {
+                if (en.hp <= 0) return;
+                
+                const dist = Math.abs((activeChar.x + activeChar.direction * 20) - en.x);
+                const isCorrectDir = activeChar.direction === 1 ? (en.x > activeChar.x - 20) : (en.x < activeChar.x + 20);
+
+                if (dist <= range && isCorrectDir) {
+                    en.takeDamage(damage);
+                    comboCount++;
+                    maxComboInStage = Math.max(maxComboInStage, comboCount);
+                    comboResetTimer = 180; // 3秒コンボ維持
+                    updateComboUI();
+                }
+            });
+        }
+
+        // プロジェクタイル(弾)と敵の当たり判定
+        function updateProjectiles() {
+            // プレイヤーの弾
+            for (let i = playerProjectiles.length - 1; i >= 0; i--) {
+                const p = playerProjectiles[i];
+                p.x += p.vx;
+
+                // 画面外や一定距離で消去
+                if (Math.abs(p.x - team[activeCharIndex].x) > 600) {
+                    playerProjectiles.splice(i, 1);
+                    continue;
+                }
+
+                // 敵との衝突
+                let hit = false;
+                for (let j = 0; j < enemies.length; j++) {
+                    const en = enemies[j];
+                    if (en.hp <= 0) continue;
+
+                    if (Math.abs(p.x - en.x) < en.width && Math.abs(p.y - (en.y + en.height/2)) < en.height/2) {
+                        en.takeDamage(p.damage);
+                        comboCount++;
+                        maxComboInStage = Math.max(maxComboInStage, comboCount);
+                        comboResetTimer = 180;
+                        updateComboUI();
+                        hit = true;
+                        break;
+                    }
+                }
+                if (hit) {
+                    playerProjectiles.splice(i, 1);
+                }
+            }
+
+            // 敵の弾
+            for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+                const p = enemyProjectiles[i];
+                p.x += p.vx;
+
+                if (Math.abs(p.x - team[activeCharIndex].x) > 800) {
+                    enemyProjectiles.splice(i, 1);
+                    continue;
+                }
+
+                // プレイヤーとの衝突
+                const activeChar = team[activeCharIndex];
+                if (activeChar && activeChar.hp > 0 && !isInvulnerable && activeChar.state !== 'dash') {
+                    if (Math.abs(p.x - activeChar.x) < activeChar.width && Math.abs(p.y - (activeChar.y + activeChar.height/2)) < activeChar.height/2) {
+                        activeChar.takeDamage(35);
+                        enemyProjectiles.splice(i, 1);
+                    }
+                }
+            }
+        }
+
+
+        // --- UI表示状態更新 ---
+        function updateHUD() {
+            const activeChar = team[activeCharIndex];
+            if (!activeChar) return;
+
+            // 操作キャラクター
+            document.getElementById('hud-active-avatar').innerText = activeChar.avatar;
+            document.getElementById('hud-active-avatar').style.backgroundColor = activeChar.color;
+            document.getElementById('hud-active-avatar').style.borderColor = activeChar.color;
+            document.getElementById('hud-active-name').innerText = activeChar.name;
+            document.getElementById('hud-active-type').innerText = `${activeChar.element} / ${activeChar.type}`;
+            
+            const hpPercent = (activeChar.hp / activeChar.maxHp) * 100;
+            document.getElementById('hud-active-hp-bar').style.width = `${hpPercent}%`;
+            document.getElementById('hud-active-hp-bar').style.backgroundColor = activeChar.color;
+            document.getElementById('hud-active-hp-text').innerText = `${activeChar.hp}/${activeChar.maxHp}`;
+
+            // 控えキャラクター1と2
+            let subIdx = 1;
+            for (let i = 0; i < team.length; i++) {
+                if (i === activeCharIndex) continue;
+                const subChar = team[i];
+                const subAvatar = document.getElementById(`sub-char-${subIdx}-avatar`);
+                const subName = document.getElementById(`sub-char-${subIdx}-name`);
+                const subHpBar = document.getElementById(`sub-char-${subIdx}-hp`);
+
+                if (subChar) {
+                    subAvatar.innerText = subChar.avatar;
+                    subAvatar.style.backgroundColor = subChar.color;
+                    subName.innerText = subChar.name.split('・')[0];
+                    const subPercent = (subChar.hp / subChar.maxHp) * 100;
+                    subHpBar.style.width = `${subPercent}%`;
+                    subHpBar.style.backgroundColor = subChar.hp <= 0 ? '#ef4444' : '#10b981';
+                }
+                subIdx++;
+            }
+
+            // 回避、特殊、終結
+            document.getElementById('hud-energy-bar').style.width = `${energyPoints}%`;
+            document.getElementById('hud-energy-text').innerText = `${energyPoints}/100`;
+
+            const decibelPercent = (decibelPoints / 3000) * 100;
+            document.getElementById('hud-decibel-bar').style.width = `${decibelPercent}%`;
+            document.getElementById('hud-decibel-text').innerText = decibelPoints >= 3000 ? "MAX" : `${decibelPoints}Pt`;
+            
+            const ultPrompt = document.getElementById('hud-ultimate-prompt');
+            if (decibelPoints >= 3000) {
+                ultPrompt.classList.remove('hidden');
+            } else {
+                ultPrompt.classList.add('hidden');
+            }
+
+            // 回避クールダウンの表示
+            const dodgeCdText = document.getElementById('hud-dodge-cooldown');
+            if (dodgeCooldown > 0) {
+                dodgeCdText.classList.remove('hidden');
+            } else {
+                dodgeCdText.classList.add('hidden');
+            }
+        }
+
+        function updateComboUI() {
+            const container = document.getElementById('combo-container');
+            const count = document.getElementById('hud-combo-count');
+
+            if (comboCount > 0) {
+                container.style.opacity = '1';
+                count.innerText = comboCount;
+            } else {
+                container.style.opacity = '0';
+            }
+        }
+
+        // --- メインループ描画＆データ更新 (キャンバス駆動) ---
+        function updateAndRender() {
+            if (currentState !== GAME_STATES.PLAYING) {
+                requestAnimationFrame(updateAndRender);
+                return;
+            }
+
+            // --- クールタイム・タイマー減算 ---
+            if (dodgeCooldown > 0) dodgeCooldown--;
+            if (invulnerableTimer > 0) {
+                invulnerableTimer--;
+                if (invulnerableTimer === 0) isInvulnerable = false;
+            }
+            if (slowMoTimer > 0) {
+                slowMoTimer--;
+                if (slowMoTimer === 0) {
+                    isSlowMoActive = false;
+                    canvas.classList.remove('dodge-slow-mode');
+                } else {
+                    canvas.classList.add('dodge-slow-mode');
+                }
+            }
+
+            if (comboResetTimer > 0) {
+                comboResetTimer--;
+                if (comboResetTimer === 0) {
+                    comboCount = 0;
+                    updateComboUI();
+                }
+            }
+
+            // スローモーション時のゲーム進行速度のスケール
+            const timeScale = isSlowMoActive ? 0.25 : 1.0;
+
+            const activeChar = team[activeCharIndex];
+
+            // プレイヤー位置・ステータス更新
+            if (activeChar && activeChar.hp > 0) {
+                // 移動入力処理
+                if (activeChar.state !== 'dash' && activeChar.state !== 'hurt') {
+                    if (keys.a) {
+                        activeChar.x -= 4;
+                        activeChar.direction = -1;
+                        activeChar.state = 'run';
+                        createDustParticle(activeChar.x + 20, activeChar.y + activeChar.height);
+                    } else if (keys.d) {
+                        activeChar.x += 4;
+                        activeChar.direction = 1;
+                        activeChar.state = 'run';
+                        createDustParticle(activeChar.x + 20, activeChar.y + activeChar.height);
+                    } else {
+                        activeChar.state = 'idle';
+                    }
+
+                    // 通常攻撃連打
+                    if (keys.j) {
+                        triggerNormalAttack();
+                    }
+                }
+
+                // 攻撃アニメーション進行
+                if (activeChar.isAttacking) {
+                    activeChar.atkAnimFrame += 0.4 * timeScale;
+                    if (activeChar.atkAnimFrame >= 4) {
+                        activeChar.isAttacking = false;
+                        activeChar.atkAnimFrame = 0;
+                    }
+                }
+
+                // ステートタイマー
+                if (activeChar.stateTimer > 0) {
+                    activeChar.stateTimer -= timeScale;
+                    if (activeChar.stateTimer <= 0) {
+                        activeChar.state = 'idle';
+                    }
+                }
+
+                // 画面外はみ出し防止
+                activeChar.x = Math.max(20, Math.min(mapLength - 60, activeChar.x));
+
+                // カメラ位置追従
+                const targetCamX = activeChar.x - canvas.width / 3;
+                cameraX += (targetCamX - cameraX) * 0.1;
+                cameraX = Math.max(0, Math.min(mapLength - canvas.width, cameraX));
+            }
+
+            // 敵更新
+            enemies.forEach(en => {
+                if (activeChar) {
+                    // スロー補正を反映して更新
+                    if (isSlowMoActive) {
+                        if (Math.random() < 0.25) {
+                            en.update(activeChar.x);
+                        }
+                    } else {
+                        en.update(activeChar.x);
+                    }
+                }
+            });
+
+            // 弾の更新
+            updateProjectiles();
+
+            // ボス出現判定（マップ中盤以降に到達、かつ雑魚敵が減っている場合）
+            const aliveNormalEnemies = enemies.filter(en => !en.isBoss && en.hp > 0).length;
+            if (aliveNormalEnemies === 0 && !isBossSpawned) {
+                isBossSpawned = true;
+                const conf = STAGE_CONFIGS[currentStageId - 1];
+                activeBossObj = new Enemy('boss', conf.boss.x, 250, conf.boss.hp, true);
+                enemies.push(activeBossObj);
+                triggerScreenShake(12, 40);
+                createDamageText("WARNING: 脅威エーテリアス感知！", activeChar.x, activeChar.y - 40);
+            }
+
+            // ステージクリア判定
+            const allEnemiesDefeated = enemies.every(en => en.hp <= 0);
+            if (allEnemiesDefeated && enemies.length > 0) {
+                // セーブデータの進捗更新
+                if (currentStageId === saveProgress.unlockedStages && currentStageId < 20) {
+                    saveProgress.unlockedStages = currentStageId + 1;
+                    saveGameData();
+                }
+                
+                // クリアリザルトをポップアップ表示
+                document.getElementById('clear-max-combo').innerText = maxComboInStage;
+                document.getElementById('clear-perfect-dodge').innerText = perfectDodgeTriggeredThisStage;
+                document.getElementById('clear-parry-count').innerText = parryTriggeredThisStage;
+                
+                // ランク評価
+                let rating = 'A';
+                if (maxComboInStage >= 15 && perfectDodgeTriggeredThisStage >= 1) rating = 'S';
+                if (maxComboInStage >= 30 && perfectDodgeTriggeredThisStage >= 2) rating = 'SS';
+                document.getElementById('clear-rating').innerText = rating;
+
+                switchScreen(GAME_STATES.STAGE_CLEAR);
+            }
+
+            // チュートリアル判定
+            if (isTutorialActive) {
+                const stepData = TUTORIAL_STEPS[tutorialStep];
+                if (stepData && stepData.check()) {
+                    showTutorialPopup(tutorialStep + 1);
+                }
+            }
+
+            // UI再描画
+            updateHUD();
+
+            // --- CANVAS DRAWING ---
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // カメラの揺れ効果
+            ctx.save();
+            if (shakeTimer > 0) {
+                const dx = (Math.random() - 0.5) * shakeIntensity;
+                const dy = (Math.random() - 0.5) * shakeIntensity;
+                ctx.translate(dx, dy);
+                shakeTimer--;
+            }
+
+            // カメラ座標の適用
+            ctx.translate(-cameraX, 0);
+
+            // 1. 背景の描画 (週末世界・ホロウのサイバーパンク風)
+            drawHollowBackground();
+
+            // 2. 地面・足場の描画
+            ctx.fillStyle = '#111317';
+            ctx.fillRect(0, 360, mapLength, canvas.height - 360);
+            // 地面のグリッドライン
+            ctx.strokeStyle = 'rgba(255, 253, 1, 0.15)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < mapLength; i += 80) {
+                ctx.beginPath();
+                ctx.moveTo(i, 360);
+                ctx.lineTo(i - 40, canvas.height);
+                ctx.stroke();
+            }
+            ctx.beginPath();
+            ctx.moveTo(0, 360);
+            ctx.lineTo(mapLength, 360);
+            ctx.strokeStyle = '#374151';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // 3. エフェクト・パーティクル描画 (地面背後)
+            drawParticles();
+
+            // 4. キャラクター描画
+            if (activeChar && activeChar.hp > 0) {
+                drawPlayerCharacter(activeChar);
+            }
+
+            // 5. 敵キャラクター描画
+            enemies.forEach(en => {
+                if (en.hp > 0) {
+                    drawEnemyCharacter(en);
+                }
+            });
+
+            // 6. プロジェクタイル(弾)
+            drawProjectiles();
+
+            // 7. ビジュアルエフェクト描画 (全面)
+            drawVisualEffects();
+
+            // 8. ダメージ数値描画
+            drawDamageTexts();
+
+            ctx.restore();
+
+            requestAnimationFrame(updateAndRender);
+        }
+
+        // --- ビジュアル描画補助関数 ---
+
+        // 背景描画 (ネオン、崩壊したビル群、霧)
+        function drawHollowBackground() {
+            // 空グラデーション
+            let grad = ctx.createLinearGradient(0, 0, 0, 360);
+            grad.addColorStop(0, '#090a0f');
+            grad.addColorStop(1, '#1b1d28');
+            ctx.fillStyle = grad;
+            ctx.fillRect(cameraX, 0, canvas.width, 360);
+
+            // 遠景ビル群
+            ctx.fillStyle = '#12141d';
+            for (let i = 0; i < mapLength; i += 180) {
+                const h = 120 + Math.sin(i * 0.05) * 50;
+                ctx.fillRect(i, 360 - h, 120, h);
+                
+                // ビルのネオン窓
+                ctx.fillStyle = 'rgba(255,253,1,0.06)';
+                for (let wy = 360 - h + 20; wy < 340; wy += 25) {
+                    ctx.fillRect(i + 15, wy, 15, 12);
+                    ctx.fillRect(i + 45, wy, 15, 12);
+                }
+                ctx.fillStyle = '#12141d';
+            }
+
+            // 中景：不気味な黒い結晶構造 (ホロウ特有の構造体)
+            ctx.fillStyle = '#0f1118';
+            for (let i = 0; i < mapLength; i += 300) {
+                ctx.beginPath();
+                ctx.moveTo(i, 360);
+                ctx.lineTo(i + 80, 180);
+                ctx.lineTo(i + 160, 360);
+                ctx.fill();
+            }
+
+            // ホロウの不気味な「黒い太陽」(ポータル)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+            ctx.strokeStyle = '#FFFD01';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(cameraX + canvas.width/2, 100, 45, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // 黒い太陽周辺のエフェクトリング
+            ctx.strokeStyle = 'rgba(255, 253, 1, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(cameraX + canvas.width/2, 100, 65, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // キャラクター描画
+        function drawPlayerCharacter(char) {
+            ctx.save();
+            ctx.translate(char.x + char.width/2, char.y + char.height/2);
+
+            // ダメージ時明滅
+            if (char.state === 'hurt' && Math.floor(Date.now() / 50) % 2 === 0) {
+                ctx.globalAlpha = 0.4;
+            }
+
+            // 極限回避中のダッシュエフェクト残像
+            if (char.state === 'dash') {
+                ctx.fillStyle = 'rgba(255, 253, 1, 0.4)';
+                ctx.fillRect(-char.width, -char.height/2, char.width * 2, char.height);
+            }
+
+            // 1. 本体（かっこいいシルエット or デフォルメ調）
+            ctx.fillStyle = char.color;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+
+            // スタイリッシュなサイバーウェア風コート/ボディ
+            ctx.beginPath();
+            ctx.moveTo(-15, -char.height/2);
+            ctx.lineTo(15, -char.height/2);
+            ctx.lineTo(18, char.height/2);
+            ctx.lineTo(-18, char.height/2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 頭部・バイザー
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.arc(0, -char.height/2 - 12, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // バイザーの発光ライン
+            ctx.fillStyle = '#ffffff';
+            if (char.direction === 1) {
+                ctx.fillRect(2, -char.height/2 - 15, 8, 4);
+            } else {
+                ctx.fillRect(-10, -char.height/2 - 15, 8, 4);
+            }
+
+            // マフラー / フード（スタイリッシュな揺れ）
+            ctx.fillStyle = '#ff3366';
+            ctx.beginPath();
+            if (char.direction === 1) {
+                ctx.moveTo(-8, -char.height/2);
+                ctx.lineTo(-24 - Math.sin(Date.now()*0.01)*5, -char.height/2 + 5);
+                ctx.lineTo(-8, -char.height/2 + 10);
+            } else {
+                ctx.moveTo(8, -char.height/2);
+                ctx.lineTo(24 + Math.sin(Date.now()*0.01)*5, -char.height/2 + 5);
+                ctx.lineTo(8, -char.height/2 + 10);
+            }
+            ctx.fill();
+
+            // 武器の描画 (攻撃中)
+            if (char.isAttacking) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                if (char.direction === 1) {
+                    ctx.moveTo(10, 0);
+                    ctx.lineTo(45, -20 + char.atkAnimFrame * 10);
+                } else {
+                    ctx.moveTo(-10, 0);
+                    ctx.lineTo(-45, -20 + char.atkAnimFrame * 10);
+                }
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        // 敵キャラクター描画 (かっこよくて無機質な怪物エーテリアス)
+        function drawEnemyCharacter(en) {
+            ctx.save();
+            ctx.translate(en.x + en.width/2, en.y + en.height/2);
+
+            // 被弾時白く光る
+            if (en.state === 'hurt') {
+                ctx.fillStyle = '#ffffff';
+            } else {
+                ctx.fillStyle = en.color;
+            }
+
+            // 無機質なサイバークリスタル風ボディ
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2.5;
+
+            ctx.beginPath();
+            if (en.type === 'boss') {
+                // 超大型ボス：禍々しい多角形
+                ctx.moveTo(-en.width/2, -en.height/2);
+                ctx.lineTo(en.width/2, -en.height/2 + 15);
+                ctx.lineTo(en.width/2 + 10, en.height/2);
+                ctx.lineTo(-en.width/2 - 10, en.height/2);
+            } else if (en.type === 'heavy') {
+                // 重装軍隊型：シールド風長方形
+                ctx.moveTo(-en.width/2 + 5, -en.height/2);
+                ctx.lineTo(en.width/2 - 5, -en.height/2);
+                ctx.lineTo(en.width/2, en.height/2);
+                ctx.lineTo(-en.width/2, en.height/2);
+            } else {
+                // 通常・遠距離：ひし形っぽいクリスタル
+                ctx.moveTo(0, -en.height/2);
+                ctx.lineTo(en.width/2, 0);
+                ctx.lineTo(0, en.height/2);
+                ctx.lineTo(-en.width/2, 0);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 無機質なモノアイ・赤く光る目
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            if (en.direction === 1) {
+                ctx.arc(10, -10, 5, 0, Math.PI * 2);
+            } else {
+                ctx.arc(-10, -10, 5, 0, Math.PI * 2);
+            }
+            ctx.fill();
+
+            // --- 重要：攻撃警告演出 (攻撃警告時に光るエフェクト) ---
+            if (en.state === 'attack_prep') {
+                ctx.strokeStyle = en.warningType === 'red' ? '#ef4444' : '#FFFD01';
+                ctx.lineWidth = 3;
+                
+                // 敵を囲む警告インジケータ
+                ctx.beginPath();
+                ctx.arc(0, 0, en.width * 1.1, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // 警告フラッシュ(星形 or 十字マーク)
+                ctx.fillStyle = en.warningType === 'red' ? '#ef4444' : '#FFFD01';
+                ctx.beginPath();
+                ctx.moveTo(0, -en.height/2 - 25);
+                ctx.lineTo(5, -en.height/2 - 15);
+                ctx.lineTo(20, -en.height/2 - 15);
+                ctx.lineTo(10, -en.height/2 - 5);
+                ctx.lineTo(15, -en.height/2 + 10);
+                ctx.lineTo(0, -en.height/2);
+                ctx.lineTo(-15, -en.height/2 + 10);
+                ctx.lineTo(-10, -en.height/2 - 5);
+                ctx.lineTo(-20, -en.height/2 - 15);
+                ctx.lineTo(-5, -en.height/2 - 15);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // ボスの場合は上部にHPバーを直接表示
+            if (en.type === 'boss') {
+                ctx.restore(); // 一度リセットして、ワールド座標で綺麗にHP描画
+                ctx.save();
+                ctx.translate(en.x, en.y - 25);
+                // ボスHP背景
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.fillRect(-20, 0, 120, 8);
+                // HP本体
+                const bossPercent = (en.hp / en.maxHp) * 120;
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(-20, 0, bossPercent, 8);
+                // ボス名
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '9px Orbitron';
+                ctx.fillText("BOSS: RULER OF HOLLOW", -20, -6);
+                ctx.restore();
+                return;
+            }
+
+            ctx.restore();
+        }
+
+        // 弾薬・プロジェクタイル描画
+        function drawProjectiles() {
+            // プレイヤー弾
+            ctx.fillStyle = '#60a5fa';
+            playerProjectiles.forEach(p => {
+                ctx.fillRect(p.x, p.y, p.width, p.height);
+            });
+
+            // 敵弾
+            ctx.fillStyle = '#ef4444';
+            enemyProjectiles.forEach(p => {
+                ctx.fillRect(p.x, p.y, p.width, p.height);
+            });
+        }
+
+        // ビジュアルエフェクト描画 (斬撃、爆発など)
+        function drawVisualEffects() {
+            visualEffects.forEach((fx, idx) => {
+                ctx.save();
+                ctx.translate(fx.x, fx.y + 30);
+                
+                const ratio = fx.life / fx.maxLife;
+
+                if (fx.type === 'slash') {
+                    // スタイリッシュな光波斬撃
+                    ctx.strokeStyle = 'rgba(255, 253, 1, ' + ratio + ')';
+                    ctx.lineWidth = 5 * ratio;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 40, -Math.PI/3, Math.PI/3);
+                    ctx.stroke();
+                } else if (fx.type === 'special_slash') {
+                    ctx.strokeStyle = 'rgba(56, 189, 248, ' + ratio + ')';
+                    ctx.lineWidth = 8 * ratio;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 60, -Math.PI/2, Math.PI/2);
+                    ctx.stroke();
+                } else if (fx.type === 'ex_slash') {
+                    ctx.strokeStyle = 'rgba(239, 68, 68, ' + ratio + ')';
+                    ctx.lineWidth = 12 * ratio;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 90, -Math.PI * 0.7, Math.PI * 0.7);
+                    ctx.stroke();
+                } else if (fx.type === 'parry_shield') {
+                    // パリィ成功時の青いバリアシールド
+                    ctx.fillStyle = 'rgba(59, 130, 246, ' + (ratio * 0.4) + ')';
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.lineWidth = 4 * ratio;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 50, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (fx.type === 'explosion') {
+                    // 必殺技の大爆発
+                    let rad = 130 * (1 - ratio);
+                    let grad = ctx.createRadialGradient(0, 0, 10, 0, 0, rad);
+                    grad.addColorStop(0, 'rgba(255, 253, 1, 0.8)');
+                    grad.addColorStop(0.5, 'rgba(239, 68, 68, 0.5)');
+                    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, rad, 0, Math.PI*2);
+                    ctx.fill();
+                } else if (fx.type === 'enemy_slash') {
+                    // 敵の赤・黄色警告スラッシュ
+                    ctx.strokeStyle = fx.color === 'red' ? 'rgba(239, 68, 68, ' + ratio + ')' : 'rgba(245, 158, 11, ' + ratio + ')';
+                    ctx.lineWidth = 6 * ratio;
+                    ctx.beginPath();
+                    if (fx.dir === 1) {
+                        ctx.arc(0, 0, 50, -Math.PI/4, Math.PI/4);
+                    } else {
+                        ctx.arc(0, 0, 50, Math.PI * 0.75, Math.PI * 1.25);
+                    }
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+
+                fx.life--;
+                if (fx.life <= 0) {
+                    visualEffects.splice(idx, 1);
+                }
+            });
+        }
+
+        // パーティクル描画
+        function drawParticles() {
+            particles.forEach((p, idx) => {
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+                ctx.fill();
+
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                if (p.life <= 0) {
+                    particles.splice(idx, 1);
+                }
+            });
+        }
+
+        // ダメージ表記等のテキスト描画
+        function drawDamageTexts() {
+            ctx.font = 'italic 12px Orbitron';
+            damageTexts.forEach((t, idx) => {
+                ctx.fillStyle = 'rgba(255, 255, 255, ' + (t.life / 35) + ')';
+                ctx.fillText(t.text, t.x, t.y);
+                t.y += t.vy;
+                t.life--;
+                if (t.life <= 0) {
+                    damageTexts.splice(idx, 1);
+                }
+            });
+        }
+
+        // 初期ロード
+        window.addEventListener('DOMContentLoaded', () => {
+            loadSavedData();
+            switchScreen(GAME_STATES.START);
+            // ループ開始
+            updateAndRender();
+        });
+
+    </script>
+</body>
+</html>
+
