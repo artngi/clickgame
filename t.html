@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ツムツム風パズルゲーム</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a2e;
+            color: #fff;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 650px;
+            background: #0f3460;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            background: #162447;
+            touch-action: none;
+        }
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 52, 96, 0.95);
+            z-index: 10;
+        }
+        .hidden {
+            display: none !important;
+        }
+        h1 {
+            color: #e94560;
+            font-size: 28px;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+        button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin: 10px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
+            transition: 0.2s;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        .ui-panel {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 20px;
+            box-sizing: border-box;
+            background: #1f4068;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .skill-btn {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: #ff5722;
+            border: 4px solid #fff;
+            color: white;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            z-index: 5;
+            transition: 0.2s;
+        }
+        .skill-btn.ready {
+            animation: pulse 0.8s infinite alternate;
+            background: #4caf50;
+        }
+        @keyframes pulse {
+            from { transform: scale(1); box-shadow: 0 0 10px #4caf50; }
+            to { transform: scale(1.08); box-shadow: 0 0 20px #4caf50; }
+        }
+        .list-container {
+            width: 80%;
+            max-height: 250px;
+            overflow-y: auto;
+            background: #162447;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 10px;
+            border-bottom: 1px solid #1f4068;
+            font-size: 13px;
+        }
+        .upgrade-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 85%;
+            margin: 6px 0;
+            background: #162447;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="ui-panel" class="ui-panel hidden">
+        <span id="score-disp">スコア: 0</span>
+        <span id="time-disp">残り: 60秒</span>
+        <span id="coin-disp">コイン: 0</span>
+    </div>
+    
+    <canvas id="gameCanvas" width="400" height="580" class="hidden"></canvas>
+    
+    <div id="skill-btn" class="skill-btn hidden">SKILL</div>
+
+    <div id="menu-screen" class="screen">
+        <h1>ツムツム風パズル</h1>
+        <button onclick="startGame()">プレイ</button>
+        <button onclick="showScreen('ranking-screen')">スコアランキング</button>
+        <button onclick="showScreen('shop-screen')">ショップ・強化</button>
+        <button onclick="showScreen('setting-screen')">設定</button>
+    </div>
+
+    <div id="ranking-screen" class="screen hidden">
+        <h1>ランキング</h1>
+        <div class="list-container" id="ranking-list"></div>
+        <button onclick="showScreen('menu-screen')">もどる</button>
+    </div>
+
+    <div id="shop-screen" class="screen hidden">
+        <h1>ショップ & 強化</h1>
+        <p style="font-size:14px; margin:5px;">所持コイン: <span id="shop-coin">0</span></p>
+        <div class="upgrade-row">
+            <span>赤ツム 威力Lv.<span id="lvl-red">1</span></span>
+            <button style="padding:5px 10px; font-size:12px;" onclick="upgrade('red')">強化 (100C)</button>
+        </div>
+        <div class="upgrade-row">
+            <span>青ツム 威力Lv.<span id="lvl-blue">1</span></span>
+            <button style="padding:5px 10px; font-size:12px;" onclick="upgrade('blue')">強化 (100C)</button>
+        </div>
+        <div class="upgrade-row">
+            <span>緑ツム 威力Lv.<span id="lvl-green">1</span></span>
+            <button style="padding:5px 10px; font-size:12px;" onclick="upgrade('green')">強化 (100C)</button>
+        </div>
+        <div class="upgrade-row">
+            <span>スキル効率Lv.<span id="lvl-skill">1</span></span>
+            <button style="padding:5px 10px; font-size:12px;" onclick="upgrade('skill')">強化 (150C)</button>
+        </div>
+        <button style="margin-top:15px;" onclick="showScreen('menu-screen')">もどる</button>
+    </div>
+
+    <div id="setting-screen" class="screen hidden">
+        <h1>設定</h1>
+        <div style="margin:10px;">
+            音量: <input type="range" id="vol-range" min="0" max="1" step="0.1" value="0.5">
+        </div>
+        <div style="margin:10px;">
+            振動: <input type="checkbox" id="vibe-check" checked> オン
+        </div>
+        <button style="background:#ff9800; margin-top:20px;" onclick="resetData()">セーブデータ削除</button>
+        <button onclick="showScreen('menu-screen')">もどる</button>
+    </div>
+
+    <div id="result-screen" class="screen hidden">
+        <h1>タイムアップ！</h1>
+        <p id="res-score" style="font-size:20px; margin:5px;">スコア: 0</p>
+        <p id="res-coin" style="font-size:16px; margin:5px;">ゲットコイン: 0</p>
+        <button onclick="showScreen('menu-screen')">メニューへ</button>
+    </div>
+</div>
+
+<script>
+    // セーブデータ管理
+    let saveData = JSON.parse(localStorage.getItem('tsum_save')) || {
+        coins: 500,
+        rankings: [],
+        levels: { red: 1, blue: 1, green: 1, skill: 1 },
+        settings: { volume: 0.5, vibration: true }
+    };
+
+    function saveGame() {
+        localStorage.setItem('tsum_save', JSON.stringify(saveData));
+    }
+
+    function resetData() {
+        if(confirm("セーブデータを削除しますか？")) {
+            localStorage.removeItem('tsum_save');
+            location.reload();
+        }
+    }
+
+    // 画面切り替え
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+        document.getElementById(screenId).classList.remove('hidden');
+        document.getElementById('gameCanvas').classList.add('hidden');
+        document.getElementById('ui-panel').classList.add('hidden');
+        document.getElementById('skill-btn').classList.add('hidden');
+
+        if(screenId === 'ranking-screen') renderRanking();
+        if(screenId === 'shop-screen') updateShopUI();
+    }
+
+    // オーディオ（Web Audio APIによる効果音）
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+        if(saveData.settings.volume <= 0) return;
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        let now = audioCtx.currentTime;
+        if(type === 'pop') {
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+            gain.gain.setValueAtTime(saveData.settings.volume * 0.3, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1);
+        } else if(type === 'skill') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.linearRampToValueAtTime(600, now + 0.3);
+            gain.gain.setValueAtTime(saveData.settings.volume * 0.4, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3);
+        } else if(type === 'bomb') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+            gain.gain.setValueAtTime(saveData.settings.volume * 0.5, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3);
+        }
+    }
+
+    function triggerVibration() {
+        if(saveData.settings.vibration && navigator.vibrate) {
+            navigator.vibrate(40);
+        }
+    }
+
+    // ゲーム変数
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let gameState = 'STOP'; // STOP, PLAYING
+    let score = 0, coins = 0, timeLeft = 60;
+    let tsums = [], particles = [], effects = [];
+    let selectedTsums = [];
+    let skillGauge = 0, maxSkillGauge = 30;
+    let isFever = false, feverTimer = 0;
+    let spawnTimer = 0;
+    let gameInterval, timerInterval;
+
+    const COLORS = {
+        red: '#e94560',
+        blue: '#00adb5',
+        green: '#4e9f3d',
+        bomb: '#ff9800'
+    };
+
+    class Tsum {
+        constructor(x, y, type) {
+            this.x = x;
+            this.y = y;
+            this.radius = 22;
+            this.vx = (Math.random() - 0.5) * 2;
+            this.vy = Math.random() * 2;
+            this.type = type; // red, blue, green, bomb
+            this.isRemoving = false;
+        }
+
+        update() {
+            // 簡易物理・衝突（壁・床）
+            this.vy += 0.3; // 重力
+            this.x += this.vx;
+            this.y += this.vy;
+
+            // 壁判定
+            if(this.x - this.radius < 0) { this.x = this.radius; this.vx *= -0.3; }
+            if(this.x + this.radius > canvas.width) { this.x = canvas.width - this.radius; this.vx *= -0.3; }
+            // 床判定
+            if(this.y + this.radius > canvas.height) { this.y = canvas.height - this.radius; this.vy = -this.vy * 0.2; this.vx *= 0.8; }
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = COLORS[this.type] || '#fff';
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = selectedTsums.includes(this) ? '#ffff00' : '#ffffff';
+            ctx.stroke();
+            ctx.closePath();
+
+            // 表情（ツムっぽさ）
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(this.x - 7, this.y - 4, 3, 0, Math.PI * 2);
+            ctx.arc(this.x + 7, this.y - 4, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            if(this.type === 'bomb') {
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillText('💣', this.x - 8, this.y + 5);
+            }
+        }
+    }
+
+    // 粒子エフェクト
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y;
+            this.color = color;
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 6 + 2;
+            this.vx = Math.cos(angle) * speed;
+            this.vy = Math.sin(angle) * speed;
+            this.alpha = 1;
+        }
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.alpha -= 0.03;
+        }
+        draw() {
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, this.alpha);
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    function startGame() {
+        document.getElementById('menu-screen').classList.add('hidden');
+        document.getElementById('ui-panel').classList.remove('hidden');
+        document.getElementById('gameCanvas').classList.remove('hidden');
+        document.getElementById('skill-btn').classList.remove('hidden');
+
+        score = 0; coins = 0; timeLeft = 60;
+        tsums = []; particles = []; selectedTsums = [];
+        skillGauge = 0; isFever = false; feverTimer = 0;
+        gameState = 'PLAYING';
+
+        // 初期ツム生成（上から降ってくるように満タンにする）
+        for(let i=0; i<30; i++) {
+            let type = ['red', 'blue', 'green'][Math.floor(Math.random()*3)];
+            tsums.push(new Tsum(Math.random()*(canvas.width-50)+25, Math.random()*300, type));
+        }
+
+        clearInterval(gameInterval);
+        clearInterval(timerInterval);
+
+        gameInterval = setInterval(updateGame, 1000 / 60);
+        timerInterval = setInterval(() => {
+            if(gameState === 'PLAYING') {
+                timeLeft--;
+                if(isFever) {
+                    feverTimer--;
+                    if(feverTimer <= 0) isFever = false;
+                }
+                if(timeLeft <= 0) endGame();
+            }
+        }, 1000);
+    }
+
+    function updateGame() {
+        // ツムの生成制限（満タンなら落とさない）
+        spawnTimer++;
+        if(spawnTimer % 15 === 0 && tsums.length < 35) {
+            let type = Math.random() < 0.08 ? 'bomb' : ['red', 'blue', 'green'][Math.floor(Math.random()*3)];
+            tsums.push(new Tsum(Math.random() * (canvas.width - 50) + 25, -20, type));
+        }
+
+        // 物理計算・衝突判定
+        for(let i = 0; i < tsums.length; i++) {
+            tsums[i].update();
+            for(let j = i + 1; j < tsums.length; j++) {
+                let dx = tsums[j].x - tsums[i].x;
+                let dy = tsums[j].y - tsums[i].y;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+                let minDist = tsums[i].radius + tsums[j].radius;
+                if(dist < minDist) {
+                    let overlap = minDist - dist;
+                    let angle = Math.atan2(dy, dx);
+                    tsums[i].x -= Math.cos(angle) * overlap * 0.5;
+                    tsums[i].y -= Math.sin(angle) * overlap * 0.5;
+                    tsums[j].x += Math.cos(angle) * overlap * 0.5;
+                    tsums[j].y += Math.sin(angle) * overlap * 0.5;
+                }
+            }
+        }
+
+        // パーティクル更新
+        particles.forEach((p, idx) => {
+            p.update();
+            if(p.alpha <= 0) particles.splice(idx, 1);
+        });
+
+        // 描画
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // フィーバー中の背景エフェクト
+        if(isFever) {
+            ctx.fillStyle = 'rgba(233, 69, 96, 0.15)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        tsums.forEach(t => t.draw());
+        particles.forEach(p => p.draw());
+
+        // 繋ぎ線描画
+        if(selectedTsums.length > 0) {
+            ctx.beginPath();
+            ctx.moveTo(selectedTsums[0].x, selectedTsums[0].y);
+            for(let i = 1; i < selectedTsums.length; i++) {
+                ctx.lineTo(selectedTsums[i].x, selectedTsums[i].y);
+            }
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            ctx.closePath();
+        }
+
+        // UI更新
+        document.getElementById('score-disp').innerText = `スコア: ${score}`;
+        document.getElementById('time-disp').innerText = `残り: ${timeLeft}秒`;
+        document.getElementById('coin-disp').innerText = `コイン: ${coins}`;
+
+        let skillBtn = document.getElementById('skill-btn');
+        if(skillGauge >= maxSkillGauge) {
+            skillBtn.classList.add('ready');
+            skillBtn.innerText = 'SKILL MAX!';
+        } else {
+            skillBtn.classList.remove('ready');
+            skillBtn.innerText = `SKILL\n${Math.floor((skillGauge/maxSkillGauge)*100)}%`;
+        }
+    }
+
+    // タッチ・マウス操作イベント
+    function getTouchPos(e) {
+        let rect = canvas.getBoundingClientRect();
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+        if(gameState !== 'PLAYING') return;
+        let pos = getTouchPos(e);
+        checkTsumSelection(pos.x, pos.y);
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+        if(gameState !== 'PLAYING' || selectedTsums.length === 0) return;
+        let pos = getTouchPos(e);
+        checkTsumSelection(pos.x, pos.y);
+    });
+
+    window.addEventListener('pointerup', () => {
+        if(gameState !== 'PLAYING' || selectedTsums.length === 0) return;
+        processTsumChain();
+    });
+
+    function checkTsumSelection(x, y) {
+        tsums.forEach(t => {
+            let dist = Math.hypot(t.x - x, t.y - y);
+            if(dist < t.radius + 10) {
+                if(selectedTsums.length === 0) {
+                    selectedTsums.push(t);
+                    playSound('pop');
+                } else {
+                    let last = selectedTsums[selectedTsums.length - 1];
+                    let prev = selectedTsums[selectedTsums.length - 2];
+                    let dLast = Math.hypot(t.x - last.x, t.y - last.y);
+
+                    // 近くの同じ色、あるいはフィーバー中ならどのツムでもOK、または爆弾
+                    let isValidType = isFever || t.type === 'bomb' || last.type === 'bomb' || t.type === last.type;
+
+                    if(dLast < 65 && isValidType && !selectedTsums.includes(t)) {
+                        selectedTsums.push(t);
+                        playSound('pop');
+                        triggerVibration();
+                    } else if(prev && prev === t) {
+                        selectedTsums.pop(); // 1つ戻る
+                    }
+                }
+            }
+        });
+    }
+
+    function processTsumChain() {
+        let count = selectedTsums.length;
+        if(count >= 3) {
+            let baseType = selectedTsums[0].type;
+            let mult = isFever ? 2.5 : 1.0;
+            
+            selectedTsums.forEach(t => {
+                // パーティクル発生
+                for(let i=0; i<3; i++) particles.push(new Particle(t.x, t.y, COLORS[t.type] || '#fff'));
+                
+                // 爆弾が含まれていた場合の周囲消去
+                if(t.type === 'bomb') {
+                    playSound('bomb');
+                    timeLeft += 2; // 時間2秒プラス
+                    tsums.forEach(ot => {
+                        if(Math.hypot(ot.x - t.x, ot.y - t.y) < 100) ot.isRemoving = true;
+                    });
+                }
+                t.isRemoving = true;
+            });
+
+            // ツム削除実行
+            tsums = tsums.filter(t => !t.isRemoving);
+
+            // スコア・コイン計算
+            let lvlBonus = saveData.levels[baseType] || 1;
+            let gainedScore = count * count * 100 * mult * lvlBonus;
+            let gainedCoin = Math.floor(count / 3) * mult;
+            score += Math.floor(gainedScore);
+            coins += Math.floor(gainedCoin);
+
+            // スキルゲージ蓄積
+            let skillEff = 1 + (saveData.levels.skill - 1) * 0.1;
+            skillGauge = Math.min(maxSkillGauge, skillGauge + count * skillEff);
+
+            // フィーバー突入判定
+            if(!isFever && Math.random() < 0.25 && count >= 5) {
+                isFever = true;
+                feverTimer = 10; // 10秒フィーバー
+            }
+        }
+        selectedTsums = [];
+    }
+
+    // スキル発動ボタン
+    document.getElementById('skill-btn').addEventListener('click', () => {
+        if(skillGauge >= maxSkillGauge && gameState === 'PLAYING') {
+            skillGauge = 0;
+            playSound('skill');
+            triggerVibration();
+
+            // ランダムでスキル効果（赤・青・緑のどれか）
+            let skillType = ['red', 'blue', 'green'][Math.floor(Math.random()*3)];
+            if(skillType === 'red') {
+                // 周りのも壊す
+                if(tsums.length > 0) {
+                    let target = tsums[Math.floor(Math.random()*tsums.length)];
+                    tsums = tsums.filter(t => Math.hypot(t.x - target.x, t.y - target.y) > 120);
+                }
+            } else if(skillType === 'blue') {
+                // 青を全消し
+                tsums = tsums.filter(t => t.type !== 'blue');
+            } else if(skillType === 'green') {
+                // 落ちてくるツムを確定で緑に（数個変換）
+                let converted = 0;
+                tsums.forEach(t => { if(converted < 10) { t.type = 'green'; converted++; } });
+            }
+        }
+    });
+
+    // ショップ強化機能
+    function upgrade(type) {
+        let cost = type === 'skill' ? 150 : 100;
+        if(saveData.coins >= cost) {
+            saveData.coins -= cost;
+            saveData.levels[type]++;
+            saveGame();
+            updateShopUI();
+        } else {
+            alert("コインが足りません！");
+        }
+    }
+
+    function updateShopUI() {
+        document.getElementById('shop-coin').innerText = saveData.coins;
+        document.getElementById('lvl-red').innerText = saveData.levels.red;
+        document.getElementById('lvl-blue').innerText = saveData.levels.blue;
+        document.getElementById('lvl-green').innerText = saveData.levels.green;
+        document.getElementById('lvl-skill').innerText = saveData.levels.skill;
+    }
+
+    // ランキング機能
+    function renderRanking() {
+        let listEl = document.getElementById('ranking-list');
+        listEl.innerHTML = '';
+        saveData.rankings.sort((a,b) => b.score - a.score);
+        saveData.rankings.slice(0, 10).forEach((item, idx) => {
+            listEl.innerHTML += `<div class="list-item"><span>${idx+1}. ${item.date}</span><span>${item.score}pts</span></div>`;
+        });
+        if(saveData.rankings.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center; padding:20px; font-size:13px;">まだ記録がありません</div>';
+        }
+    }
+
+    function endGame() {
+        gameState = 'STOP';
+        clearInterval(gameInterval);
+        clearInterval(timerInterval);
+
+        // セーブデータにポイントと日時を保存
+        let now = new Date();
+        let dateStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+        saveData.rankings.push({ date: dateStr, score: score });
+        saveData.coins += coins;
+        saveGame();
+
+        document.getElementById('ui-panel').classList.add('hidden');
+        document.getElementById('gameCanvas').classList.add('hidden');
+        document.getElementById('skill-btn').classList.add('hidden');
+        
+        document.getElementById('res-score').innerText = `スコア: ${score}`;
+        document.getElementById('res-coin').innerText = `ゲットコイン: ${coins}`;
+        document.getElementById('result-screen').classList.remove('hidden');
+    }
+
+    // 設定の同期
+    document.getElementById('vol-range').addEventListener('input', (e) => {
+        saveData.settings.volume = parseFloat(e.target.value);
+        saveGame();
+    });
+    document.getElementById('vibe-check').addEventListener('change', (e) => {
+        saveData.settings.vibration = e.target.checked;
+        saveGame();
+    });
+</script>
+
+</body>
+</html>
