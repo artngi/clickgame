@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CROSS SLASHER - Ultimate Precision</title>
+    <title>CROSS SLASHER - Ultimate Fix Edition</title>
     <style>
         * {
             box-sizing: border-box;
@@ -860,15 +860,36 @@ class Player {
                 triggerScreenShake(5, 4);
             } 
             else if (skillType === 'b_short') {
+                // FIXED: Directional fast dash with invincibility & single hit protection per enemy
                 this.attackState = 'b_c1';
                 this.attackTimer = 14;
                 this.attackMaxTime = 14;
-                let dashDist = this.lastFacingDir * 180;
-                this.x += dashDist;
-                if (this.x < 0) this.x = 0;
-                if (this.x > stageData.width - this.width) this.x = stageData.width - this.width;
-                dealDamageInBox(this.x - 140, this.y - 30, 280, 100, 15 * this.atkMultiplier, 6, this, true);
-                createDashTrail(this.x, this.y, this.lastFacingDir);
+                this.isInvincible = true;
+                
+                let dashDir = this.lastFacingDir;
+                let targetDist = 180;
+                let step = targetDist / 7;
+                let hitDone = false;
+
+                for (let i = 1; i <= 7; i++) {
+                    setTimeout(() => {
+                        this.x += dashDir * step;
+                        if (this.x < 0) this.x = 0;
+                        if (this.x > stageData.width - this.width) this.x = stageData.width - this.width;
+                        createDashTrail(this.x, this.y, dashDir);
+                        
+                        if (!hitDone) {
+                            stageData.enemies.forEach(e => {
+                                if (e.hp > 0 && Math.abs(e.x - this.x) < 70) {
+                                    e.takeDamage(15 * this.atkMultiplier, 6);
+                                    e.marked = true; // MARKING ASSIGNED
+                                    hitDone = true;
+                                }
+                            });
+                        }
+                    }, i * 15);
+                }
+                setTimeout(() => { this.isInvincible = false; }, 140);
                 triggerScreenShake(6, 5);
             }
             else if (skillType === 'ab_simul') {
@@ -888,13 +909,20 @@ class Player {
                 triggerScreenShake(12, 9);
             }
             else if (skillType === 'b_double') {
+                // FIXED: B Double attack hits and consumes marks
+                let hitAny = false;
                 stageData.enemies.forEach(e => {
                     if (e.marked && e.hp > 0) {
                         e.takeDamage(38 * this.atkMultiplier, 16);
                         e.marked = false;
                         createLinearSlashWave(e.x + 15, e.y + 20, '#66fcf1', 1);
+                        hitAny = true;
                     }
                 });
+                if (!hitAny) {
+                    // If no marked enemy, fallback forward strike
+                    dealDamageInBox(this.x + (this.lastFacingDir > 0 ? 10 : -130), this.y - 30, 150, 90, 25 * this.atkMultiplier, 10, this);
+                }
                 triggerScreenShake(8, 6);
             }
             else if (skillType === 'ult') {
@@ -906,6 +934,7 @@ class Player {
                 triggerScreenShake(30, 12);
             }
         } else {
+            // Character 2
             if (skillType === 'b_short') {
                 this.attackState = 'b_c2';
                 this.attackTimer = 18;
@@ -915,11 +944,22 @@ class Player {
                 triggerScreenShake(6, 4);
             }
             else if (skillType === 'a_double') {
+                // FIXED: Character 2 A Double is now bow melee knockback push instead of arrow shooting
                 this.attackState = 'a_double_c2';
                 this.attackTimer = 18;
                 this.attackMaxTime = 18;
                 createBowSpinEffect(this.x, this.y);
-                dealDamageInBox(this.x - 90, this.y - 40, 210, 120, 20 * this.atkMultiplier, 22, this, false, false, true);
+                
+                // Smooth pushing knockback
+                let pushDir = this.lastFacingDir;
+                stageData.enemies.forEach(e => {
+                    if (e.hp > 0 && Math.abs(e.x - this.x) < 120) {
+                        e.takeDamage(18 * this.atkMultiplier, 15);
+                        for (let step = 1; step <= 8; step++) {
+                            setTimeout(() => { e.x += pushDir * 14; }, step * 18);
+                        }
+                    }
+                });
                 triggerScreenShake(8, 6);
             }
             else if (skillType === 'b_double') {
@@ -1130,6 +1170,15 @@ class Enemy {
             progress: this.isAttacking ? (1 - this.attackWindup / 35) : 0.5
         });
 
+        // MARKING VISUAL INDICATOR
+        if (this.marked) {
+            ctx.save();
+            ctx.fillStyle = '#66fcf1';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText('🎯 MARKED', this.x - cameraX - 10, this.y - 24);
+            ctx.restore();
+        }
+
         if (this.isFlashing) {
             ctx.save();
             ctx.fillStyle = '#ffffff';
@@ -1141,7 +1190,7 @@ class Enemy {
 
             ctx.fillStyle = '#ff0055';
             ctx.font = '900 15px Arial';
-            ctx.fillText('⚡PARRY NOW!', this.x - cameraX - 25, this.y - 38);
+            ctx.fillText('⚡PARRY NOW!', this.x - cameraX - 25, this.y - 42);
             ctx.restore();
         }
 
@@ -1200,7 +1249,6 @@ class Projectile {
     }
 }
 
-/* --- REPLACED ARC WITH LINEAR SLASH WAVE EFFECT --- */
 function createLinearSlashWave(x, y, color, dir) {
     visualEffects.push({ type: 'linear_wave', x, y, color, dir, life: 14, maxLife: 14 });
 }
@@ -1343,7 +1391,7 @@ function updateGame() {
     visualEffects.forEach(fx => {
         fx.life--;
         if (fx.type === 'linear_wave') {
-            fx.x += fx.dir * 10; // High speed forward travel
+            fx.x += fx.dir * 10;
         } else if (fx.type === 'flame_particle' || fx.type === 'particle') {
             fx.x += fx.vx; fx.y += fx.vy;
         }
@@ -1393,7 +1441,6 @@ function renderGame() {
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 8 * (1 - p);
             ctx.beginPath();
-            // Sharp linear shockwave ray projecting forward
             let length = 90;
             ctx.moveTo(fx.x - cameraX, fx.y);
             ctx.lineTo(fx.x - cameraX + (fx.dir * length), fx.y - 10);
@@ -1465,7 +1512,7 @@ function endGame(isVictory) {
     updateUI();
 }
 
-/* --- BULLET-PROOF 0.1s RELEASE/TAP & MULTI-TOUCH INPUT SYSTEM --- */
+/* --- FULLY ROBUST SINGLE/DOUBLE TAP & SIMULTANEOUS INPUT DETECTOR --- */
 function setupInput() {
     const slider = document.getElementById('move-slider');
     const thumb = document.getElementById('slider-thumb');
@@ -1494,104 +1541,95 @@ function setupInput() {
     const btnJump = document.getElementById('btn-jump');
     const btnDodge = document.getElementById('btn-dodge');
 
-    // Parry & Jump never get delayed or locked
     btnJump.addEventListener('pointerdown', (e) => { e.preventDefault(); inputState.jumpPressed = true; });
     btnDodge.addEventListener('pointerdown', (e) => { e.preventDefault(); if (player) player.triggerDodge(); });
 
-    // Robust 0.1s decision window state machines for A & B
-    let aTaps = 0;
-    let bTaps = 0;
-    let aTimeout = null;
-    let bTimeout = null;
-    let aDownTime = 0;
-    let bDownTime = 0;
-    const DECISION_WINDOW = 110; // 0.11s
+    let aPressTimes = [];
+    let bPressTimes = [];
+    let aHoldTimer = null;
+    const WINDOW = 220; // 0.22s double tap window
 
     btnA.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        aDownTime = Date.now();
-        aTaps++;
+        let now = Date.now();
 
-        if (aTaps === 1) {
-            if (bTaps > 0) {
-                // Simultaneous A+B press
-                player.executeSkill('ab_simul');
-                aTaps = 0; bTaps = 0;
-                clearTimeout(aTimeout); clearTimeout(bTimeout);
-                return;
-            }
+        // Check simultaneous A+B
+        if (bPressTimes.length > 0 && now - bPressTimes[bPressTimes.length - 1] < 100) {
+            player.executeSkill('ab_simul');
+            aPressTimes = [];
+            bPressTimes = [];
+            clearTimeout(aHoldTimer);
+            return;
+        }
 
-            // Anticipate hold (Char 2 bow charge)
-            aTimeout = setTimeout(() => {
-                if (player.charType === 2 && aTaps === 1) {
+        aPressTimes.push(now);
+
+        // Check hold for Character 2 bow charge
+        if (player && player.charType === 2) {
+            aHoldTimer = setTimeout(() => {
+                if (aPressTimes.length === 1) {
                     player.char2Charging = true;
                     player.char2ChargeVal = 0;
                 }
-            }, DECISION_WINDOW);
+            }, 120);
         }
     });
 
     btnA.addEventListener('pointerup', (e) => {
         e.preventDefault();
-        
-        if (player.charType === 2 && player.char2Charging) {
+        let now = Date.now();
+        clearTimeout(aHoldTimer);
+
+        if (player && player.charType === 2 && player.char2Charging) {
             player.fireBow(player.char2ChargeVal);
             player.char2Charging = false;
             player.char2ChargeVal = 0;
-            aTaps = 0;
-            clearTimeout(aTimeout);
+            aPressTimes = [];
             return;
         }
 
-        if (aTaps >= 2) {
-            clearTimeout(aTimeout);
-            player.executeSkill('a_double');
-            aTaps = 0;
-        } else {
-            // Wait to verify if second tap occurs within window
-            setTimeout(() => {
-                if (aTaps === 1) {
-                    player.executeSkill('a_short');
-                    aTaps = 0;
-                    clearTimeout(aTimeout);
-                }
-            }, DECISION_WINDOW);
-        }
+        // Evaluate tap pattern after small delay
+        setTimeout(() => {
+            let recentTaps = aPressTimes.filter(t => now - t < WINDOW);
+            if (recentTaps.length >= 2) {
+                player.executeSkill('a_double');
+                aPressTimes = [];
+            } else if (recentTaps.length === 1) {
+                player.executeSkill('a_short');
+                aPressTimes = [];
+            }
+        }, 130);
     });
 
     btnB.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        bDownTime = Date.now();
-        bTaps++;
+        let now = Date.now();
 
-        if (aTaps > 0) {
+        if (aPressTimes.length > 0 && now - aPressTimes[aPressTimes.length - 1] < 100) {
             player.executeSkill('ab_simul');
-            aTaps = 0; bTaps = 0;
-            clearTimeout(aTimeout); clearTimeout(bTimeout);
+            aPressTimes = [];
+            bPressTimes = [];
+            clearTimeout(aHoldTimer);
             return;
         }
 
-        bTimeout = setTimeout(() => {
-            // hold logic if needed
-        }, DECISION_WINDOW);
+        bPressTimes.push(now);
     });
 
     btnB.addEventListener('pointerup', (e) => {
         e.preventDefault();
+        let now = Date.now();
 
-        if (bTaps >= 2) {
-            clearTimeout(bTimeout);
-            player.executeSkill('b_double');
-            bTaps = 0;
-        } else {
-            setTimeout(() => {
-                if (bTaps === 1) {
-                    player.executeSkill('b_short');
-                    bTaps = 0;
-                    clearTimeout(bTimeout);
-                }
-            }, DECISION_WINDOW);
-        }
+        setTimeout(() => {
+            let recentTaps = bPressTimes.filter(t => now - t < WINDOW);
+            if (recentTaps.length >= 2) {
+                player.executeSkill('b_double');
+                bPressTimes = [];
+            } else if (recentTaps.length === 1) {
+                player.executeSkill('b_short');
+                bPressTimes = [];
+            }
+        }, 130);
     });
 
     document.getElementById('ult-btn').addEventListener('click', () => player && player.executeSkill('ult'));
@@ -1704,11 +1742,11 @@ function updateCharDesc() {
         avatarEl.innerText = "⚔️";
         descEl.innerHTML = `
             <b>【操作・コマンド】</b><br>
-            ・<b>A短押し:</b> 前方へ直線の鋭い衝撃波をシュッと放つ<br>
-            ・<b>B短押し:</b> スムーズダッシュ＋マーキング<br>
-            ・<b>A+B同時押し:</b> 前方直線斬撃後バックステップ<br>
+            ・<b>A短押し:</b> 前方へ直線状の鋭い衝撃波を放つ<br>
+            ・<b>B短押し:</b> 向いている方向へ無敵ダッシュ突進＋マーキング付与<br>
+            ・<b>A+B同時押し:</b> 前方斬撃後バックステップ<br>
             ・<b>Aダブルタップ:</b> 特大の直線白光衝撃波<br>
-            ・<b>Bダブルタップ:</b> マーク中の全敵へ連続一閃<br>
+            ・<b>Bダブルタップ:</b> マーク中の全敵へ追撃一閃<br>
             ・<b>必殺技:</b> 画面全体が揺れる無敵の無限連撃
         `;
     } else {
@@ -1718,7 +1756,7 @@ function updateCharDesc() {
             <b>【操作・コマンド】</b><br>
             ・<b>A長押し:</b> 弓チャージショット (放すまでチャージ維持)<br>
             ・<b>B短押し:</b> 前方に激しい炎放出<br>
-            ・<b>Aダブルタップ:</b> 弓を回して滑らかにノックバック<br>
+            ・<b>Aダブルタップ:</b> 弓で近接殴打＆敵を滑らかに押し出すノックバック<br>
             ・<b>Bダブルタップ:</b> 次の矢に炎効果追加<br>
             ・<b>A+B同時押し:</b> 全方位に炎散布<br>
             ・<b>必殺技:</b> 巨大炎矢＋画面全体の広域爆発＆燃焼
