@@ -1,0 +1,1983 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>フルーツクラッシュ - 爽快パズルゲーム</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Matter.js (2D Physics Engine) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'fruit-crush-game';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+
+    let db = null;
+    let auth = null;
+    let userDocRef = null;
+
+    if (firebaseConfig) {
+      try {
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+
+        const initAuth = async () => {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+          const user = auth.currentUser;
+          if (user) {
+            userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'saveData', 'playerState');
+            const docSnap = await getDoc(userDocRef);
+            if (docSnap.exists()) {
+              const cloudData = docSnap.data();
+              if (cloudData && cloudData.state) {
+                if (window.syncSaveData) {
+                  window.syncSaveData(cloudData.state);
+                }
+              }
+            }
+          }
+        };
+        initAuth().catch(console.error);
+      } catch (e) {
+        console.error("Firebase Cloud Save initialization:", e);
+      }
+    }
+
+    window.saveSaveDataToCloud = async function(stateData) {
+      if (userDocRef && db) {
+        try {
+          await setDoc(userDocRef, { state: stateData, updatedAt: new Date().toISOString() }, { merge: true });
+        } catch(e) {
+          console.error("Cloud Save failed:", e);
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      background-color: #0f172a;
+      overflow: hidden;
+    }
+    
+    .mobile-container {
+      width: 100vw;
+      height: 100vh;
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative;
+      background: linear-gradient(180deg, #1e1b4b 0%, #311042 100%);
+      box-shadow: 0 0 25px rgba(0,0,0,0.8);
+      overflow: hidden;
+    }
+
+    /* Custom Animations */
+    @keyframes pulse-glow {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(234, 179, 8, 0.6)); }
+      50% { transform: scale(1.05); filter: drop-shadow(0 0 15px rgba(234, 179, 8, 0.9)); }
+    }
+    .pulse-glow { animation: pulse-glow 2s infinite; }
+
+    @keyframes awaken-glow {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.9)) drop-shadow(0 0 15px rgba(236, 72, 153, 0.8)); }
+      50% { transform: scale(1.06); filter: drop-shadow(0 0 20px rgba(250, 204, 21, 1)) drop-shadow(0 0 25px rgba(217, 70, 239, 1)); }
+    }
+    .awaken-glow { animation: awaken-glow 1.5s infinite; }
+
+    @keyframes slice-flash {
+      0% { opacity: 1; transform: scaleY(1); }
+      100% { opacity: 0; transform: scaleY(0.1); }
+    }
+    .slice-effect {
+      position: absolute;
+      background: linear-gradient(90deg, transparent, #ffffff, #60a5fa, #ffffff, transparent);
+      height: 24px;
+      transform-origin: center;
+      pointer-events: none;
+      z-index: 50;
+      animation: slice-flash 0.3s forwards;
+    }
+
+    /* Floating absorption particle */
+    .absorb-particle {
+      position: absolute;
+      pointer-events: none;
+      z-index: 60;
+      transition: all 0.5s cubic-bezier(0.1, 0.8, 0.3, 1);
+      border-radius: 50%;
+      font-weight: bold;
+    }
+
+    /* Canvas overlay for slash drawing */
+    #slashCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 40;
+    }
+
+    /* Rainbow Gradient Text */
+    .rainbow-text {
+      background: linear-gradient(90deg, #f59e0b, #ec4899, #8b5cf6, #3b82f6, #10b981, #f59e0b);
+      background-size: 200% auto;
+      color: transparent;
+      -webkit-background-clip: text;
+      animation: shine 2s linear infinite;
+    }
+    @keyframes shine {
+      to { background-position: 200% center; }
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+  <div class="mobile-container flex flex-col justify-between relative select-none">
+    
+    <!-- Main Header -->
+    <header id="mainHeader" class="w-full p-3 bg-slate-900/80 backdrop-blur-md border-b border-purple-500/30 flex justify-between items-center z-20 text-white">
+      <!-- High Score Button -->
+      <button id="btnHighScore" class="flex items-center space-x-2 bg-purple-900/60 hover:bg-purple-800/80 border border-purple-400/40 px-3 py-1.5 rounded-full transition active:scale-95">
+        <i class="fas me-1 fa-trophy text-amber-400"></i>
+        <div class="text-left">
+          <div class="text-[9px] text-purple-200 uppercase tracking-wider leading-none">Best Score</div>
+          <div id="uiHighScore" class="text-sm font-extrabold text-amber-300 leading-none">0</div>
+        </div>
+      </button>
+
+      <!-- Coins Display -->
+      <div id="coinContainer" class="flex items-center space-x-2 bg-amber-950/60 border border-amber-500/40 px-3 py-1.5 rounded-full">
+        <i class="fas fa-coins text-amber-400 text-lg"></i>
+        <span id="uiCoins" class="text-base font-black text-amber-300">0</span>
+      </div>
+    </header>
+
+    <div id="screenHome" class="flex-1 flex flex-col justify-between items-center p-4 z-10 w-full">
+      <div class="text-center mt-2">
+        <h1 class="text-3xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-purple-400 drop-shadow">
+          FRUIT CRUSH
+        </h1>
+        <p class="text-xs text-purple-200 mt-0.5">爽快！スキル連鎖パズル</p>
+      </div>
+
+      <!-- Center Skill Display & Preset Selector -->
+      <div class="w-full max-w-xs bg-slate-800/70 border border-purple-500/30 rounded-2xl p-4 flex flex-col items-center backdrop-blur-sm">
+        <div class="text-xs text-purple-300 mb-2 font-bold flex items-center gap-1 self-start">
+          <i class="fas fa-sliders-h"></i> 装備中スキル & フルーツ
+        </div>
+        
+        <div id="homeSkillGrid" class="grid grid-cols-2 gap-3 w-full">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="w-full max-w-xs flex flex-col gap-3 mb-4">
+        <button id="btnStartGame" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-black text-xl rounded-2xl shadow-lg shadow-green-900/50 transform active:scale-95 transition flex items-center justify-center gap-2">
+          <i class="fas fa-play text-2xl"></i>
+          <span>プレイ開始 (60秒)</span>
+        </button>
+
+        <button id="btnOpenSkillMenu" class="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-md transform active:scale-95 transition flex items-center justify-center gap-2">
+          <i class="fas fa-magic"></i>
+          <span>スキル編成 / ガチャ / 育成</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="screenGame" class="hidden absolute inset-0 flex flex-col justify-between z-10 pointer-events-none">
+      <!-- Top Status Bar during Gameplay -->
+      <div class="w-full pt-4 px-4 flex justify-between items-center z-20 pointer-events-auto">
+        <!-- Score Bar -->
+        <div id="scoreContainer" class="bg-slate-900/80 border border-purple-400/40 px-3 py-1 rounded-xl text-white">
+          <span class="text-[10px] text-purple-300 block leading-none">SCORE</span>
+          <span id="gameScore" class="text-xl font-black text-purple-200">0</span>
+        </div>
+
+        <!-- Timer -->
+        <div class="bg-slate-900/80 border border-pink-500/50 px-4 py-1.5 rounded-full text-center min-w-[100px] relative">
+          <span id="timerLabel" class="text-[9px] text-pink-300 uppercase tracking-widest block leading-none">TIME</span>
+          <span id="gameTimer" class="text-2xl font-black text-pink-400">60</span>
+          <div id="feverBadge" class="hidden absolute -bottom-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-amber-400 to-pink-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow animate-pulse whitespace-nowrap">
+            🔥 FEVER x2
+          </div>
+        </div>
+
+        <!-- In-game Coins Display -->
+        <div id="gameCoinsContainer" class="bg-slate-900/80 border border-amber-500/50 px-3 py-1 rounded-xl text-white">
+          <span class="text-[10px] text-amber-300 block leading-none">COINS</span>
+          <span id="gameCoins" class="text-xl font-black text-amber-300">0</span>
+        </div>
+      </div>
+
+      <!-- Game Physics Container -->
+      <div id="canvasContainer" class="w-full flex-1 relative pointer-events-auto">
+        <canvas id="slashCanvas"></canvas>
+      </div>
+
+      <!-- Bottom Skill Buttons Deck -->
+      <div class="w-full bg-slate-950/90 border-t-2 border-purple-500/50 p-3 z-30 pointer-events-auto">
+        <div class="grid grid-cols-4 gap-2 max-w-md mx-auto" id="inGameSkillButtons">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <div id="screenSkill" class="hidden absolute inset-0 bg-slate-950/95 z-40 flex flex-col p-4 overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-purple-800 pb-3 mb-4">
+        <h2 class="text-xl font-black text-purple-300 flex items-center gap-2">
+          <i class="fas fa-boxes"></i> スキル編成 & ガチャ
+        </h2>
+        <button id="btnCloseSkillMenu" class="text-slate-400 hover:text-white p-2 text-xl">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Gacha Banner Section -->
+      <div class="bg-gradient-to-r from-purple-900/60 to-pink-900/60 border border-pink-500/40 rounded-2xl p-4 mb-5 flex flex-col items-center text-center">
+        <h3 class="text-lg font-bold text-amber-300 mb-1">スキルガチャ</h3>
+        <p class="text-xs text-purple-200 mb-3">新しいスキル獲得 or 所持スキルのLvアップ！<br><span class="text-amber-400 font-bold">Lv.25でスキル覚醒！能力覚醒＆超強力に！</span></p>
+        <button id="btnGacha" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-full shadow-lg transform active:scale-95 transition flex items-center gap-2">
+          <i class="fas fa-gift"></i>
+          <span>ガチャを回す (2000 コイン)</span>
+        </button>
+      </div>
+
+      <!-- Skill Assignment Section -->
+      <h3 class="text-sm font-bold text-purple-300 mb-2 flex items-center gap-2">
+        <i class="fas fa-link"></i> フルーツとスキルのペア設定
+      </h3>
+      <div id="pairAssignList" class="space-y-2 mb-6">
+        <!-- JS renders fruit rows with dropdowns -->
+      </div>
+
+      <!-- Owned Skills & Upgrade List -->
+      <h3 class="text-sm font-bold text-purple-300 mb-2 flex items-center gap-2">
+        <i class="fas fa-level-up-alt"></i> 所持スキル一覧・強化
+      </h3>
+      <div id="ownedSkillsList" class="space-y-3 pb-4">
+        <!-- JS renders owned skill cards -->
+      </div>
+
+      <!-- Save Data Reset Section -->
+      <div class="mt-4 pt-4 border-t border-red-900/40 pb-6 flex justify-center">
+        <button id="btnOpenDeleteModal" class="px-4 py-2 bg-red-950/80 hover:bg-red-900 border border-red-600/50 text-red-300 hover:text-red-100 text-xs font-bold rounded-xl transition flex items-center gap-2">
+          <i class="fas fa-trash-alt"></i>
+          <span>セーブデータ削除</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Score History Modal -->
+    <div id="modalHistory" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-purple-500/40 rounded-2xl p-5 w-full max-w-xs text-white">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-black text-amber-400"><i class="fas fa-history me-2"></i>スコア履歴</h3>
+          <button id="btnCloseHistory" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="historyList" class="max-h-60 overflow-y-auto space-y-2 text-sm">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Gacha Animation Overlay -->
+    <div id="modalGachaAnim" class="hidden absolute inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center p-6 text-center">
+      <div id="gachaEffectBox" class="relative w-48 h-48 flex items-center justify-center">
+        <i class="fas fa-gift text-7xl text-amber-400 animate-bounce"></i>
+      </div>
+      <h2 id="gachaTitle" class="text-2xl font-black text-white mt-6">フルーツ大爆発...!?</h2>
+      <div id="gachaResult" class="hidden mt-4 flex flex-col items-center">
+        <div id="gachaSkillIcon" class="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl mb-2 text-white shadow-lg"></div>
+        <div id="gachaSkillName" class="text-xl font-black text-amber-300"></div>
+        <div id="gachaSkillDesc" class="text-xs text-slate-300 mt-1 max-w-xs whitespace-pre-line"></div>
+        <button id="btnCloseGacha" class="mt-6 px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-full">OK</button>
+      </div>
+    </div>
+
+    <!-- Roulette Modal -->
+    <div id="modalRoulette" class="hidden absolute inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 text-white">
+      <h2 id="rouletteHeader" class="text-2xl font-black text-amber-400 mb-4">フルーツルーレット！</h2>
+      
+      <div class="bg-slate-900 border-2 border-amber-500/50 rounded-2xl p-6 w-full max-w-xs text-center">
+        <div class="mb-4">
+          <div class="text-xs text-slate-400 mb-1">【消去個数】</div>
+          <div id="rouletteCountDisplay" class="text-4xl font-black text-emerald-400 bg-slate-950 py-2 rounded-xl border border-emerald-500/30">?</div>
+        </div>
+
+        <div class="mb-6">
+          <div class="text-xs text-slate-400 mb-1">【スコア＆コイン倍率】</div>
+          <div id="rouletteMultDisplay" class="text-4xl font-black text-pink-400 bg-slate-950 py-2 rounded-xl border border-pink-500/30">?</div>
+        </div>
+
+        <button id="btnStartRoulette" class="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-xl text-lg shadow-lg">
+          スピン！
+        </button>
+      </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="modalGameOver" class="hidden absolute inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-6 text-white text-center">
+      <h2 class="text-3xl font-black text-pink-500 mb-2">TIME UP!</h2>
+      <p class="text-sm text-slate-300 mb-6">ゲーム終了！結果発表</p>
+
+      <div class="bg-slate-900 border border-purple-500/40 rounded-2xl p-5 w-full max-w-xs space-y-3 mb-6">
+        <div>
+          <span class="text-xs text-slate-400">獲得スコア</span>
+          <div id="resultScore" class="text-3xl font-black text-amber-300">0</div>
+        </div>
+        <div class="border-t border-slate-800 pt-2">
+          <span class="text-xs text-slate-400">獲得コイン</span>
+          <div id="resultCoins" class="text-xl font-bold text-amber-400 flex items-center justify-center gap-1">
+            <i class="fas fa-coins text-sm"></i>
+            <span id="resultCoinsText">0</span>
+          </div>
+        </div>
+      </div>
+
+      <button id="btnFinishGame" class="w-full max-w-xs py-3.5 bg-purple-600 hover:bg-purple-500 font-bold rounded-xl shadow-lg">
+        ホームへ戻る
+      </button>
+    </div>
+
+    <!-- Double Confirmation Delete Modal -->
+    <div id="modalDeleteConfirm" class="hidden absolute inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 text-white text-center">
+      <div class="bg-slate-900 border-2 border-red-500/60 rounded-2xl p-6 w-full max-w-xs flex flex-col items-center shadow-2xl">
+        <div class="w-16 h-16 rounded-full bg-red-950 border border-red-500 flex items-center justify-center text-red-500 text-3xl mb-3 animate-pulse">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        
+        <!-- Step 1 View -->
+        <div id="deleteStep1" class="w-full">
+          <h3 class="text-xl font-black text-red-400 mb-2">セーブデータを削除？</h3>
+          <p class="text-xs text-slate-300 mb-6 leading-relaxed">
+            ゲームの進行状況、コイン、ハイスコア、すべてのスキルが削除されます。本当によろしいですか？
+          </p>
+          <div class="flex gap-2">
+            <button id="btnCancelDelete1" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-xl border border-slate-700">
+              キャンセル
+            </button>
+            <button id="btnNextDeleteStep" class="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-sm rounded-xl shadow-lg">
+              次へ進む
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2 View (Final Confirm) -->
+        <div id="deleteStep2" class="hidden w-full">
+          <h3 class="text-xl font-black text-red-500 mb-2">【最終確認】</h3>
+          <p class="text-xs text-red-200 font-bold mb-6 leading-relaxed bg-red-950/60 p-2.5 rounded-xl border border-red-800/60">
+            削除を実行すると復元できません！<br>本当にセーブデータを完全に削除しますか？
+          </p>
+          <div class="flex gap-2">
+            <button id="btnCancelDelete2" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-xl border border-slate-700">
+              やめる
+            </button>
+            <button id="btnConfirmDeleteFinal" class="flex-1 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-sm rounded-xl shadow-lg animate-bounce">
+              削除を確定する
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* ============================================================
+       1. GAME DATA & MASTER DEFINITIONS
+       ============================================================ */
+    const FRUITS = {
+      watermelon: { id: 'watermelon', name: 'スイカ', color: '#10b981', stroke: '#047857', emoji: '🍉', radius: 34 },
+      orange:     { id: 'orange',     name: 'オレンジ', color: '#f97316', stroke: '#c2410c', emoji: '🍊', radius: 31 },
+      apple:      { id: 'apple',      name: 'りんご',   color: '#ef4444', stroke: '#b91c1c', emoji: '🍎', radius: 31 },
+      grape:      { id: 'grape',      name: 'ぶどう',   color: '#a855f7', stroke: '#6b21a8', emoji: '🍇', radius: 28 }
+    };
+
+    const SKILL_MASTERS = {
+      bomber: {
+        id: 'bomber',
+        name: 'フルーツボンバー',
+        icon: 'fa-bomb',
+        bg: 'from-red-600 to-orange-600',
+        descNormal: 'ペア果物を爆弾化！消すと周りも連鎖爆発！',
+        descAwakened: 'すべての果物を爆弾果物にする！',
+        maxCharge: 12
+      },
+      chain: {
+        id: 'chain',
+        name: 'フルーツチェーン',
+        icon: 'fa-link',
+        bg: 'from-blue-600 to-cyan-600',
+        descNormal: '隣接したペア果物をチェーンで繋ぎ、1タップで一括消去！',
+        descAwakened: '果物の種類関係なく全果物をつなぎ一括全消去！',
+        maxCharge: 10
+      },
+      cannon: {
+        id: 'cannon',
+        name: 'キャノンフルーツ',
+        icon: 'fa-bullseye',
+        bg: 'from-emerald-600 to-teal-600',
+        descNormal: 'ランダム位置に果物が入る範囲攻撃を連続4回行う！',
+        descAwakened: '破壊範囲が大幅拡大！驚異の連続10回砲撃！',
+        maxCharge: 15
+      },
+      sword: {
+        id: 'sword',
+        name: 'ソードフルーツ',
+        icon: 'fa-bolt',
+        bg: 'from-amber-600 to-yellow-600',
+        descNormal: '画面の中央を一刀両断！横一列のフルーツを太い斬撃で消去！',
+        descAwakened: '横斬撃のあと、ランダム位置＆方向の追撃斬撃が連続9回発生！',
+        maxCharge: 14
+      },
+      small_bomb: {
+        id: 'small_bomb',
+        name: 'スモールフルーツボム',
+        icon: 'fa-asterisk',
+        bg: 'from-purple-600 to-indigo-600',
+        descNormal: '爆弾化したペア果物を5個ランダムに降らせる！',
+        descAwakened: '4種類の爆弾果物をそれぞれ5個ずつ(全20個)降らせる！',
+        maxCharge: 12
+      },
+      samurai: {
+        id: 'samurai',
+        name: 'フルーツサムライ',
+        icon: 'fa-cut',
+        bg: 'from-rose-600 to-pink-600',
+        descNormal: '3秒間サムライタイム！タップ位置から一文字斬りを放つ！',
+        descAwakened: '3秒間サムライタイム！タップ位置を中心に交差する十文字斬り！',
+        maxCharge: 18
+      },
+      roulette: {
+        id: 'roulette',
+        name: 'フルーツルーレット',
+        icon: 'fa-dharmachakra',
+        bg: 'from-fuchsia-600 to-pink-600',
+        descNormal: 'ルーレットで[消去数]×[スコア倍率]を決定！',
+        descAwakened: 'ルーレット大量破壊後、当たった倍率が3秒間持続(フィーバー)！',
+        maxCharge: 20
+      },
+      charge: {
+        id: 'charge',
+        name: 'チャージフルーツ',
+        icon: 'fa-charging-station',
+        bg: 'from-cyan-600 to-blue-700',
+        descNormal: '5秒間果物の消去数をカウントし、その分まとめて自動爆破！',
+        descAwakened: '5秒間カウント！大量破壊個数がチャージ数の1.5倍に超増量！',
+        maxCharge: 16
+      }
+    };
+
+    // Default Save State
+    let state = {
+      coins: 0,
+      highScore: 0,
+      scoreHistory: [],
+      ownedSkills: {
+        bomber: { level: 1 }
+      },
+      pairAssignments: {
+        watermelon: 'bomber',
+        orange: null,
+        apple: null,
+        grape: null
+      }
+    };
+    window.state = state;
+
+    // Helper: Skill Awakening Check (Lv.25+)
+    function isSkillAwakened(skillLevel) {
+      return skillLevel >= 25;
+    }
+
+    function mergeStateData(incoming) {
+      if (!incoming) return;
+      if (typeof incoming.coins === 'number') {
+        state.coins = Math.max(state.coins, incoming.coins);
+      }
+      if (typeof incoming.highScore === 'number') {
+        state.highScore = Math.max(state.highScore, incoming.highScore);
+      }
+      if (Array.isArray(incoming.scoreHistory) && incoming.scoreHistory.length > 0) {
+        const existingKeys = new Set(state.scoreHistory.map(h => h.date + '_' + h.score));
+        incoming.scoreHistory.forEach(h => {
+          const key = h.date + '_' + h.score;
+          if (!existingKeys.has(key)) {
+            state.scoreHistory.push(h);
+            existingKeys.add(key);
+          }
+        });
+      }
+      if (incoming.ownedSkills && typeof incoming.ownedSkills === 'object') {
+        Object.keys(incoming.ownedSkills).forEach(sId => {
+          if (SKILL_MASTERS[sId]) {
+            if (!state.ownedSkills[sId] || state.ownedSkills[sId].level < incoming.ownedSkills[sId].level) {
+              state.ownedSkills[sId] = { ...incoming.ownedSkills[sId] };
+            }
+          }
+        });
+      }
+      if (incoming.pairAssignments && typeof incoming.pairAssignments === 'object') {
+        Object.keys(incoming.pairAssignments).forEach(fKey => {
+          const assignedSkill = incoming.pairAssignments[fKey];
+          if (assignedSkill !== undefined && (!assignedSkill || SKILL_MASTERS[assignedSkill])) {
+            state.pairAssignments[fKey] = assignedSkill;
+          } else {
+            state.pairAssignments[fKey] = null;
+          }
+        });
+      }
+    }
+
+    function loadSaveData() {
+      try {
+        const saved = localStorage.getItem('fruit_crush_save_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          mergeStateData(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to load save data', e);
+      }
+    }
+
+    window.syncSaveData = function(cloudState) {
+      mergeStateData(cloudState);
+      saveSaveData();
+      if (window.updateUI) window.updateUI();
+    };
+
+    function saveSaveData() {
+      try {
+        localStorage.setItem('fruit_crush_save_v1', JSON.stringify(state));
+      } catch (e) {
+        console.error('Failed to save data', e);
+      }
+      if (window.saveSaveDataToCloud) {
+        window.saveSaveDataToCloud(state);
+      }
+    }
+
+    let engine, world, runner;
+    let canvasContainer = document.getElementById('canvasContainer');
+    let slashCanvas = document.getElementById('slashCanvas');
+    let slashCtx = slashCanvas.getContext('2d');
+
+    let gameActive = false;
+    let gameTimer = 60;
+    let timerFreezeRemaining = 0;
+    
+    // ユニバーサル時間停止フラグ
+    let executionPauseCount = 0;
+    function isTimePaused() {
+      return executionPauseCount > 0;
+    }
+    function pushPause() {
+      executionPauseCount++;
+      if (gameActive) {
+        Object.keys(FRUITS).forEach(k => updateSkillButtonUI(k));
+      }
+    }
+    function popPause() {
+      executionPauseCount = Math.max(0, executionPauseCount - 1);
+      if (gameActive) {
+        Object.keys(FRUITS).forEach(k => updateSkillButtonUI(k));
+      }
+    }
+
+    let isRouletteActive = false; 
+    let isChargeDestructionActive = false; 
+    let timerInterval = null;
+    let mainTickInterval = null;
+    let renderLoopId = null;
+    let isRefillPending = false;
+    let currentScore = 0;
+    let currentCoins = 0;
+
+    // Skill status in-game
+    let skillCharges = { watermelon: 0, orange: 0, apple: 0, grape: 0 };
+    
+    // サムライタイム管理
+    let activeSamuraiMode = false;
+    let samuraiRemainingMs = 0;
+
+    // チャージフルーツ管理
+    let chargeFruitActive = false;
+    let chargeCount = 0;
+    let chargeRemainingMs = 0;
+
+    // フィーバータイム管理（ルーレット覚醒時）
+    let feverRemainingMs = 0;
+    let feverMultiplier = 1;
+
+    // Matter.js Bounds
+    let width = 360;
+    let height = 500;
+    let fruitBodies = [];
+    const MAX_FRUITS = 40;
+
+    function updateUI() {
+      document.getElementById('uiCoins').innerText = state.coins.toLocaleString();
+      document.getElementById('uiHighScore').innerText = state.highScore.toLocaleString();
+
+      const homeSkillGrid = document.getElementById('homeSkillGrid');
+      homeSkillGrid.innerHTML = '';
+      Object.keys(FRUITS).forEach(fKey => {
+        const fruit = FRUITS[fKey];
+        const skillId = state.pairAssignments[fKey];
+        const skill = skillId ? SKILL_MASTERS[skillId] : null;
+        const skillLevel = (skillId && state.ownedSkills[skillId]) ? state.ownedSkills[skillId].level : 1;
+        const awakened = isSkillAwakened(skillLevel);
+
+        const card = document.createElement('div');
+        card.className = `bg-slate-900/90 border ${awakened ? 'border-amber-400 awaken-glow' : 'border-slate-700'} rounded-xl p-2 flex items-center space-x-2 relative overflow-hidden`;
+        card.innerHTML = `
+          <div class="text-2xl">${fruit.emoji}</div>
+          <div class="flex-1 overflow-hidden">
+            <div class="text-[10px] text-slate-400 font-bold">${fruit.name}</div>
+            <div class="text-xs font-black ${awakened ? 'rainbow-text' : 'text-amber-300'} truncate">
+              ${skill ? skill.name : '未設定'}
+            </div>
+            ${awakened ? '<div class="text-[8px] font-black bg-amber-500 text-slate-950 px-1 rounded inline-block mt-0.5">覚醒</div>' : ''}
+          </div>
+        `;
+        homeSkillGrid.appendChild(card);
+      });
+    }
+
+    function spawnAbsorbEffect(startX, startY, isCoin = false) {
+      if (document.querySelectorAll('.absorb-particle').length > 12) return;
+
+      const targetId = isCoin ? 'gameCoinsContainer' : 'scoreContainer';
+      const targetEl = document.getElementById(targetId) || document.getElementById(isCoin ? 'coinContainer' : 'scoreContainer');
+      if (!targetEl) return;
+
+      const targetRect = targetEl.getBoundingClientRect();
+      const containerRect = document.querySelector('.mobile-container').getBoundingClientRect();
+
+      const particle = document.createElement('div');
+      particle.className = 'absorb-particle';
+      particle.innerText = isCoin ? '🪙' : '✨';
+      particle.style.left = (startX - containerRect.left) + 'px';
+      particle.style.top = (startY - containerRect.top) + 'px';
+      particle.style.fontSize = isCoin ? '16px' : '14px';
+
+      document.querySelector('.mobile-container').appendChild(particle);
+
+      requestAnimationFrame(() => {
+        particle.style.left = (targetRect.left - containerRect.left + targetRect.width / 2) + 'px';
+        particle.style.top = (targetRect.top - containerRect.top + targetRect.height / 2) + 'px';
+        particle.style.opacity = '0.4';
+        particle.style.transform = 'scale(0.5)';
+      });
+
+      setTimeout(() => {
+        particle.remove();
+      }, 500);
+    }
+
+    function getCanvasCoordinates(e) {
+      const rect = canvasContainer.getBoundingClientRect();
+      const scaleX = width / rect.width;
+      const scaleY = height / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+
+    function initPhysics() {
+      const { Engine, World, Bodies } = Matter;
+
+      if (renderLoopId) {
+        cancelAnimationFrame(renderLoopId);
+        renderLoopId = null;
+      }
+
+      if (engine) {
+        World.clear(world);
+        Engine.clear(engine);
+      }
+
+      engine = Engine.create({
+        gravity: { x: 0, y: 1.5 }
+      });
+      world = engine.world;
+
+      const rect = canvasContainer.getBoundingClientRect();
+      width = rect.width || 360;
+      height = rect.height || 480;
+
+      slashCanvas.width = width;
+      slashCanvas.height = height;
+
+      const wallThickness = 60;
+      const ground = Bodies.rectangle(width / 2, height + wallThickness / 2 - 5, width * 2, wallThickness, { isStatic: true, label: 'ground' });
+      const leftWall = Bodies.rectangle(-wallThickness / 2, height / 2, wallThickness, height * 4, { isStatic: true });
+      const rightWall = Bodies.rectangle(width + wallThickness / 2, height / 2, wallThickness, height * 4, { isStatic: true });
+
+      World.add(world, [ground, leftWall, rightWall]);
+
+      let canvas = document.getElementById('physicsCanvas');
+      if (!canvas) {
+        canvas = document.createElement('canvas');
+        canvas.id = 'physicsCanvas';
+        canvas.className = 'absolute inset-0 w-full h-full';
+        canvasContainer.appendChild(canvas);
+      }
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+
+      function renderLoop() {
+        if (!gameActive) {
+          renderLoopId = null;
+          return;
+        }
+
+        Engine.update(engine, 1000 / 60);
+
+        ctx.clearRect(0, 0, width, height);
+
+        const bodies = Matter.Composite.allBodies(world);
+        bodies.forEach(body => {
+          if (body.customFruit) {
+            drawFruitBody(ctx, body);
+          }
+        });
+
+        drawChainLines(ctx);
+
+        renderLoopId = requestAnimationFrame(renderLoop);
+      }
+
+      renderLoopId = requestAnimationFrame(renderLoop);
+    }
+
+    function spawnFruit(x, y, forcedType = null) {
+      const fruitKeys = Object.keys(FRUITS);
+      const typeKey = forcedType || fruitKeys[Math.floor(Math.random() * fruitKeys.length)];
+      const fruitDef = FRUITS[typeKey];
+
+      const body = Matter.Bodies.circle(
+        x || Math.random() * (width - 60) + 30,
+        y || -30,
+        fruitDef.radius,
+        {
+          restitution: 0.3,
+          friction: 0.1,
+          density: 0.002
+        }
+      );
+
+      body.customFruit = {
+        type: typeKey,
+        isBomb: false,
+        isChained: false
+      };
+
+      Matter.World.add(world, body);
+      fruitBodies.push(body);
+      return body;
+    }
+
+    function refillFruits() {
+      if (!gameActive || isRefillPending || isChargeDestructionActive) return;
+      isRefillPending = true;
+
+      setTimeout(() => {
+        isRefillPending = false;
+        if (!gameActive || isChargeDestructionActive) return;
+
+        const currentCount = fruitBodies.filter(b => b.customFruit).length;
+        const needed = MAX_FRUITS - currentCount;
+        for (let i = 0; i < needed; i++) {
+          setTimeout(() => {
+            if (gameActive && !isChargeDestructionActive && fruitBodies.filter(b => b.customFruit).length < MAX_FRUITS) {
+              spawnFruit(Math.random() * (width - 60) + 30, -30 - (i * 35));
+            }
+          }, i * 50);
+        }
+      }, 100);
+    }
+
+    function drawFruitBody(ctx, body) {
+      const { x, y } = body.position;
+      const fruit = FRUITS[body.customFruit.type];
+      const radius = fruit.radius;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(body.angle);
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fillStyle = fruit.color;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = body.customFruit.isBomb ? '#f59e0b' : fruit.stroke;
+      ctx.stroke();
+
+      if (body.customFruit.isBomb) {
+        ctx.beginPath();
+        ctx.arc(0, 0, radius + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      ctx.font = `${radius * 1.2}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(body.customFruit.isBomb ? '💣' : fruit.emoji, 0, 2);
+
+      ctx.restore();
+    }
+
+    function drawChainLines(ctx) {
+      ctx.save();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([6, 6]);
+
+      for (let i = 0; i < fruitBodies.length; i++) {
+        const b1 = fruitBodies[i];
+        if (!b1.customFruit || !b1.customFruit.isChained) continue;
+
+        for (let j = i + 1; j < fruitBodies.length; j++) {
+          const b2 = fruitBodies[j];
+          if (!b2.customFruit || !b2.customFruit.isChained) continue;
+          
+          const isSameType = b1.customFruit.type === b2.customFruit.type;
+          const chainSkillId = state.pairAssignments[b1.customFruit.type] || state.pairAssignments[b2.customFruit.type];
+          const skillLv = chainSkillId && state.ownedSkills[chainSkillId] ? state.ownedSkills[chainSkillId].level : 1;
+          const awakened = isSkillAwakened(skillLv);
+
+          if (isSameType || awakened) {
+            const dist = Math.hypot(b1.position.x - b2.position.x, b1.position.y - b2.position.y);
+            if (dist < 85) {
+              ctx.beginPath();
+              ctx.moveTo(b1.position.x, b1.position.y);
+              ctx.lineTo(b2.position.x, b2.position.y);
+              ctx.stroke();
+            }
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    function startGame() {
+      currentScore = 0;
+      currentCoins = 0;
+      gameTimer = 60;
+      timerFreezeRemaining = 0;
+      executionPauseCount = 0;
+      isRouletteActive = false;
+      isChargeDestructionActive = false;
+      gameActive = true;
+
+      document.getElementById('mainHeader').classList.add('hidden');
+
+      skillCharges = { watermelon: 0, orange: 0, apple: 0, grape: 0 };
+      chargeFruitActive = false;
+      chargeCount = 0;
+      chargeRemainingMs = 0;
+      
+      endSamuraiMode();
+
+      document.getElementById('gameScore').innerText = '0';
+      document.getElementById('gameCoins').innerText = '0';
+      document.getElementById('gameTimer').innerText = '60';
+      document.getElementById('gameTimer').classList.remove('text-cyan-400');
+      document.getElementById('timerLabel').innerText = 'TIME';
+
+      document.getElementById('screenHome').classList.add('hidden');
+      document.getElementById('screenGame').classList.remove('hidden');
+
+      initPhysics();
+      renderInGameSkillButtons();
+
+      fruitBodies = [];
+      refillFruits();
+
+      // 秒単位のゲームタイマー
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (!gameActive) return;
+
+        if (isTimePaused()) return;
+
+        if (timerFreezeRemaining > 0) {
+          timerFreezeRemaining--;
+          if (timerFreezeRemaining <= 0) {
+            timerFreezeRemaining = 0;
+            document.getElementById('gameTimer').classList.remove('text-cyan-400');
+            document.getElementById('timerLabel').innerText = 'TIME';
+          }
+          return;
+        }
+
+        gameTimer--;
+        document.getElementById('gameTimer').innerText = gameTimer;
+        if (gameTimer <= 0) {
+          endGame();
+        }
+      }, 1000);
+
+      // 100ms周期の細かな時間進行管理
+      if (mainTickInterval) clearInterval(mainTickInterval);
+      mainTickInterval = setInterval(() => {
+        if (!gameActive) return;
+
+        if (isTimePaused()) return;
+
+        // チャージタイマー
+        if (chargeFruitActive && chargeRemainingMs > 0) {
+          chargeRemainingMs -= 100;
+          if (chargeRemainingMs <= 0) {
+            chargeRemainingMs = 0;
+            triggerChargeFruitExplosion();
+          }
+        }
+
+        // サムライタイム
+        if (activeSamuraiMode && samuraiRemainingMs > 0) {
+          samuraiRemainingMs -= 100;
+          if (samuraiRemainingMs <= 0) {
+            endSamuraiMode();
+          }
+        }
+
+        // フィーバータイム (正確な3秒間)
+        if (feverRemainingMs > 0) {
+          feverRemainingMs -= 100;
+          const feverBadge = document.getElementById('feverBadge');
+          if (feverBadge) {
+            feverBadge.classList.remove('hidden');
+            feverBadge.innerText = `🔥 FEVER x${feverMultiplier} (${(feverRemainingMs / 1000).toFixed(1)}s)`;
+          }
+          if (feverRemainingMs <= 0) {
+            feverRemainingMs = 0;
+            feverMultiplier = 1;
+            if (feverBadge) feverBadge.classList.add('hidden');
+          }
+        }
+      }, 100);
+    }
+
+    function endGame() {
+      gameActive = false;
+      endSamuraiMode();
+
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      if (mainTickInterval) {
+        clearInterval(mainTickInterval);
+        mainTickInterval = null;
+      }
+      if (renderLoopId) {
+        cancelAnimationFrame(renderLoopId);
+        renderLoopId = null;
+      }
+
+      state.coins += currentCoins;
+      if (currentScore > state.highScore) {
+        state.highScore = currentScore;
+      }
+
+      state.scoreHistory.unshift({
+        score: currentScore,
+        coins: currentCoins,
+        date: new Date().toLocaleDateString('ja-JP') + ' ' + new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+      });
+      if (state.scoreHistory.length > 20) state.scoreHistory.pop();
+
+      saveSaveData();
+      updateUI();
+
+      document.getElementById('resultScore').innerText = currentScore.toLocaleString();
+      document.getElementById('resultCoinsText').innerText = currentCoins.toLocaleString();
+      document.getElementById('modalGameOver').classList.remove('hidden');
+    }
+
+    function removeFruitBodies(bodiesToRemove, multiplier = 1, isSkillSource = false) {
+      if (!bodiesToRemove || bodiesToRemove.length === 0) return;
+
+      const canvasRect = canvasContainer.getBoundingClientRect();
+      const scaleX = canvasRect.width / width;
+      const scaleY = canvasRect.height / height;
+
+      // 倍率計算の修正：累乗を防ぐため、ベース倍率×(フィーバー中ならフィーバー倍率)を計算
+      const baseMult = multiplier;
+      const currentFeverMult = (feverRemainingMs > 0) ? feverMultiplier : 1;
+      const effectiveMultiplier = baseMult * currentFeverMult;
+
+      const bombsToExplode = bodiesToRemove.filter(b => b.customFruit && b.customFruit.isBomb && !b._isExploding);
+      bombsToExplode.forEach(b => { b._isExploding = true; });
+
+      bodiesToRemove.forEach(b => {
+        if (!b.customFruit) return;
+
+        const fType = b.customFruit.type;
+        const skillId = state.pairAssignments[fType];
+        const skillInfo = skillId ? state.ownedSkills[skillId] : null;
+        const skillLv = skillInfo ? skillInfo.level : 1;
+
+        const earnedCoins = Math.round(1 * (1 + (skillLv - 1) * 0.5) * effectiveMultiplier);
+        const earnedScore = Math.round(100 * (1 + (skillLv - 1) * 0.25) * effectiveMultiplier);
+
+        currentCoins += earnedCoins;
+        currentScore += earnedScore;
+
+        const screenX = canvasRect.left + (b.position.x * scaleX);
+        const screenY = canvasRect.top + (b.position.y * scaleY);
+        spawnAbsorbEffect(screenX, screenY, false);
+        spawnAbsorbEffect(screenX, screenY, true);
+
+        if (skillId && SKILL_MASTERS[skillId]) {
+          const maxCharge = SKILL_MASTERS[skillId].maxCharge;
+          if (skillCharges[fType] < maxCharge) {
+            // スキルによる破壊(サムライタイム含む)はスキルチャージがタップ(1.0)の0.1倍になる
+            const chargeAmount = isSkillSource ? 0.1 : 1.0;
+            skillCharges[fType] = Math.min(maxCharge, skillCharges[fType] + chargeAmount);
+            updateSkillButtonUI(fType);
+          }
+        }
+
+        if (chargeFruitActive) {
+          chargeCount++;
+          const badge = document.getElementById('chargeCountBadge');
+          if (badge) badge.innerText = chargeCount;
+        }
+
+        Matter.World.remove(world, b);
+        const idx = fruitBodies.indexOf(b);
+        if (idx !== -1) fruitBodies.splice(idx, 1);
+      });
+
+      // 爆弾爆発による連鎖：スキル扱い(isSkillSource = true)として誘爆
+      bombsToExplode.forEach(bombBody => {
+        const bombPos = { x: bombBody.position.x, y: bombBody.position.y };
+        createExplosionVisual(bombPos.x, bombPos.y);
+
+        const radius = 110;
+        const nearby = fruitBodies.filter(b => {
+          if (!b.customFruit || b._isExploding) return false;
+          const dist = Math.hypot(b.position.x - bombPos.x, b.position.y - bombPos.y);
+          return dist <= radius;
+        });
+
+        if (nearby.length > 0) {
+          setTimeout(() => {
+            removeFruitBodies(nearby, multiplier, true);
+          }, 80);
+        }
+      });
+
+      document.getElementById('gameScore').innerText = currentScore.toLocaleString();
+      document.getElementById('gameCoins').innerText = currentCoins.toLocaleString();
+      
+      if (!isChargeDestructionActive) {
+        refillFruits();
+      }
+    }
+
+    canvasContainer.addEventListener('pointerdown', (e) => {
+      if (!gameActive || isTimePaused()) return;
+
+      const { x: clickX, y: clickY } = getCanvasCoordinates(e);
+
+      // サムライタイム中は斬撃（スキル攻撃のためisSkillSource=true）
+      if (activeSamuraiMode) {
+        const samuraiSkillId = Object.values(state.pairAssignments).find(s => s === 'samurai');
+        const samuraiLv = (samuraiSkillId && state.ownedSkills[samuraiSkillId]) ? state.ownedSkills[samuraiSkillId].level : 1;
+        
+        if (isSkillAwakened(samuraiLv)) {
+          handleSamuraiCrossSlash(clickX, clickY);
+        } else {
+          handleSamuraiSlash(clickX, clickY);
+        }
+        return;
+      }
+
+      // タップ地点周辺の果物をまとめて取得 (一タップで3~4個程度を巻き込む半径65px)
+      const TOUCH_RADIUS = 65;
+      const nearbyBodies = fruitBodies.filter(b => {
+        if (!b.customFruit) return false;
+        const dist = Math.hypot(b.position.x - clickX, b.position.y - clickY);
+        return dist <= TOUCH_RADIUS;
+      });
+
+      if (nearbyBodies.length === 0) return;
+
+      // タップ直下の果物をチェック
+      const tappedBody = fruitBodies.find(b => {
+        if (!b.customFruit) return false;
+        const dist = Math.hypot(b.position.x - clickX, b.position.y - clickY);
+        return dist <= FRUITS[b.customFruit.type].radius + 12;
+      });
+
+      // 爆弾果物タップ時
+      if (tappedBody && tappedBody.customFruit.isBomb) {
+        triggerBombExplosion(tappedBody);
+        return;
+      }
+
+      // チェーン果物タップ時
+      if (tappedBody && tappedBody.customFruit.isChained) {
+        const chainSkillId = state.pairAssignments[tappedBody.customFruit.type];
+        const skillLv = chainSkillId && state.ownedSkills[chainSkillId] ? state.ownedSkills[chainSkillId].level : 1;
+
+        if (isSkillAwakened(skillLv)) {
+          const allChainedGroup = fruitBodies.filter(b => b.customFruit && b.customFruit.isChained);
+          removeFruitBodies(allChainedGroup, 1.0, false);
+        } else {
+          const chainedGroup = fruitBodies.filter(b => b.customFruit && b.customFruit.isChained && b.customFruit.type === tappedBody.customFruit.type);
+          removeFruitBodies(chainedGroup, 1.0, false);
+        }
+        return;
+      }
+
+      // 通常タップ時：タップ地点の周りの果物も同時に消去（タップによる破壊なのでスキル低下倍率はかからない: isSkillSource = false）
+      removeFruitBodies(nearbyBodies, 1.0, false);
+    });
+
+    function handleSamuraiSlash(clickX, clickY) {
+      const angle = Math.random() * Math.PI * 2;
+      const length = Math.max(width, height) * 2;
+      
+      const p1 = { x: clickX - Math.cos(angle) * length, y: clickY - Math.sin(angle) * length };
+      const p2 = { x: clickX + Math.cos(angle) * length, y: clickY + Math.sin(angle) * length };
+
+      drawSlashLine(p1.x, p1.y, p2.x, p2.y);
+      sliceFruitsAlongLine(p1, p2);
+    }
+
+    function handleSamuraiCrossSlash(clickX, clickY) {
+      const angle = Math.random() * Math.PI * 2;
+      const angle2 = angle + Math.PI / 2;
+      const length = Math.max(width, height) * 2;
+      
+      const line1_p1 = { x: clickX - Math.cos(angle) * length, y: clickY - Math.sin(angle) * length };
+      const line1_p2 = { x: clickX + Math.cos(angle) * length, y: clickY + Math.sin(angle) * length };
+
+      const line2_p1 = { x: clickX - Math.cos(angle2) * length, y: clickY - Math.sin(angle2) * length };
+      const line2_p2 = { x: clickX + Math.cos(angle2) * length, y: clickY + Math.sin(angle2) * length };
+
+      drawSlashLine(line1_p1.x, line1_p1.y, line1_p2.x, line1_p2.y);
+      drawSlashLine(line2_p1.x, line2_p1.y, line2_p2.x, line2_p2.y);
+
+      const sliced = fruitBodies.filter(b => {
+        if (!b.customFruit) return false;
+        const radius = FRUITS[b.customFruit.type].radius + 20;
+        return lineIntersectsCircle(line1_p1, line1_p2, b.position, radius) ||
+               lineIntersectsCircle(line2_p1, line2_p2, b.position, radius);
+      });
+      // サムライタイムタップによる斬撃破壊はスキル扱い (isSkillSource = true)
+      removeFruitBodies(sliced, 1.0, true);
+    }
+
+    function drawSlashLine(x1, y1, x2, y2) {
+      slashCtx.strokeStyle = '#f43f5e';
+      slashCtx.lineWidth = 20;
+      slashCtx.lineCap = 'round';
+      slashCtx.beginPath();
+      slashCtx.moveTo(x1, y1);
+      slashCtx.lineTo(x2, y2);
+      slashCtx.stroke();
+
+      setTimeout(() => {
+        slashCtx.clearRect(0, 0, width, height);
+      }, 150);
+    }
+
+    function sliceFruitsAlongLine(p1, p2) {
+      const sliced = fruitBodies.filter(b => {
+        if (!b.customFruit) return false;
+        return lineIntersectsCircle(p1, p2, b.position, FRUITS[b.customFruit.type].radius + 20);
+      });
+      // サムライタイム斬撃はスキル扱い (isSkillSource = true)
+      removeFruitBodies(sliced, 1.0, true);
+    }
+
+    function lineIntersectsCircle(p1, p2, c, r) {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy);
+      if (len === 0) return false;
+      const u = ((c.x - p1.x) * dx + (c.y - p1.y) * dy) / (len * len);
+      const clampedU = Math.max(0, Math.min(1, u));
+      const nearestX = p1.x + clampedU * dx;
+      const nearestY = p1.y + clampedU * dy;
+      return Math.hypot(c.x - nearestX, c.y - nearestY) <= r;
+    }
+
+    function endSamuraiMode() {
+      activeSamuraiMode = false;
+      samuraiRemainingMs = 0;
+      if (canvasContainer) {
+        canvasContainer.classList.remove('cursor-crosshair');
+      }
+    }
+
+    function renderInGameSkillButtons() {
+      const deck = document.getElementById('inGameSkillButtons');
+      deck.innerHTML = '';
+
+      Object.keys(FRUITS).forEach(fKey => {
+        const fruit = FRUITS[fKey];
+        const skillId = state.pairAssignments[fKey];
+        const skill = skillId ? SKILL_MASTERS[skillId] : null;
+        const skillLv = skillId && state.ownedSkills[skillId] ? state.ownedSkills[skillId].level : 1;
+        const awakened = isSkillAwakened(skillLv);
+
+        const btn = document.createElement('button');
+        btn.id = `skillBtn_${fKey}`;
+        btn.className = `relative bg-slate-900 border-2 ${awakened ? 'border-amber-400' : 'border-slate-700'} rounded-xl p-2 flex flex-col items-center justify-center transition disabled:opacity-50 overflow-hidden touch-none select-none`;
+        btn.disabled = true;
+
+        if (skill) {
+          btn.innerHTML = `
+            <div class="text-[10px] ${awakened ? 'rainbow-text font-black' : 'text-purple-300 font-bold'} truncate max-w-full mb-1">
+              ${awakened ? '覚醒 ' : ''}${skill.name}
+            </div>
+            <div class="relative w-10 h-10 rounded-xl bg-gradient-to-br ${skill.bg} flex items-center justify-center text-white text-lg shadow">
+              <i class="fas ${skill.icon}"></i>
+              <span class="absolute -bottom-1 -right-1 text-xs">${fruit.emoji}</span>
+            </div>
+            <div id="chargeBar_${fKey}" class="absolute bottom-0 left-0 right-0 bg-amber-500/30 h-1 transition-all"></div>
+            <div id="chargeBadge_${fKey}" class="text-[10px] text-amber-300 font-bold mt-1">0/${skill.maxCharge}</div>
+          `;
+          
+          btn.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            if (!btn.disabled && gameActive && !isTimePaused()) {
+              useSkill(fKey, skillId);
+            }
+          });
+        } else {
+          btn.innerHTML = `
+            <div class="text-xs text-slate-500 font-bold">未設定</div>
+            <div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-600 text-lg">
+              ${fruit.emoji}
+            </div>
+          `;
+        }
+
+        deck.appendChild(btn);
+      });
+    }
+
+    function updateSkillButtonUI(fKey) {
+      const skillId = state.pairAssignments[fKey];
+      if (!skillId) return;
+      const skill = SKILL_MASTERS[skillId];
+      const cur = skillCharges[fKey];
+      const max = skill.maxCharge;
+      const skillLv = state.ownedSkills[skillId] ? state.ownedSkills[skillId].level : 1;
+      const awakened = isSkillAwakened(skillLv);
+
+      const btn = document.getElementById(`skillBtn_${fKey}`);
+      const bar = document.getElementById(`chargeBar_${fKey}`);
+      const badge = document.getElementById(`chargeBadge_${fKey}`);
+
+      if (bar) bar.style.height = `${Math.min(100, (cur / max) * 100)}%`;
+      if (badge) badge.innerText = `${Math.floor(cur)}/${max}`;
+
+      const isBlocked = (skillId === 'charge' && chargeFruitActive) || isTimePaused();
+
+      if (cur >= max && !isBlocked) {
+        btn.disabled = false;
+        btn.classList.add(awakened ? 'awaken-glow' : 'pulse-glow');
+      } else {
+        btn.disabled = true;
+        btn.classList.remove('pulse-glow', 'awaken-glow');
+      }
+    }
+
+    function useSkill(fKey, skillId) {
+      if (!gameActive || isTimePaused() || skillCharges[fKey] < SKILL_MASTERS[skillId].maxCharge) return;
+      if (skillId === 'charge' && chargeFruitActive) return;
+
+      skillCharges[fKey] = 0;
+      updateSkillButtonUI(fKey);
+
+      const skillLv = state.ownedSkills[skillId] ? state.ownedSkills[skillId].level : 1;
+      const awakened = isSkillAwakened(skillLv);
+
+      switch (skillId) {
+        case 'bomber':
+          if (awakened) {
+            fruitBodies.forEach(b => {
+              if (b.customFruit) b.customFruit.isBomb = true;
+            });
+            showFlashMessage('🌟 覚醒ボム爆破準備完了！ 🌟\n全果物爆弾化！');
+          } else {
+            fruitBodies.forEach(b => {
+              if (b.customFruit && b.customFruit.type === fKey) {
+                b.customFruit.isBomb = true;
+              }
+            });
+          }
+          break;
+
+        case 'chain':
+          if (awakened) {
+            fruitBodies.forEach(b => {
+              if (b.customFruit) b.customFruit.isChained = true;
+            });
+            showFlashMessage('🌟 覚醒フルーツチェーン！ 🌟\n全種類一括接続！');
+          } else {
+            fruitBodies.forEach(b => {
+              if (b.customFruit && b.customFruit.type === fKey) {
+                b.customFruit.isChained = true;
+              }
+            });
+          }
+          break;
+
+        case 'cannon':
+          triggerCannonAttack(awakened);
+          break;
+
+        case 'sword':
+          triggerSwordCut(awakened);
+          break;
+
+        case 'small_bomb':
+          spawnSmallBombs(fKey, awakened);
+          break;
+
+        case 'samurai':
+          activateSamuraiMode(awakened);
+          break;
+
+        case 'roulette':
+          openRouletteModal(awakened);
+          break;
+
+        case 'charge':
+          activateChargeFruitSkill(fKey, awakened);
+          break;
+      }
+    }
+
+    function triggerBombExplosion(bombBody) {
+      removeFruitBodies([bombBody], 1.0, true);
+    }
+
+    function createExplosionVisual(x, y) {
+      const el = document.createElement('div');
+      el.className = 'absolute rounded-full pointer-events-none z-40 border-4 border-amber-400 bg-orange-500/40 animate-ping';
+      el.style.width = '160px';
+      el.style.height = '160px';
+      el.style.left = (x - 80) + 'px';
+      el.style.top = (y - 80) + 'px';
+      canvasContainer.appendChild(el);
+      setTimeout(() => el.remove(), 400);
+    }
+
+    function triggerCannonAttack(awakened) {
+      showFlashMessage(awakened ? '🌟 覚醒メガキャノン！！ 🌟' : 'CANNON FIRE!');
+      let shotCount = 0;
+      const totalShots = awakened ? 10 : 4;
+      const radius = awakened ? 130 : 80;
+
+      const fireInterval = setInterval(() => {
+        if (!gameActive || shotCount >= totalShots) {
+          clearInterval(fireInterval);
+          return;
+        }
+
+        shotCount++;
+
+        const targetX = Math.random() * (width - 120) + 60;
+        const targetY = Math.random() * (height - 180) + 90;
+
+        createExplosionVisual(targetX, targetY);
+
+        const hitFruits = fruitBodies.filter(b => {
+          if (!b.customFruit) return false;
+          const dist = Math.hypot(b.position.x - targetX, b.position.y - targetY);
+          return dist <= radius;
+        });
+
+        if (hitFruits.length > 0) {
+          removeFruitBodies(hitFruits, awakened ? 1.5 : 1.1, true);
+        }
+      }, 200);
+    }
+
+    function triggerSwordCut(awakened) {
+      const cutY = height / 2;
+      const el = document.createElement('div');
+      el.className = 'slice-effect w-full';
+      el.style.top = (cutY - 12) + 'px';
+      canvasContainer.appendChild(el);
+
+      const hitFruits = fruitBodies.filter(b => {
+        if (!b.customFruit) return false;
+        return Math.abs(b.position.y - cutY) < 65;
+      });
+
+      setTimeout(() => {
+        el.remove();
+        removeFruitBodies(hitFruits, 1.2, true);
+
+        if (awakened) {
+          showFlashMessage('🌟 覚醒連撃・九連閃！ 🌟');
+          let extraCount = 0;
+          const extraInterval = setInterval(() => {
+            if (!gameActive || extraCount >= 9) {
+              clearInterval(extraInterval);
+              return;
+            }
+            extraCount++;
+            const rx = Math.random() * width;
+            const ry = Math.random() * height;
+            handleSamuraiSlash(rx, ry);
+          }, 120);
+        }
+      }, 150);
+    }
+
+    function spawnSmallBombs(fKey, awakened) {
+      if (awakened) {
+        showFlashMessage('🌟 覚醒スモールボム乱舞！ 🌟\n全4種 各5個 (計20個) 爆弾発生！');
+        
+        const fruitKeys = Object.keys(FRUITS);
+        let bombQueue = [];
+        fruitKeys.forEach(fk => {
+          for (let i = 0; i < 5; i++) {
+            bombQueue.push(fk);
+          }
+        });
+
+        for (let i = bombQueue.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [bombQueue[i], bombQueue[j]] = [bombQueue[j], bombQueue[i]];
+        }
+
+        let spawned = 0;
+        const spawnInterval = setInterval(() => {
+          if (!gameActive || spawned >= bombQueue.length) {
+            clearInterval(spawnInterval);
+            return;
+          }
+          const typeToSpawn = bombQueue[spawned];
+          spawned++;
+          const x = Math.random() * (width - 60) + 30;
+          const y = -30 - (spawned * 15);
+          const body = spawnFruit(x, y, typeToSpawn);
+          if (body && body.customFruit) {
+            body.customFruit.isBomb = true;
+          }
+        }, 50);
+      } else {
+        showFlashMessage('スモールボム！');
+        let spawned = 0;
+        const spawnInterval = setInterval(() => {
+          if (!gameActive || spawned >= 5) {
+            clearInterval(spawnInterval);
+            return;
+          }
+          spawned++;
+          const x = Math.random() * (width - 60) + 30;
+          const y = -30 - (spawned * 20);
+          const body = spawnFruit(x, y, fKey);
+          if (body && body.customFruit) {
+            body.customFruit.isBomb = true;
+          }
+        }, 60);
+      }
+    }
+
+    function activateSamuraiMode(awakened) {
+      activeSamuraiMode = true;
+      samuraiRemainingMs = 3000;
+      showFlashMessage(awakened ? '🌟 覚醒サムライタイム！ 🌟\n(十文字斬り)' : 'SAMURAI TIME!');
+      canvasContainer.classList.add('cursor-crosshair');
+    }
+
+    function openRouletteModal(awakened) {
+      pushPause();
+      isRouletteActive = true;
+
+      const modal = document.getElementById('modalRoulette');
+      const header = document.getElementById('rouletteHeader');
+      header.innerText = awakened ? '🌟 覚醒フルーツルーレット！ 🌟' : 'フルーツルーレット！';
+      modal.classList.remove('hidden');
+
+      const countDisp = document.getElementById('rouletteCountDisplay');
+      const multDisp = document.getElementById('rouletteMultDisplay');
+      const btn = document.getElementById('btnStartRoulette');
+
+      countDisp.innerText = '?';
+      multDisp.innerText = '?';
+      btn.disabled = false;
+
+      const spinAction = () => {
+        btn.disabled = true;
+
+        const countsAnim = [5, 10, 15, 20, 30, 40, 100];
+        const mults = [1, 1.2, 1.5, 2, 5, 10];
+
+        let cTicks = 0;
+        const cInterval = setInterval(() => {
+          countDisp.innerText = countsAnim[Math.floor(Math.random() * countsAnim.length)] + '個';
+          cTicks++;
+          if (cTicks > 15) {
+            clearInterval(cInterval);
+            
+            const isJackpot = Math.random() < 0.05;
+            const finalCount = isJackpot 
+              ? 100 
+              : [5, 10, 15, 20, 30, 40][Math.floor(Math.random() * 6)];
+
+            countDisp.innerText = finalCount + '個';
+
+            let mTicks = 0;
+            const mInterval = setInterval(() => {
+              multDisp.innerText = 'x' + mults[Math.floor(Math.random() * mults.length)];
+              mTicks++;
+              if (mTicks > 15) {
+                clearInterval(mInterval);
+                const finalMult = mults[Math.floor(Math.random() * mults.length)];
+                multDisp.innerText = 'x' + finalMult;
+
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  
+                  let remainingToClear = finalCount;
+                  function processRouletteDestruction() {
+                    if (!gameActive || remainingToClear <= 0) {
+                      isRouletteActive = false;
+                      popPause();
+
+                      if (awakened) {
+                        feverMultiplier = finalMult;
+                        feverRemainingMs = 3000;
+                        showFlashMessage(`🔥 覚醒FEVER TIME発動！ 🔥\n3秒間 全獲得数 x${finalMult} !`);
+                      }
+                      return;
+                    }
+
+                    const available = fruitBodies.filter(b => b.customFruit && !b._isExploding);
+                    if (available.length > 0) {
+                      const countToTake = Math.min(remainingToClear, available.length);
+                      const toClear = available.slice(0, countToTake);
+                      remainingToClear -= countToTake;
+                      removeFruitBodies(toClear, finalMult, true);
+                    }
+
+                    if (remainingToClear > 0 && gameActive) {
+                      refillFruits();
+                      setTimeout(processRouletteDestruction, 120);
+                    } else {
+                      isRouletteActive = false;
+                      popPause();
+
+                      if (awakened) {
+                        feverMultiplier = finalMult;
+                        feverRemainingMs = 3000;
+                        showFlashMessage(`🔥 覚醒FEVER TIME発動！ 🔥\n3秒間 全獲得数 x${finalMult} !`);
+                      }
+                    }
+                  }
+
+                  processRouletteDestruction();
+                }, 800);
+              }
+            }, 80);
+          }
+        }, 80);
+      };
+
+      btn.onclick = spinAction;
+    }
+
+    function activateChargeFruitSkill(fKey, awakened) {
+      chargeFruitActive = true;
+      chargeCount = 0;
+      chargeRemainingMs = 5000;
+      updateSkillButtonUI(fKey);
+
+      const btn = document.getElementById(`skillBtn_${fKey}`);
+      const badge = document.createElement('div');
+      badge.id = 'chargeCountBadge';
+      badge.className = 'absolute top-1 right-1 z-10 bg-pink-600 text-white font-black text-[10px] px-1.5 py-0.5 rounded-full shadow border border-white animate-bounce';
+      badge.innerText = '0';
+      btn.appendChild(badge);
+
+      showFlashMessage(awakened ? '🌟 覚醒チャージ開始！ (1.5倍ボーナス) 🌟' : 'チャージ開始 (5秒間)');
+    }
+
+    async function triggerChargeFruitExplosion() {
+      const badge = document.getElementById('chargeCountBadge');
+      if (badge) badge.remove();
+
+      const fKey = Object.keys(state.pairAssignments).find(k => state.pairAssignments[k] === 'charge');
+      const skillLv = fKey && state.ownedSkills['charge'] ? state.ownedSkills['charge'].level : 1;
+      const awakened = isSkillAwakened(skillLv);
+
+      const totalToDestroy = awakened ? Math.round(chargeCount * 1.5) : chargeCount;
+
+      if (totalToDestroy <= 0 || !gameActive) {
+        chargeFruitActive = false;
+        if (fKey) updateSkillButtonUI(fKey);
+        return;
+      }
+
+      pushPause();
+      isChargeDestructionActive = true;
+      showFlashMessage(awakened ? `🌟 覚醒超チャージ爆発! 🌟\nボーナス! ${totalToDestroy}個破壊!` : `チャージ爆発!\n${totalToDestroy}個破壊`);
+
+      Object.keys(FRUITS).forEach(k => updateSkillButtonUI(k));
+
+      const existing = [...fruitBodies];
+      existing.forEach(b => Matter.World.remove(world, b));
+      fruitBodies = [];
+
+      let remaining = totalToDestroy;
+
+      while (remaining > 0 && gameActive) {
+        const currentBatchCount = Math.min(40, remaining);
+
+        for (let i = 0; i < currentBatchCount; i++) {
+          spawnFruit(Math.random() * (width - 60) + 30, -30 - ((i % 10) * 35));
+        }
+
+        await new Promise(res => setTimeout(res, 800));
+        if (!gameActive) break;
+
+        const batchBodies = [...fruitBodies];
+        removeFruitBodies(batchBodies, 1.0, true);
+
+        remaining -= currentBatchCount;
+
+        await new Promise(res => setTimeout(res, 300));
+      }
+
+      isChargeDestructionActive = false;
+      chargeFruitActive = false;
+      popPause();
+
+      refillFruits();
+      Object.keys(FRUITS).forEach(k => updateSkillButtonUI(k));
+    }
+
+    function showFlashMessage(text) {
+      const msg = document.createElement('div');
+      msg.className = 'absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-2xl font-black text-amber-300 bg-slate-900/90 border-2 border-amber-400 px-6 py-3 rounded-2xl shadow-2xl z-50 animate-bounce pointer-events-none text-center whitespace-pre-line';
+      msg.innerText = text;
+      document.querySelector('.mobile-container').appendChild(msg);
+      setTimeout(() => msg.remove(), 1400);
+    }
+
+    function renderSkillMenu() {
+      const pairList = document.getElementById('pairAssignList');
+      pairList.innerHTML = '';
+
+      Object.keys(FRUITS).forEach(fKey => {
+        const fruit = FRUITS[fKey];
+        const currentSkill = state.pairAssignments[fKey];
+
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-800';
+        row.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <span class="text-2xl">${fruit.emoji}</span>
+            <span class="text-sm font-bold text-white">${fruit.name}</span>
+          </div>
+          <select id="select_${fKey}" class="bg-slate-800 text-amber-300 font-bold text-xs p-2 rounded-lg border border-purple-500/40 focus:outline-none">
+            <option value="">(なし)</option>
+            ${Object.keys(state.ownedSkills).map(sId => {
+              const master = SKILL_MASTERS[sId];
+              if (!master) return '';
+              const lvl = state.ownedSkills[sId].level;
+              const selected = currentSkill === sId ? 'selected' : '';
+              return `<option value="${sId}" ${selected}>${master.name} (Lv.${lvl}${lvl>=25?' 覚醒':''})</option>`;
+            }).join('')}
+          </select>
+        `;
+        pairList.appendChild(row);
+
+        document.getElementById(`select_${fKey}`).addEventListener('change', (e) => {
+          const selectedSkill = e.target.value || null;
+
+          if (selectedSkill) {
+            Object.keys(state.pairAssignments).forEach(otherKey => {
+              if (otherKey !== fKey && state.pairAssignments[otherKey] === selectedSkill) {
+                state.pairAssignments[otherKey] = null;
+              }
+            });
+          }
+
+          state.pairAssignments[fKey] = selectedSkill;
+          saveSaveData();
+          updateUI();
+          renderSkillMenu();
+        });
+      });
+
+      const ownedList = document.getElementById('ownedSkillsList');
+      ownedList.innerHTML = '';
+
+      Object.keys(state.ownedSkills).forEach(sId => {
+        const master = SKILL_MASTERS[sId];
+        if (!master) return;
+        const skill = state.ownedSkills[sId];
+        const cost = 1000 + (skill.level - 1) * 500;
+        const canAfford = state.coins >= cost;
+        const awakened = isSkillAwakened(skill.level);
+
+        const card = document.createElement('div');
+        card.className = `bg-slate-900 p-3.5 rounded-xl border ${awakened ? 'border-amber-400/80 bg-slate-900/95' : 'border-slate-800'} flex flex-col space-y-2 relative overflow-hidden`;
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br ${master.bg} flex items-center justify-center text-white text-xl shadow relative">
+                <i class="fas ${master.icon}"></i>
+                ${awakened ? '<span class="absolute -top-1 -right-1 text-[9px] bg-amber-400 text-slate-950 font-black px-1 rounded-full">覚醒</span>' : ''}
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-black text-white">${master.name}</span>
+                  <span class="${awakened ? 'bg-amber-500 text-slate-950 font-black' : 'bg-purple-900/80 text-purple-300 font-bold'} text-[10px] px-2 py-0.5 rounded-full">
+                    Lv.${skill.level} ${awakened ? '覚醒' : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <button id="btnUpgrade_${sId}" ${canAfford ? '' : 'disabled'} class="px-3 py-2 bg-amber-500 hover:bg-amber-400 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-black text-xs rounded-xl transition flex flex-col items-center">
+              <span>強化</span>
+              <span class="text-[9px]">${cost.toLocaleString()} G</span>
+            </button>
+          </div>
+
+          <!-- Description Section with Normal & Awakened Info -->
+          <div class="text-[11px] bg-slate-950/60 p-2 rounded-lg border border-slate-800/80 space-y-1">
+            <div class="${!awakened ? 'text-amber-200 font-medium' : 'text-slate-400'}">
+              <span class="font-bold text-[10px] text-purple-300">【通常効果】</span> ${master.descNormal}
+            </div>
+            <div class="${awakened ? 'rainbow-text font-bold' : 'text-slate-400'}">
+              <span class="font-bold text-[10px] text-amber-400">【覚醒効果 (Lv.25~)】</span> ${master.descAwakened}
+            </div>
+          </div>
+        `;
+        ownedList.appendChild(card);
+
+        const upBtn = document.getElementById(`btnUpgrade_${sId}`);
+        if (upBtn && canAfford) {
+          upBtn.onclick = () => {
+            state.coins -= cost;
+            skill.level++;
+            saveSaveData();
+            updateUI();
+            renderSkillMenu();
+          };
+        }
+      });
+    }
+
+    function resetSaveData() {
+      state = {
+        coins: 0,
+        highScore: 0,
+        scoreHistory: [],
+        ownedSkills: {
+          bomber: { level: 1 }
+        },
+        pairAssignments: {
+          watermelon: 'bomber',
+          orange: null,
+          apple: null,
+          grape: null
+        }
+      };
+      window.state = state;
+      try {
+        localStorage.removeItem('fruit_crush_save_v1');
+        localStorage.setItem('fruit_crush_save_v1', JSON.stringify(state));
+      } catch (e) {
+        console.error('Failed to reset localStorage:', e);
+      }
+      if (window.saveSaveDataToCloud) {
+        window.saveSaveDataToCloud(state);
+      }
+      updateUI();
+      if (!document.getElementById('screenSkill').classList.contains('hidden')) {
+        renderSkillMenu();
+      }
+      showFlashMessage('セーブデータを初期化しました');
+    }
+
+    // Modal Control for Double Confirmation Delete
+    const modalDeleteConfirm = document.getElementById('modalDeleteConfirm');
+    const deleteStep1 = document.getElementById('deleteStep1');
+    const deleteStep2 = document.getElementById('deleteStep2');
+
+    document.getElementById('btnOpenDeleteModal').onclick = () => {
+      deleteStep1.classList.remove('hidden');
+      deleteStep2.classList.add('hidden');
+      modalDeleteConfirm.classList.remove('hidden');
+    };
+
+    document.getElementById('btnCancelDelete1').onclick = () => {
+      modalDeleteConfirm.classList.add('hidden');
+    };
+
+    document.getElementById('btnNextDeleteStep').onclick = () => {
+      deleteStep1.classList.add('hidden');
+      deleteStep2.classList.remove('hidden');
+    };
+
+    document.getElementById('btnCancelDelete2').onclick = () => {
+      modalDeleteConfirm.classList.add('hidden');
+    };
+
+    document.getElementById('btnConfirmDeleteFinal').onclick = () => {
+      modalDeleteConfirm.classList.add('hidden');
+      resetSaveData();
+    };
+
+    document.getElementById('btnGacha').addEventListener('click', () => {
+      if (state.coins < 2000) {
+        showFlashMessage('コインが不足しています');
+        return;
+      }
+
+      state.coins -= 2000;
+      saveSaveData();
+      updateUI();
+
+      const modal = document.getElementById('modalGachaAnim');
+      const box = document.getElementById('gachaEffectBox');
+      const title = document.getElementById('gachaTitle');
+      const result = document.getElementById('gachaResult');
+
+      modal.classList.remove('hidden');
+      box.classList.remove('hidden');
+      result.classList.add('hidden');
+      title.innerText = 'フルーツ大爆発...!?';
+
+      const allSkillIds = Object.keys(SKILL_MASTERS);
+      const rewardId = allSkillIds[Math.floor(Math.random() * allSkillIds.length)];
+      const isNew = !state.ownedSkills[rewardId];
+
+      let oldLv = isNew ? 0 : state.ownedSkills[rewardId].level;
+
+      if (isNew) {
+        state.ownedSkills[rewardId] = { level: 1 };
+      } else {
+        state.ownedSkills[rewardId].level++;
+      }
+      const newLv = state.ownedSkills[rewardId].level;
+      const justAwakened = oldLv < 25 && newLv >= 25;
+
+      saveSaveData();
+
+      setTimeout(() => {
+        box.classList.add('hidden');
+        if (justAwakened) {
+          title.innerText = '🌟 スキル覚醒達成！！ 🌟';
+        } else {
+          title.innerText = isNew ? '🎉 NEW SKILL GET!! 🎉' : '✨ SKILL LEVEL UP! ✨';
+        }
+        result.classList.remove('hidden');
+
+        const master = SKILL_MASTERS[rewardId];
+        const iconBox = document.getElementById('gachaSkillIcon');
+        iconBox.className = `w-20 h-20 rounded-2xl bg-gradient-to-br ${master.bg} flex items-center justify-center text-4xl mb-2 text-white shadow-lg ${isSkillAwakened(newLv) ? 'awaken-glow' : ''}`;
+        iconBox.innerHTML = `<i class="fas ${master.icon}"></i>`;
+
+        document.getElementById('gachaSkillName').innerText = `${master.name} (Lv.${newLv}${isSkillAwakened(newLv)?' 覚醒!':''})`;
+        document.getElementById('gachaSkillDesc').innerText = isSkillAwakened(newLv)
+          ? `【覚醒効果】\n${master.descAwakened}`
+          : `【通常効果】\n${master.descNormal}\n\n(Lv.25で覚醒: ${master.descAwakened})`;
+      }, 1800);
+    });
+
+    document.getElementById('btnCloseGacha').onclick = () => {
+      document.getElementById('modalGachaAnim').classList.add('hidden');
+      renderSkillMenu();
+    };
+
+    document.getElementById('btnStartGame').onclick = startGame;
+
+    document.getElementById('btnOpenSkillMenu').onclick = () => {
+      renderSkillMenu();
+      document.getElementById('screenSkill').classList.remove('hidden');
+    };
+
+    document.getElementById('btnCloseSkillMenu').onclick = () => {
+      document.getElementById('screenSkill').classList.add('hidden');
+      updateUI();
+    };
+
+    document.getElementById('btnHighScore').onclick = () => {
+      const list = document.getElementById('historyList');
+      list.innerHTML = '';
+      if (state.scoreHistory.length === 0) {
+        list.innerHTML = '<div class="text-slate-500 text-center py-4">履歴がありません</div>';
+      } else {
+        state.scoreHistory.forEach((h, idx) => {
+          const item = document.createElement('div');
+          item.className = 'bg-slate-800 p-2.5 rounded-lg flex justify-between items-center';
+          item.innerHTML = `
+            <div>
+              <div class="text-xs text-slate-400">#${idx + 1} - ${h.date}</div>
+              <div class="text-amber-300 font-bold">${h.score.toLocaleString()} pts</div>
+            </div>
+            <div class="text-xs text-amber-400 font-bold">+${h.coins.toLocaleString()} 🪙</div>
+          `;
+          list.appendChild(item);
+        });
+      }
+      document.getElementById('modalHistory').classList.remove('hidden');
+    };
+
+    document.getElementById('btnCloseHistory').onclick = () => {
+      document.getElementById('modalHistory').classList.add('hidden');
+    };
+
+    document.getElementById('btnFinishGame').onclick = () => {
+      document.getElementById('modalGameOver').classList.add('hidden');
+      document.getElementById('screenGame').classList.add('hidden');
+      document.getElementById('mainHeader').classList.remove('hidden');
+      document.getElementById('screenHome').classList.remove('hidden');
+    };
+
+    window.onload = function () {
+      loadSaveData();
+      updateUI();
+    };
+  </script>
+</body>
+</html>
