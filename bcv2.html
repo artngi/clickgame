@@ -1,0 +1,1128 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ブロスタ風 2Dアクション プロ版</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght=800;900&display=swap');
+        
+        :root {
+            --bg-dark: #0f0f1a;
+            --panel-bg: #1d1d35;
+            --panel-border: #4a4a7a;
+            --btn-blue: #3498db; --btn-blue-shadow: #217dbb;
+            --btn-yellow: #f1c40f; --btn-yellow-shadow: #c29d0b;
+            --btn-red: #e74c3c; --btn-red-shadow: #c0392b;
+            --btn-green: #2ecc71; --btn-green-shadow: #27ae60;
+            --text-main: #ffffff;
+            --font-main: 'Nunito', sans-serif;
+        }
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: none; margin: 0; padding: 0; }
+        body, html {
+            width: 100%; height: 100%; background-color: var(--bg-dark); color: var(--text-main);
+            font-family: var(--font-main); overflow: hidden; overscroll-behavior: none;
+        }
+        
+        #gameCanvas { display: none; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+        #uiLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+        
+        #menu {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #23233c 0%, #0c0c14 100%);
+            background-size: 30px 30px;
+            background-image: radial-gradient(#ffffff0a 1px, transparent 1px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20;
+            padding: 10px 15px; overflow: hidden;
+        }
+        h1 {
+            font-size: 1.8rem; margin-bottom: 4px; color: #f1c40f; letter-spacing: 2px;
+            text-shadow: 0 3px 0 #c29d0b, 0 6px 8px rgba(0,0,0,0.6);
+            -webkit-text-stroke: 1.5px #111;
+            line-height: 1;
+        }
+
+        .menu-main-wrapper {
+            display: flex; flex-direction: row; gap: 15px; width: 100%; max-width: 1100px;
+            flex-grow: 1; min-height: 0; align-items: stretch;
+        }
+
+        .battle-setup-container {
+            display: flex; flex-direction: column; gap: 8px; flex: 2;
+            background: rgba(29, 29, 53, 0.95); padding: 10px 15px; border-radius: 16px;
+            border: 3px solid var(--panel-border); box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+            min-height: 0; overflow: hidden;
+        }
+        
+        .char-info-panel {
+            flex: 1; background: rgba(20, 20, 40, 0.95); padding: 12px; border-radius: 16px;
+            border: 3px solid #00d2d3; box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+            display: flex; flex-direction: column; min-height: 0; overflow-y: auto;
+        }
+        .info-title { font-size: 1.05rem; font-weight: 900; color: #f1c40f; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 4px; margin-bottom: 8px; }
+        .info-item { margin-bottom: 6px; font-size: 0.8rem; line-height: 1.2; }
+        .info-label { color: #00d2d3; font-weight: bold; display: block; margin-bottom: 2px; }
+        .info-desc { color: #dcdde1; }
+
+        .setup-row {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid rgba(255,255,255,0.08); padding-bottom: 4px;
+        }
+        .mode-selection-area { display: flex; align-items: center; gap: 8px; }
+        .mode-label { font-size: 0.9rem; color: #00d2d3; font-weight: bold; text-shadow: 1px 1px 0 #000; }
+        
+        .teams-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; flex-grow: 1; min-height: 0;
+        }
+
+        .team-box {
+            background: rgba(15, 15, 26, 0.6); border-radius: 12px; padding: 8px;
+            border: 2px dashed rgba(255,255,255,0.15);
+            display: flex; flex-direction: column; min-height: 0; height: 100%;
+        }
+        .team-blue { border-color: rgba(52, 152, 219, 0.5); background: rgba(52, 152, 219, 0.04); }
+        .team-red { border-color: rgba(231, 76, 60, 0.5); background: rgba(231, 76, 60, 0.04); }
+
+        .team-title {
+            font-size: 0.85rem; font-weight: 900; margin-bottom: 6px; display: flex; justify-content: space-between; flex-shrink: 0;
+        }
+        .team-blue .team-title { color: #3498db; }
+        .team-red .team-title { color: #e74c3c; }
+
+        .slots-list {
+            display: flex; flex-direction: column; gap: 5px; overflow-y: auto; flex-grow: 1; min-height: 0; padding-right: 4px;
+        }
+        .slots-list::-webkit-scrollbar { width: 4px; }
+        .slots-list::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 2px; }
+        .slots-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 2px; }
+
+        .slot-card {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #23233c; border: 2px solid #3d3d5c; border-radius: 8px;
+            padding: 5px 8px; cursor: pointer; transition: transform 0.1s, border-color 0.1s;
+            pointer-events: auto; flex-shrink: 0;
+        }
+        .slot-card.selected { border-color: #f1c40f; background: rgba(241, 196, 15, 0.1); }
+        .slot-card.player-self { border-color: #2ecc71; background: rgba(46, 204, 113, 0.08); }
+        .slot-card.disabled-slot { opacity: 0.4; border-style: dotted; background: #151522; }
+
+        .slot-left { display: flex; align-items: center; gap: 6px; }
+        .slot-icon {
+            width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; font-size: 1.1rem; border: 1.5px solid rgba(255,255,255,0.2); flex-shrink: 0;
+        }
+        .slot-info { display: flex; flex-direction: column; }
+        .slot-name { font-size: 0.75rem; font-weight: 900; line-height: 1.1; }
+        .slot-details { font-size: 0.7rem; color: #a5a5c5; line-height: 1.1; }
+
+        .slot-right { display: flex; gap: 3px; align-items: center; }
+        .badge { padding: 1px 4px; border-radius: 4px; font-size: 0.6rem; font-weight: bold; color: #fff; white-space: nowrap; }
+        .badge-gadget { background: #2ecc71; }
+        .badge-sp { background: #f1c40f; color: #111; }
+        .badge-disabled { background: #7f8c8d; }
+
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; align-items: center;
+            justify-content: center; z-index: 100; padding: 10px; pointer-events: auto;
+        }
+        .modal-content {
+            background: #1d1d35; border: 3px solid var(--panel-border); border-radius: 16px; width: 100%; max-width: 440px; padding: 12px 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 8px;
+        }
+        .modal-header { font-size: 1.1rem; font-weight: 900; color: #f1c40f; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 4px; }
+        
+        select {
+            appearance: none; padding: 8px 12px; border-radius: 8px; border: 2.5px solid #00d2d3; background: #1e1e2f; color: #fff; font-size: 0.85rem; font-family: var(--font-main); font-weight: bold; outline: none; cursor: pointer; box-shadow: 0 3px 0 #008f8f; transition: transform 0.1s; width: 100%;
+        }
+        select:active { transform: translateY(3px); box-shadow: 0 0 0 #008f8f; }
+
+        .modal-buttons { display: flex; gap: 10px; margin-top: 5px; justify-content: flex-end; }
+        .btn-modal { padding: 6px 15px; border-radius: 8px; border: none; font-family: var(--font-main); font-weight: 900; cursor: pointer; font-size: 0.85rem; }
+        .btn-save { background: var(--btn-green); color: #fff; box-shadow: 0 3px 0 var(--btn-green-shadow); }
+        .btn-cancel { background: #7f8c8d; color: #fff; box-shadow: 0 3px 0 #5f6c6d; }
+
+        .bottom-action-bar {
+            display: flex; width: 100%; max-width: 1100px; justify-content: center; gap: 12px; align-items: center; margin-top: 6px; flex-shrink: 0;
+        }
+        .bottom-action-bar select { width: auto; min-width: 180px; padding: 6px 10px; }
+
+        .btn-start {
+            padding: 8px 30px; border-radius: 12px; border: none;
+            background: var(--btn-yellow); color: #222; font-size: 1.15rem; font-weight: 900;
+            font-family: var(--font-main); cursor: pointer;
+            box-shadow: 0 4px 0 var(--btn-yellow-shadow), 0 6px 10px rgba(0,0,0,0.4);
+            text-transform: uppercase; transition: transform 0.1s;
+        }
+        .btn-start:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-yellow-shadow); }
+
+        #hud-top {
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 5px; align-items: center; justify-content: center; background: rgba(0,0,0,0.65); padding: 8px 30px; border-radius: 20px; border: 2px solid rgba(255,255,255,0.2); font-size: 1.3rem; font-weight: 900; text-shadow: 2px 2px 0 #000; min-width: 260px; text-align: center;
+        }
+        .score-blue { color: #3498db; } .score-red { color: #e74c3c; }
+        #kill-log { position: absolute; top: 20px; right: 20px; font-size: 0.9rem; font-weight: bold; text-align: right; text-shadow: 1px 1px 2px #000; display: flex; flex-direction: column; gap: 5px; }
+        .log-item { background: rgba(0,0,0,0.4); padding: 5px 10px; border-radius: 10px; animation: fadeOut 4s forwards; }
+        @keyframes fadeOut { 0% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+        #resultsScreen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(18, 18, 28, 0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 30; padding: 20px; overflow-y: auto;
+        }
+        #resultsScreen h2 { font-size: 2.5rem; color: #f1c40f; text-shadow: 0 3px 0 #c29d0b; margin-bottom: 15px; }
+        .results-container { width: 100%; max-width: 700px; background: #22223b; border-radius: 15px; border: 3px solid #4a4a6a; margin-bottom: 15px; }
+        .results-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .results-table th, .results-table td { padding: 10px 15px; border-bottom: 1.5px solid #2d2d44; font-size: 0.95rem; }
+        .results-table th { background-color: #1a1a2e; color: #00d2d3; }
+        .btn-close-results { padding: 12px 35px; border-radius: 12px; background: var(--btn-blue); color: #fff; font-size: 1.2rem; font-weight: 900; border: none; cursor: pointer; }
+
+        #rotatePrompt { position: absolute; top:0; left:0; width:100%; height:100%; background: var(--bg-dark); display: none; z-index: 100; align-items: center; justify-content: center; text-align: center; }
+        @media screen and (orientation: portrait) { #rotatePrompt { display: flex; flex-direction: column; } #menu, #gameCanvas, #uiLayer, #resultsScreen, .modal { display: none !important; } }
+    </style>
+</head>
+<body>
+    <div id="rotatePrompt"><h2>📱 スマホを横向きにしてください</h2></div>
+
+    <div id="menu">
+        <h1>BRAWL CLONE</h1>
+        <div class="menu-main-wrapper">
+            <div class="battle-setup-container">
+                <div class="setup-row">
+                    <div style="font-size:0.95rem; font-weight: 900; color:#fff;">🛡️ メンバー編成シミュレーター</div>
+                </div>
+                <div class="teams-grid">
+                    <div class="team-box team-blue">
+                        <div class="team-title"><span>🟢 味方 (TEAM ALPHA)</span><span id="blueCountText"></span></div>
+                        <div class="slots-list" id="blueSlots"></div>
+                    </div>
+                    <div class="team-box team-red">
+                        <div class="team-title"><span>🔴 敵 (TEAM OMEGA)</span><span id="redCountText"></span></div>
+                        <div class="slots-list" id="redSlots"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="char-info-panel" id="charInfoPanel">
+                <div class="info-title" id="infoTitle">キャラクター性能</div>
+                <div id="infoContent">
+                    <div style="color:#a5a5c5; font-size:0.85rem; text-align:center; margin-top:20px;">編成枠を選択すると、<br>ここに性能が表示されます。</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-action-bar">
+            <div class="mode-selection-area">
+                <span class="mode-label">モード</span>
+                <select id="selMode">
+                    <option value="gemgrab">💎 エメラルドハント (3v3)</option>
+                    <option value="wipeout">⚔️ 殲滅 (3v3)</option>
+                    <option value="bounty">⭐ 賞金稼ぎ (3v3)</option>
+                    <option value="knockout">💀 ノックアウト (3v3)</option>
+                    <option value="showdown">🏜️ ソロバトル (1v11)</option>
+                </select>
+            </div>
+            <button class="btn-start" id="btnStart">BATTLE START</button>
+        </div>
+    </div>
+
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header" id="modalTitle">スロット編集</div>
+            <div style="display:flex; flex-direction:column; gap:3px;">
+                <label style="font-size:0.8rem; color:#00d2d3;">キャラクター</label><select id="modalCharSelect"></select>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:3px;" id="modalGadgetArea">
+                <label style="font-size:0.8rem; color:#00d2d3;">ガジェット</label><select id="modalGadgetSelect"></select>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:3px;" id="modalSpArea">
+                <label style="font-size:0.8rem; color:#00d2d3;">スターパワー</label><select id="modalSpSelect"></select>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-modal btn-cancel" id="btnModalCancel">キャンセル</button>
+                <button class="btn-modal btn-save" id="btnModalSave">適用</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="resultsScreen">
+        <h2 id="resultsTitle">🎉 BATTLE RESULTS</h2>
+        <div class="results-container">
+            <table class="results-table">
+                <thead><tr><th>キャラ</th><th>チーム</th><th>KILLS</th><th>DEATHS</th></tr></thead>
+                <tbody id="resultsTableBody"></tbody>
+            </table>
+        </div>
+        <button class="btn-close-results" id="btnCloseResults">メニューに戻る</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+    <div id="uiLayer">
+        <div id="hud-top"></div><div id="kill-log"></div>
+    </div>
+
+<script>
+const CHAR_DATA = {
+    shelly: {
+        name: 'シェリー', color: '#8e44ad', type: 'shotgun', icon: '🟣',
+        hp: 9200, speed: 2.9, reload: 70, ammo: 3, range: 250, attackWidth: 0.6, superChargeRate: 1.0,
+        gadgets: [{ id: 'dash', name: '全速前進' }, { id: 'sharp', name: 'シャープショット' }],
+        sps: [{ id: 'hyper', name: 'ハイパーショット' }, { id: 'combo', name: '連続ショット' }],
+        hcName: 'ハイパーチャージ',
+        desc: {
+            attack: '前方に散弾を撃つ。至近距離で高ダメージ。', super: '壁を破壊しノックバックさせる強力な散弾。',
+            gadget: '指定方向へダッシュ / 射程が伸びスロー効果のある細い弾。', sp: '弾MAX時射程UP / リロード4枠。', hc: 'リロード3倍、被ダメ半減。'
+        }
+    },
+    colt: {
+        name: 'コルト', color: '#e74c3c', type: 'shooter', icon: '🔴',
+        hp: 8400, speed: 2.8, reload: 60, ammo: 3, range: 450, attackWidth: 0.1, superChargeRate: 0.6,
+        gadgets: [{ id: 'one', name: 'ワンショット' }, { id: 'slow', name: 'スローダウン' }],
+        sps: [{ id: 'million', name: 'ミリオンショット' }, { id: 'big', name: 'ビックショット' }],
+        hcName: 'ハイパーチャージ',
+        desc: {
+            attack: '直線の連続射撃。', super: '壁を貫通・破壊する強力な連続射撃。',
+            gadget: '1発の大ダメージ弾 / 壁貫通でダメージ無・スロー効果。', sp: '弾数増加 / 弾サイズ増加。', hc: '遠くへ飛ぶほど弾が巨大化。'
+        }
+    },
+    primo: {
+        name: 'エル・プリモ', color: '#2980b9', type: 'melee', icon: '🔵',
+        hp: 16000, speed: 3.2, reload: 58, ammo: 3, range: 140, attackWidth: 0.8, superChargeRate: 1.0,
+        gadgets: [{ id: 'lariat', name: 'ラリアット' }, { id: 'catch', name: 'キャッチ' }],
+        sps: [{ id: 'speed', name: 'スピードスター' }, { id: 'shock', name: 'ビッグショック' }],
+        hcName: 'ハイパーチャージ',
+        desc: {
+            attack: '至近距離の連続パンチ。', super: '指定地点にジャンプし範囲ダメージ。',
+            gadget: 'ダッシュ攻撃 / 敵を引き寄せる。', sp: '必殺ヒットで加速 / 必殺範囲増加。', hc: '通常攻撃の射程とサイズが増加。'
+        }
+    },
+    gus: {
+        name: 'ガス', color: '#f1c40f', type: 'shooter', icon: '🎈',
+        hp: 6400, speed: 2.8, reload: 74, ammo: 3, range: 500, attackWidth: 0.15, superChargeRate: 0.34,
+        gadgets: [{ id: 'cracker', name: 'ゴーストクラッカー' }, { id: 'summoner', name: 'ゴーストサモナー' }],
+        sps: [{ id: 'master', name: 'ゴーストマスター' }, { id: 'health', name: 'ゴーストヘルス' }],
+        hcName: 'ハイパーチャージ',
+        desc: {
+            attack: '長射程の弾。数発当てるとゴーストを生成。', super: '自身にシールド付与し周囲をノックバック。',
+            gadget: '設置したゴーストを爆発させる / ゴーストゲージをMAXに。', sp: '1発でゲージMAX / ゴーストの回復量増加。', hc: 'ゲージ常時MAX、ゴーストが自動攻撃。'
+        }
+    },
+    mortis: {
+        name: 'モーティス', color: '#2c3e50', type: 'melee', icon: '🦇',
+        hp: 7600, speed: 3.0, reload: 84, ammo: 3, range: 150, attackWidth: 0.6, superChargeRate: 0.25,
+        gadgets: [{ id: 'spinner', name: 'コンボスピナー' }, { id: 'batmove', name: 'バットムーブ' }],
+        sps: [{ id: 'longdash', name: 'ロングダッシュ' }, { id: 'vampire', name: 'ヴァンパイア' }],
+        hcName: 'ハイパーチャージ',
+        desc: {
+            attack: '前方にダッシュしながら攻撃。', super: '貫通し自身を回復するコウモリを放つ。',
+            gadget: '周囲攻撃 / 無敵状態で移動。', sp: '一定時間で射程と速度が強化されるダッシュ / 攻撃ヒットで回復。', hc: '通常攻撃中無敵＆リロード速度3倍。'
+        }
+    },
+    kit: {
+        name: 'キット', color: '#f39c12', type: 'melee', icon: '🐱',
+        hp: 7600, speed: 3.0, reload: 50, ammo: 3, range: 140, attackWidth: 1.047, superChargeRate: 1.0,
+        gadgets: [{ id: 'cardboard', name: '段ボール箱' }, { id: 'fastfood', name: 'ファストフード' }],
+        sps: [{ id: 'fastcharge', name: 'ファストチャージ' }, { id: 'speedcat', name: 'スピードキャット' }],
+        hcName: 'ハイパーチャージ',
+        desc: {
+            attack: '近接ひっかき攻撃。', super: '敵に飛び乗り、自身と敵を同時に気絶させる。',
+            gadget: '一定時間透明化 / 自身を回復。', sp: '時間経過の自動チャージが少し早い / 移動速度UP。', hc: '周囲を気絶させる(敵には乗らない)。'
+        }
+    },
+    chester: {
+        name: 'チェスター', color: '#d35400', type: 'shooter', icon: '🃏',
+        hp: 8000, speed: 2.9, reload: 65, ammo: 3, range: 380, attackWidth: 0.12, superChargeRate: 0.8,
+        gadgets: [{ id: 'candy', name: 'キャンディー' }, { id: 'redraw', name: '引き直し' }],
+        sps: [{ id: 'firststrike', name: '最初の一撃' }, { id: 'reveal', name: '種明かし' }],
+        hcName: 'ハイパーチャージ',
+        desc: {
+            attack: '撃つたびに弾数が増える扇状の攻撃。', super: '5種類の強力な効果からランダムで発動。',
+            gadget: 'ランダムな自己強化バフ / 必殺技の再抽選。', sp: '1発目の威力が高い / 必殺技が事前からわかる。', hc: '通常攻撃が常に最大弾数になる。'
+        }
+    },
+    pius: {
+        name: 'ピアス', color: '#1abc9c', type: 'shooter', icon: '🪃',
+        hp: 6800, speed: 2.8, reload: 80, ammo: 3, range: 450, attackWidth: 0.1, superChargeRate: 0.8,
+        gadgets: [{ id: 'shield_absorb', name: 'シールド吸収' }, { id: 'remote_shoot', name: '遠隔射撃' }],
+        sps: [{ id: 'auto_aim', name: 'オートエイム' }, { id: 'no_gap', name: '隙などない' }],
+        hcName: 'ハイパーチャージ',
+        desc: {
+            attack: '直線の狙撃。弾薬を消費し、地面に落ちた弾を拾うとリロード。', super: '指定範囲にダメージを与え、弾薬をばらまきつつ貫通弾を放つ。',
+            gadget: '落ちている弾薬を消費しシールド獲得 / 落ちている弾薬を回収し一斉射撃。', sp: '貫通弾が少しホーミング / リロード0時回復UP。', hc: '必殺範囲拡大＆2段攻撃。'
+        }
+    }
+};
+
+const SlotsManager = {
+    slots: [], currentEditIndex: -1, selectedIndex: 0,
+    init() {
+        this.slots = [
+            { isPlayer: true, team: 1, brawler: 'pius', gadget: 'shield_absorb', sp: 'auto_aim', enabled: true, name: 'YOU' },
+            { isPlayer: false, team: 1, brawler: 'colt', gadget: 'one', sp: 'million', enabled: true, name: '味方ボットA' },
+            { isPlayer: false, team: 1, brawler: 'primo', gadget: 'lariat', sp: 'speed', enabled: true, name: '味方ボットB' },
+            { isPlayer: false, team: 2, brawler: 'gus', gadget: 'cracker', sp: 'master', enabled: true, name: '敵ボットA' },
+            { isPlayer: false, team: 2, brawler: 'mortis', gadget: 'spinner', sp: 'longdash', enabled: true, name: '敵ボットB' },
+            { isPlayer: false, team: 2, brawler: 'kit', gadget: 'cardboard', sp: 'fastcharge', enabled: true, name: '敵ボットC' }
+        ];
+        for (let i = 1; i <= 11; i++) this.slots.push({ isPlayer: false, team: i + 1, brawler: 'random', gadget: 'random', sp: 'random', enabled: true, name: `敵ボット${i}` });
+        this.render();
+        this.updateInfoPanel(0);
+    },
+    render() {
+        const mode = document.getElementById('selMode').value;
+        const b = document.getElementById('blueSlots'), r = document.getElementById('redSlots');
+        b.innerHTML = ''; r.innerHTML = '';
+        let bC = 0, rC = 0;
+
+        this.slots.forEach((s, i) => {
+            if (mode === 'showdown') {
+                if (s.isPlayer) { b.appendChild(this.createCard(s, i)); if (s.enabled) bC++; }
+                else if (i >= 6 && i < 17) { r.appendChild(this.createCard(s, i)); if (s.enabled) rC++; }
+            } else if (i < 6) {
+                if (s.team === 1) { b.appendChild(this.createCard(s, i)); if (s.enabled) bC++; }
+                else { r.appendChild(this.createCard(s, i)); if (s.enabled) rC++; }
+            }
+        });
+        document.getElementById('blueCountText').textContent = `${bC}人`; document.getElementById('redCountText').textContent = `${rC}人`;
+    },
+    createCard(s, i) {
+        const c = document.createElement('div');
+        c.className = `slot-card ${s.isPlayer ? 'player-self' : ''} ${!s.enabled ? 'disabled-slot' : ''} ${this.selectedIndex === i ? 'selected' : ''}`;
+        let cName = '', cIcon = '❓', cCol = '#7f8c8d';
+        if (!s.enabled) { cIcon = '❌'; cName = s.isPlayer ? '不参加 (観戦)' : '不参加'; }
+        else if (s.brawler === 'random') { cIcon = '🎲'; cName = 'ランダム'; cCol = '#1abc9c'; }
+        else if (CHAR_DATA[s.brawler]) { const d = CHAR_DATA[s.brawler]; cName = d.name; cIcon = d.icon; cCol = d.color; }
+        
+        let gL = 'ランダム', spL = 'ランダム';
+        if (s.enabled && s.brawler !== 'random' && CHAR_DATA[s.brawler]) {
+            const d = CHAR_DATA[s.brawler];
+            let g = d.gadgets.find(x => x.id === s.gadget); if(g) gL = g.name.split(' ')[0];
+            let sp = d.sps.find(x => x.id === s.sp); if(sp) spL = sp.name.split(' ')[0];
+        }
+
+        c.innerHTML = `<div class="slot-left"><div class="slot-icon" style="background-color:${cCol}33; border-color:${cCol};">${cIcon}</div><div class="slot-info"><span class="slot-name">${s.name}</span><span class="slot-details" style="color:${cCol}; font-weight:bold;">${cName}</span></div></div><div class="slot-right">${!s.enabled ? '<span class="badge badge-disabled">不参加</span>' : `<span class="badge badge-gadget">🔧 ${gL}</span><span class="badge badge-sp">⭐ ${spL}</span>`}</div>`;
+        
+        c.addEventListener('click', () => { 
+            this.selectedIndex = i;
+            this.render();
+            this.updateInfoPanel(i);
+            this.openModal(i); 
+        });
+        return c;
+    },
+    updateInfoPanel(index) {
+        const p = document.getElementById('infoContent');
+        const t = document.getElementById('infoTitle');
+        const s = this.slots[index];
+        
+        if (!s || !s.enabled || s.brawler === 'random') {
+            t.innerHTML = `${s ? s.name : ''} の性能`;
+            p.innerHTML = `<div style="color:#a5a5c5; font-size:0.85rem; text-align:center; margin-top:20px;">ランダム、または不参加です。</div>`;
+            return;
+        }
+
+        const d = CHAR_DATA[s.brawler];
+        if(!d) return;
+
+        t.innerHTML = `${d.icon} ${d.name} の性能`;
+        p.innerHTML = `
+            <div class="info-item"><span class="info-label">⚔️ 通常攻撃</span><div class="info-desc">${d.desc.attack}</div></div>
+            <div class="info-item"><span class="info-label">💀 必殺技</span><div class="info-desc">${d.desc.super}</div></div>
+            <div class="info-item"><span class="info-label">🔧 ガジェット</span><div class="info-desc">${d.desc.gadget}</div></div>
+            <div class="info-item"><span class="info-label">⭐ スターパワー</span><div class="info-desc">${d.desc.sp}</div></div>
+            <div class="info-item"><span class="info-label">🔥 ハイパーチャージ</span><div class="info-desc">${d.desc.hc}</div></div>
+        `;
+    },
+    openModal(i) {
+        this.currentEditIndex = i; const s = this.slots[i];
+        document.getElementById('modalTitle').textContent = `${s.name} の設定`;
+        const cSel = document.getElementById('modalCharSelect'); cSel.innerHTML = '';
+        cSel.innerHTML += `<option value="disabled">❌ 不参加</option><option value="random">🎲 ランダム</option>`;
+        for (let k in CHAR_DATA) cSel.innerHTML += `<option value="${k}">${CHAR_DATA[k].icon} ${CHAR_DATA[k].name}</option>`;
+        cSel.value = s.enabled ? s.brawler : 'disabled';
+        this.updateModalSubs(); document.getElementById('editModal').style.display = 'flex';
+    },
+    updateModalSubs() {
+        const b = document.getElementById('modalCharSelect').value;
+        const gArea = document.getElementById('modalGadgetArea'), spArea = document.getElementById('modalSpArea');
+        if (b === 'disabled' || b === 'random') { gArea.style.display = 'none'; spArea.style.display = 'none'; }
+        else {
+            gArea.style.display = 'flex'; spArea.style.display = 'flex';
+            const d = CHAR_DATA[b];
+            document.getElementById('modalGadgetSelect').innerHTML = `<option value="random">🎲 ランダム</option>` + d.gadgets.map(g => `<option value="${g.id}">🔧 ${g.name}</option>`).join('');
+            document.getElementById('modalSpSelect').innerHTML = `<option value="random">🎲 ランダム</option>` + d.sps.map(s => `<option value="${s.id}">⭐ ${s.name}</option>`).join('');
+            const s = this.slots[this.currentEditIndex];
+            document.getElementById('modalGadgetSelect').value = s.brawler === b ? s.gadget : 'random';
+            document.getElementById('modalSpSelect').value = s.brawler === b ? s.sp : 'random';
+        }
+        
+        // 選択変更時に裏でインフォパネルも更新
+        const tempSlot = { enabled: b !== 'disabled', brawler: b };
+        this.slots[this.currentEditIndex].brawler = b; // 一時適用
+        this.slots[this.currentEditIndex].enabled = b !== 'disabled';
+        this.updateInfoPanel(this.currentEditIndex);
+    },
+    save() {
+        const i = this.currentEditIndex; if(i === -1) return;
+        const s = this.slots[i], b = document.getElementById('modalCharSelect').value;
+        if(b === 'disabled') { s.enabled = false; }
+        else {
+            s.enabled = true; s.brawler = b;
+            if (b !== 'random') { s.gadget = document.getElementById('modalGadgetSelect').value; s.sp = document.getElementById('modalSpSelect').value; }
+            else { s.gadget = 'random'; s.sp = 'random'; }
+        }
+        document.getElementById('editModal').style.display = 'none'; this.render(); this.updateInfoPanel(i);
+    }
+};
+document.getElementById('selMode').addEventListener('change', () => SlotsManager.render());
+document.getElementById('modalCharSelect').addEventListener('change', () => SlotsManager.updateModalSubs());
+document.getElementById('btnModalCancel').addEventListener('click', () => document.getElementById('editModal').style.display = 'none');
+document.getElementById('btnModalSave').addEventListener('click', () => SlotsManager.save());
+SlotsManager.init();
+
+const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
+let cw, ch;
+function resize() { cw = canvas.width = window.innerWidth; ch = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize); resize();
+
+function dist(x1,y1,x2,y2) { return Math.hypot(x1-x2, y1-y2); }
+function circleRectCollide(cx, cy, r, rx, ry, rw, rh) {
+    let testX = cx, testY = cy;
+    if (cx < rx) testX = rx; else if (cx > rx + rw) testX = rx + rw;
+    if (cy < ry) testY = ry; else if (cy > ry + rh) testY = ry + rh;
+    let dx = cx - testX, dy = cy - testY; return (dx*dx + dy*dy) <= r*r;
+}
+function lineRectCollide(x1, y1, x2, y2, rx, ry, rw, rh) {
+    let minX = Math.min(x1,x2), maxX = Math.max(x1,x2), minY = Math.min(y1,y2), maxY = Math.max(y1,y2);
+    if(maxX < rx || minX > rx+rw || maxY < ry || minY > ry+rh) return false; return true; 
+}
+function getSafeSpot(x, y, a, d, r) {
+    let nx = x + Math.cos(a)*d, ny = y + Math.sin(a)*d;
+    nx = Math.max(25+r, Math.min(nx, Game.mapW-25-r)); ny = Math.max(25+r, Math.min(ny, Game.mapH-25-r));
+    let isSafe = (tx, ty) => {
+        if(tx-r<25 || tx+r>Game.mapW-25 || ty-r<25 || ty+r>Game.mapH-25) return false;
+        for(let w of Game.map) if(circleRectCollide(tx,ty,r*0.8,w.x,w.y,w.w,w.h)) return false; return true;
+    };
+    if(isSafe(nx, ny)) return {x:nx, y:ny};
+    for(let sr=10; sr<=300; sr+=10) {
+        for(let a2=0; a2<Math.PI*2; a2+=Math.PI/8) {
+            let cx=nx+Math.cos(a2)*sr, cy=ny+Math.sin(a2)*sr;
+            if(isSafe(cx, cy)) return {x:cx,y:cy};
+        }
+    }
+    return {x:nx,y:ny};
+}
+
+const Input = {
+    leftJoy: { active: false, id: null, ox:0, oy:0, nx:0, ny:0, mag:0 },
+    btns: {
+        attack: { type:'normal', id:null, cx:0, cy:0, x:0, y:0, angle:0, mag:0, r:60, color:'#e74c3c', startX:0, startY:0, dragged:false },
+        super:  { type:'super',  id:null, cx:0, cy:0, x:0, y:0, angle:0, mag:0, r:45, color:'#f1c40f', startX:0, startY:0, dragged:false },
+        gadget: { type:'gadget', id:null, cx:0, cy:0, x:0, y:0, angle:0, mag:0, r:35, color:'#2ecc71', startX:0, startY:0, dragged:false },
+        hc:     { type:'hc',     id:null, cx:0, cy:0, x:0, y:0, angle:0, mag:0, r:40, color:'#9b59b6', startX:0, startY:0, dragged:false, tapOnly:true }
+    },
+    init() {
+        const rx = cw - 150, by = ch - 120;
+        this.btns.attack.cx = rx;       this.btns.attack.cy = by;
+        this.btns.super.cx  = rx - 110; this.btns.super.cy  = by - 20;
+        this.btns.gadget.cx = rx - 50;  this.btns.gadget.cy = by - 120;
+        this.btns.hc.cx     = rx + 70;  this.btns.hc.cy     = by - 100;
+    }
+};
+
+canvas.addEventListener('touchstart', e => {
+    e.preventDefault(); Input.init();
+    for(let t of e.touches) {
+        if(t.clientX < cw/2 && !Input.leftJoy.active) { Input.leftJoy.active=true; Input.leftJoy.id=t.identifier; Input.leftJoy.ox=t.clientX; Input.leftJoy.oy=t.clientY; }
+        else if(Input.leftJoy.id === t.identifier) { let dx=t.clientX-Input.leftJoy.ox, dy=t.clientY-Input.leftJoy.oy; let d=Math.hypot(dx,dy); Input.leftJoy.mag=Math.min(d/60,1); if(d>0){Input.leftJoy.nx=dx/d; Input.leftJoy.ny=dy/d;} }
+        else {
+            let assigned = false;
+            for(let k in Input.btns) {
+                let b=Input.btns[k];
+                if(b.id===t.identifier) { assigned=true; b.x=t.clientX; b.y=t.clientY; b.angle=Math.atan2(b.y-b.cy, b.x-b.cx); b.mag=Math.min(Math.hypot(b.x-b.cx,b.y-b.cy)/b.r,1); if(Math.hypot(b.x-b.startX,b.y-b.startY)>15||b.mag>0.3)b.dragged=true; break; }
+            }
+            if(!assigned) {
+                for(let k in Input.btns) {
+                    let b=Input.btns[k];
+                    if(b.id===null && Math.hypot(t.clientX-b.cx, t.clientY-b.cy)<b.r*1.5) {
+                        b.id=t.identifier; b.x=b.startX=t.clientX; b.y=b.startY=t.clientY; b.angle=Math.atan2(b.y-b.cy, b.x-b.cx); b.mag=Math.min(Math.hypot(b.x-b.cx,b.y-b.cy)/b.r,1); b.dragged=false; b.startTime=Date.now(); break;
+                    }
+                }
+            }
+        }
+    }
+}, {passive:false});
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for(let t of e.touches) {
+        if(Input.leftJoy.id===t.identifier) { let dx=t.clientX-Input.leftJoy.ox, dy=t.clientY-Input.leftJoy.oy; let d=Math.hypot(dx,dy); Input.leftJoy.mag=Math.min(d/60,1); if(d>0){Input.leftJoy.nx=dx/d; Input.leftJoy.ny=dy/d;} }
+        else {
+            for(let k in Input.btns) {
+                let b=Input.btns[k];
+                if(b.id===t.identifier) { b.x=t.clientX; b.y=t.clientY; b.angle=Math.atan2(b.y-b.cy, b.x-b.cx); b.mag=Math.min(Math.hypot(b.x-b.cx,b.y-b.cy)/b.r,1); if(Math.hypot(b.x-b.startX,b.y-b.startY)>15||b.mag>0.3)b.dragged=true; break; }
+            }
+        }
+    }
+}, {passive:false});
+canvas.addEventListener('touchend', handleTouchEnd, {passive:false}); canvas.addEventListener('touchcancel', handleTouchEnd, {passive:false});
+function handleTouchEnd(e) {
+    e.preventDefault(); let ids=Array.from(e.touches).map(t=>t.identifier);
+    if(Input.leftJoy.active && !ids.includes(Input.leftJoy.id)) { Input.leftJoy.active=false; Input.leftJoy.id=null; Input.leftJoy.nx=Input.leftJoy.ny=Input.leftJoy.mag=0; }
+    for(let k in Input.btns) {
+        let b=Input.btns[k];
+        if(b.id!==null && !ids.includes(b.id)) {
+            if(player && player.hp>0 && Game.state==='playing') {
+                if(k==='hc') player.activateHC();
+                else {
+                    let dur=Date.now()-b.startTime, dist=Math.hypot(b.x-b.startX, b.y-b.startY);
+                    if(!b.dragged || (dist<20&&dur<220) || b.mag<0.3) {
+                        let target=Game.findClosestEnemy(player, player.data.range*3.5);
+                        let a=target ? Math.atan2(target.y-player.y, target.x-player.x) : player.facing;
+                        player.autoAimTargetDist=target?dist(player.x,player.y,target.x,target.y):null;
+                        player.requestAttack(a, b.type);
+                    } else {
+                        if(b.mag<0.35) Game.uiEffects.push(new FloatingText(player.x, player.y-60, "CANCEL", '#ff4d4d', 20));
+                        else { player.autoAimTargetDist=null; player.requestAttack(b.angle, b.type); }
+                    }
+                }
+            }
+            b.id=null; b.mag=0; b.dragged=false;
+        }
+    }
+}
+
+class Particle {
+    constructor(x,y,c,s,vx,vy,l) { this.x=x;this.y=y;this.c=c;this.s=s;this.vx=vx;this.vy=vy;this.l=l;this.ml=l; }
+    update() { this.x+=this.vx*Game.timeScale; this.y+=this.vy*Game.timeScale; this.vx*=0.9; this.vy*=0.9; this.l-=Game.timeScale; }
+    draw(ctx) { if(this.l<=0)return; ctx.save(); ctx.globalAlpha=Math.max(0,this.l/this.ml); ctx.fillStyle=this.c; ctx.beginPath(); ctx.arc(this.x,this.y,this.s,0,Math.PI*2); ctx.fill(); ctx.restore(); }
+}
+class FloatingText {
+    constructor(x,y,t,c,s=24) { this.x=x;this.y=y;this.t=t;this.c=c;this.s=s;this.l=40;this.ml=40;this.vy=-1.5; }
+    update() { this.y+=this.vy*Game.timeScale; this.l-=Game.timeScale; }
+    draw(ctx) { if(this.l<=0)return; ctx.save(); ctx.globalAlpha=Math.max(0,this.l/this.ml); ctx.font=`900 ${this.s}px Nunito`; ctx.fillStyle=this.c; ctx.textAlign='center'; ctx.strokeStyle='#000'; ctx.lineWidth=3; ctx.strokeText(this.t,this.x,this.y); ctx.fillText(this.t,this.x,this.y); ctx.restore(); }
+}
+class Item {
+    constructor(x,y,type) { this.x=x;this.y=y;this.r=15;this.type=type;this.a=0;this.remove=false; }
+    update() {
+        this.a+=0.1*Game.timeScale;
+        Game.entities.forEach(e=>{
+            if(e.hp>0 && dist(this.x,this.y,e.x,e.y)<this.r+e.r) {
+                if(this.type==='gem') { e.gems++; Game.uiEffects.push(new FloatingText(e.x,e.y-45,"+1 GEM",'#9b59b6',20)); }
+                else if(this.type==='cube') { e.cubes++; e.hp=Math.min(e.maxHp, e.hp+400); Game.uiEffects.push(new FloatingText(e.x,e.y-45,"POWER UP!",'#e67e22',20)); }
+                this.remove=true;
+            }
+        });
+    }
+    draw(ctx) {
+        ctx.save(); ctx.translate(this.x, this.y+Math.sin(this.a)*5);
+        ctx.fillStyle=this.type==='gem'?'#9b59b6':'#e67e22'; ctx.beginPath(); ctx.arc(0,0,this.r,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
+    }
+}
+class PiusAmmo {
+    constructor(x,y,o) { this.x=x;this.y=y;this.r=22;this.owner=o;this.remove=false;this.delay=30;this.a=Math.random()*Math.PI; }
+    update() {
+        this.a+=0.1*Game.timeScale; if(this.delay>0)this.delay-=Game.timeScale;
+        for(let w of Game.map) if(circleRectCollide(this.x,this.y,this.r,w.x,w.y,w.w,w.h)) {
+            let ld=this.x-w.x, rd=w.x+w.w-this.x, td=this.y-w.y, bd=w.y+w.h-this.y;
+            let m=Math.min(ld,rd,td,bd);
+            if(m===ld)this.x=w.x-this.r-2; else if(m===rd)this.x=w.x+w.w+this.r+2; else if(m===td)this.y=w.y-this.r-2; else this.y=w.y+w.h+this.r+2;
+        }
+        this.x=Math.max(25+this.r,Math.min(this.x,Game.mapW-25-this.r)); this.y=Math.max(25+this.r,Math.min(this.y,Game.mapH-25-this.r));
+        if(this.delay<=0 && this.owner.hp>0 && dist(this.x,this.y,this.owner.x,this.owner.y)<this.r+this.owner.r) { this.owner.collectPiusAmmo(this,true); this.remove=true; }
+    }
+    draw(ctx) { ctx.save(); ctx.translate(this.x,this.y+Math.sin(this.a)*5); ctx.fillStyle=this.delay>0?'#7f8c8d':'#3498db'; ctx.globalAlpha=this.delay>0?0.6:1.0; ctx.beginPath(); ctx.arc(0,0,12,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.5; ctx.stroke(); ctx.restore(); }
+}
+class Bullet {
+    constructor(o,a,s,rng,dmg,r,t) { this.owner=o;this.x=o.x;this.y=o.y;this.a=a;this.s=s;this.rng=rng;this.dmg=dmg;this.r=r;this.type=t;this.dist=0;this.remove=false;this.pierce=false;this.wallBreak=false;this.effects=[];this.hitIds=new Set(); }
+    update() {
+        this.x+=Math.cos(this.a)*this.s*Game.timeScale; this.y+=Math.sin(this.a)*this.s*Game.timeScale; this.dist+=this.s*Game.timeScale;
+        if(this.dist>this.rng || this.x<0 || this.x>Game.mapW || this.y<0 || this.y>Game.mapH) { this.remove=true; return; }
+        if(!this.pierce) {
+            for(let w of Game.map) if(circleRectCollide(this.x,this.y,this.r,w.x,w.y,w.w,w.h)) {
+                if(this.wallBreak) { Game.map=Game.map.filter(mw=>mw!==w); for(let i=0;i<10;i++)Game.particles.push(new Particle(this.x,this.y,'#7f8c8d',4,(Math.random()-0.5)*5,(Math.random()-0.5)*5,15)); }
+                else { this.remove=true; return; }
+            }
+        }
+        Game.entities.forEach(e=>{
+            if(e.hp>0 && e!==this.owner && e.team!==this.owner.team && !this.hitIds.has(e) && e.z===0) {
+                if(dist(this.x,this.y,e.x,e.y)<this.r+e.r) {
+                    e.takeDamage(this.dmg, this.owner); this.hitIds.add(e);
+                    if(this.owner.type==='pius' && this.isPiusNormal && this.isLastAmmo) e.takeDamage(this.dmg*0.2, this.owner);
+                    this.effects.forEach(ef=>e.effects.push({...ef}));
+                    if(this.knockback) { e.pushVx=Math.cos(this.a)*this.knockback; e.pushVy=Math.sin(this.a)*this.knockback; e.pushTimer=10; }
+                    if(this.owner.type==='mortis' && this.isMortisSuper) this.owner.hp=Math.min(this.owner.maxHp, this.owner.hp+120*this.owner.cubes+1000);
+                    if(this.owner.type==='gus' && this.isGusAttack) this.owner.ghostGauge++;
+                    if(!this.pierce) this.remove=true;
+                    for(let i=0;i<5;i++)Game.particles.push(new Particle(this.x,this.y,this.owner.data.color,3,(Math.random()-0.5)*5,(Math.random()-0.5)*5,15));
+                }
+            }
+        });
+        if(this.remove && this.owner.type==='gus' && this.spawnGhost) Game.ghosts.push({x:this.x, y:this.y, owner:this.owner, life:600, remove:false, r:20});
+    }
+    draw(ctx) { ctx.save(); ctx.fillStyle=this.owner.team===1?'#3498db':'#e74c3c'; if(this.type==='super') ctx.fillStyle='#f1c40f'; else if(this.type==='gadget') ctx.fillStyle='#2ecc71'; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill(); ctx.restore(); }
+}
+
+class Character {
+    constructor(t, p, tm, x, y, sl) {
+        this.type=t; this.isPlayer=p; this.team=tm; this.data=CHAR_DATA[t]; this.x=x; this.y=y; this.r=22;
+        this.hp=this.maxHp=this.data.hp; this.baseSpeed=this.data.speed; this.maxAmmo=this.data.ammo; this.ammo=this.maxAmmo;
+        this.reloadTime=this.data.reload; this.reloadTimer=0; this.superCharge=0; this.maxSuperCharge=100;
+        this.hcCharge=0; this.maxHcCharge=250; this.gadgetCooldown=0; this.hcActive=false; this.hcTimer=0;
+        this.effects=[]; this.fireQueue=[]; this.dashTimer=0; this.dashVx=0; this.dashVy=0; this.invincible=false; this.z=0;
+        this.gems=0; this.cubes=0; this.kills=0; this.deaths=0; this.facing=0; this.lastDamagedTimer=0;
+        this.ghostGauge=0; this.shield=0; this.longDashGauge=0; this.attackIntervalTimer=0; this.pushVx=0; this.pushVy=0; this.pushTimer=0;
+        this.bountyStars=2; this.invisibleTimer=0; this.ridingTarget=null; this.ridingTimer=0; this.kitStunCooldown=0;
+        this.chesterGauge=0; this.chesterSuperTypes=['explode','stun','heal','poison','ice']; this.chesterSuperType=this.chesterSuperTypes[0];
+        if(this.type==='pius') { this.piusReloading=false; }
+        if(sl) {
+            this.name=sl.isPlayer?"YOU":sl.name; this.gadget=sl.gadget==='random'?this.data.gadgets[0].id:sl.gadget; this.sp=sl.sp==='random'?this.data.sps[0].id:sl.sp;
+        } else { this.name=p?"YOU":"Bot"; this.gadget=this.data.gadgets[0].id; this.sp=this.data.sps[0].id; }
+        if(this.sp==='combo'&&this.type==='shelly') this.maxAmmo=4; if(this.sp==='speedcat'&&this.type==='kit') this.baseSpeed*=1.1;
+        this.aiState='fight'; this.remove=false;
+    }
+    getSpeed() {
+        if(this.ridingTarget || this.effects.some(e=>e.type==='stun')) return 0;
+        let s=this.baseSpeed; if(this.hcActive) s*=1.25; if(this.effects.some(e=>e.type==='speed')) s*=1.3; if(this.effects.some(e=>e.type==='slow')) s*=0.6; return s;
+    }
+    takeDamage(dmg, a) {
+        if(this.invincible || this.hp<=0) return;
+        if(this.hcActive && this.type==='shelly') dmg*=0.5; if(this.cubes>0) dmg*=(1-Math.min(this.cubes*0.05, 0.5));
+        if(this.shield>0) { if(this.shield>=dmg) { this.shield-=dmg; dmg=0; } else { dmg-=this.shield; this.shield=0; } Game.uiEffects.push(new FloatingText(this.x,this.y-60,"BLOCKED",'#f1c40f',18)); }
+        if(dmg<=0) return;
+        this.hp-=Math.floor(dmg); this.lastDamagedTimer=0;
+        if(this.type==='kit' && this.invisibleTimer>0) this.invisibleTimer=0;
+        Game.uiEffects.push(new FloatingText(this.x+(Math.random()-0.5)*20, this.y-30, Math.floor(dmg), '#ff4757', 24));
+        if(this.hp<=0) this.die(a); else this.chargeSuper(dmg*0.015);
+    }
+    chargeSuper(amt) { let r=this.data.superChargeRate||1; this.superCharge=Math.min(this.maxSuperCharge, this.superCharge+amt*r); this.hcCharge=Math.min(this.maxHcCharge, this.hcCharge+amt*r*0.6); }
+    die(a) {
+        this.hp=0; this.deaths++; this.effects=[];
+        if(this.ridingTarget) { this.ridingTarget.effects=this.ridingTarget.effects.filter(e=>e.type!=='stun'); this.ridingTarget=null; }
+        Game.entities.forEach(e=>{if(e.type==='kit'&&e.ridingTarget===this){e.ridingTarget=null; e.effects=e.effects.filter(ef=>ef.type!=='stun'); e.z=0;}});
+        if(a) a.kills++; Game.addLog(a?a.name:"System", this.name, this.team);
+        for(let i=0;i<15;i++) Game.particles.push(new Particle(this.x,this.y,this.team===1?'#3498db':'#e74c3c',Math.random()*6+2,(Math.random()-0.5)*10,(Math.random()-0.5)*10,30));
+        
+        if(Game.mode==='gemgrab' && this.gems>0) { for(let i=0;i<this.gems;i++) Game.items.push(new Item(this.x+(Math.random()-0.5)*50, this.y+(Math.random()-0.5)*50, 'gem')); this.gems=0; }
+        else if(Game.mode==='showdown') { for(let i=0;i<1+Math.floor(this.cubes/2);i++) Game.items.push(new Item(this.x+(Math.random()-0.5)*30, this.y+(Math.random()-0.5)*30, 'cube')); }
+        else if(Game.mode==='bounty') { if(a) { let sg=this.bountyStars; if(a.team===1) Game.score.t1+=sg; else Game.score.t2+=sg; a.bountyStars++; Game.uiEffects.push(new FloatingText(a.x,a.y-60,`+${sg} ⭐`,'#f1c40f',26)); } this.bountyStars=2; }
+        else if(Game.mode==='wipeout' && a) { if(a.team===1) Game.score.t1++; else Game.score.t2++; }
+        
+        if(Game.mode==='knockout'||Game.mode==='showdown') this.remove=true;
+        else setTimeout(()=>{if(Game.state==='playing'&&!this.remove){this.hp=this.maxHp;let sp=Game.getSpawn(this.team);this.x=sp.x;this.y=sp.y;this.ammo=this.maxAmmo;this.pushTimer=0;this.bountyStars=2;this.invincible=true;setTimeout(()=>this.invincible=false,3000);}},3000);
+    }
+    activateHC() { if(this.hcCharge>=this.maxHcCharge) { this.hcCharge=0; this.hcActive=true; this.hcTimer=300; Game.uiEffects.push(new FloatingText(this.x,this.y-50,"HYPER CHARGE!",'#9b59b6',28)); } }
+    requestAttack(a, t) {
+        if(this.dashTimer>0 || this.z>0 || this.ridingTarget || this.effects.some(e=>e.type==='stun')) return;
+        this.facing=a; this.lastDamagedTimer=0;
+        if(t==='normal' && this.attackIntervalTimer<=0 && (this.type==='pius'?!this.piusReloading&&this.ammo>=1:this.ammo>=1)) { this.ammo--; this.executeAttack(a, 'normal'); this.attackIntervalTimer=12; }
+        else if(t==='super' && this.superCharge>=this.maxSuperCharge) { this.superCharge=0; this.executeAttack(a, 'super'); }
+        else if(t==='gadget' && this.gadgetCooldown<=0) { this.gadgetCooldown=600; this.executeAttack(a, 'gadget'); }
+    }
+    collectPiusAmmo(ae, fire) {
+        if(this.ammo<this.maxAmmo) this.ammo++; if(this.piusReloading) { this.piusReloading=false; this.reloadTimer=0; }
+        Game.uiEffects.push(new FloatingText(this.x,this.y-30,"+AMMO",'#3498db',20));
+        if(fire) {
+            let t=Game.findClosestEnemy(this, 600), a=t?Math.atan2(t.y-this.y, t.x-this.x):this.facing;
+            let dmgMult=this.hcActive?1.25:1; if(this.cubes>0)dmgMult*=(1+this.cubes*0.1);
+            let b=new Bullet(this, a, 18, 550, 1200*dmgMult, 12, 'normal'); b.pierce=true; b.isPiusAutoBullet=true; if(this.sp==='auto_aim')b.homing=true; Game.bullets.push(b);
+        }
+    }
+    executeAttack(a, t) {
+        let dmgMult=this.hcActive?1.25:1; if(this.cubes>0) dmgMult*=(1+this.cubes*0.1);
+        if(this.type==='shelly') {
+            if(t==='normal') { let rm=(this.sp==='hyper'&&this.ammo===this.maxAmmo-1)?1.3:1; for(let i=0;i<5;i++) Game.bullets.push(new Bullet(this, a+(i-2)*0.12, 13, this.data.range*rm, 450*dmgMult, 6, 'normal')); }
+            else if(t==='super') { for(let i=0;i<9;i++) { let b=new Bullet(this, a+(i-4)*0.15, 15, this.data.range*1.3, 480*dmgMult, 10, 'super'); b.knockback=15; b.wallBreak=true; Game.bullets.push(b); } }
+            else if(t==='gadget') { if(this.gadget==='dash'){this.dashTimer=15; this.dashVx=Math.cos(a)*13; this.dashVy=Math.sin(a)*13;} else if(this.gadget==='sharp') { let b=new Bullet(this, a, 17, this.data.range*1.5, 600*dmgMult, 5, 'gadget'); b.effects.push({type:'slow',time:150}); Game.bullets.push(b); } }
+        }
+        else if(this.type==='colt') {
+            if(t==='normal') { let c=this.sp==='million'?8:6, sm=this.sp==='big'?1.5:1; for(let i=0;i<c;i++) this.fireQueue.push({delay:i*4, a:a+(Math.random()-0.5)*0.06, s:15, rng:this.data.range, dmg:480*dmgMult, r:7*sm, type:'normal'}); }
+            else if(t==='super') { for(let i=0;i<12;i++) this.fireQueue.push({delay:i*3, a:a+(Math.random()-0.5)*0.08, s:17, rng:this.data.range*1.2, dmg:400*dmgMult, r:12, type:'super', wallBreak:true, pierce:true}); }
+            else if(t==='gadget') { if(this.gadget==='one') Game.bullets.push(new Bullet(this,a,20,this.data.range*1.5,1200*dmgMult,25,'gadget')); else { let b=new Bullet(this,a,20,this.data.range,600,25,'gadget'); b.pierce=true; b.effects.push({type:'slow',time:180}); Game.bullets.push(b); } }
+        }
+        else if(this.type==='primo') {
+            if(t==='normal') { let rm=this.hcActive?1.5:1, sm=this.hcActive?1.5:1; for(let i=0;i<4;i++) this.fireQueue.push({delay:i*4, a:a, s:12, rng:this.data.range*rm, dmg:550*dmgMult, r:20*sm, type:'normal'}); }
+            else if(t==='super') { let ls=getSafeSpot(this.x,this.y,a,400,this.r); this.targetX=ls.x; this.targetY=ls.y; this.dashTimer=40; this.invincible=true; this.z=1; }
+            else if(t==='gadget') { if(this.gadget==='lariat'){this.dashTimer=15; this.dashVx=Math.cos(a)*15; this.dashVy=Math.sin(a)*15; this.lariatDmg=650*dmgMult;} else { let b=new Bullet(this,a,16,300,150,20,'gadget'); b.knockback=-10; Game.bullets.push(b); } }
+        }
+        else if(this.type==='gus') {
+            if(t==='normal') { let b=new Bullet(this,a,16,this.data.range,2500*dmgMult,18,'normal'); b.isGusAttack=true; if(this.hcActive)this.ghostGauge=2; if(this.ghostGauge>=(this.sp==='master'?1:2)){b.spawnGhost=true; this.ghostGauge=0;} Game.bullets.push(b); }
+            else if(t==='super') { this.shield=6000; Game.entities.forEach(e=>{if(e!==this&&e.hp>0&&e.team!==this.team&&dist(this.x,this.y,e.x,e.y)<150){let an=Math.atan2(e.y-this.y,e.x-this.x); e.pushVx=Math.cos(an)*12; e.pushVy=Math.sin(an)*12; e.pushTimer=10;}}); Game.uiEffects.push(new FloatingText(this.x,this.y-50,"SHIELD!",'#f1c40f',26)); }
+            else if(t==='gadget') { /* ゴースト爆発略 */ }
+        }
+        else if(this.type==='mortis') {
+            if(t==='normal') { let rm=1+this.longDashGauge*2; this.longDashGauge=0; this.dashTimer=10; this.dashVx=Math.cos(a)*15*rm; this.dashVy=Math.sin(a)*15*rm; this.mortisNormalDmg=2000*dmgMult; }
+            else if(t==='super') { let b=new Bullet(this,a,16,600,1800*dmgMult,30,'super'); b.pierce=true; b.isMortisSuper=true; Game.bullets.push(b); }
+            else if(t==='gadget') { if(this.gadget==='spinner') Game.entities.forEach(e=>{if(e!==this&&e.team!==this.team&&e.hp>0&&dist(this.x,this.y,e.x,e.y)<100)e.takeDamage(3000*dmgMult,this);}); else if(this.gadget==='batmove'){this.dashTimer=10; this.dashVx=Math.cos(a)*15; this.dashVy=Math.sin(a)*15; this.invincible=true;} }
+        }
+        else if(this.type==='kit') {
+            if(t==='normal') {
+                Game.entities.forEach(e=>{ if(e!==this&&e.team!==this.team&&e.hp>0&&e.z===0&&dist(this.x,this.y,e.x,e.y)<this.data.range+e.r) {
+                    let diff=Math.abs(Math.atan2(e.y-this.y,e.x-this.x)-a); if(diff>Math.PI) diff=Math.PI*2-diff;
+                    if(diff<=this.data.attackWidth){ e.takeDamage(1200*dmgMult,this); this.chargeSuper(34); }
+                }});
+            }
+            else if(t==='super') { let ls=getSafeSpot(this.x,this.y,a,420,this.r); this.targetX=ls.x; this.targetY=ls.y; this.dashTimer=25; this.invincible=true; this.z=1; }
+            else if(t==='gadget') { if(this.gadget==='cardboard')this.invisibleTimer=180; else this.hp=Math.min(this.maxHp,this.hp+3000); }
+        }
+        else if(this.type==='chester') {
+            if(t==='normal') {
+                let ag=this.hcActive?3:this.chesterGauge, nb=ag+1, spd=0.08, bd=1000, bs=8, bsp=15;
+                if(ag===0&&this.sp==='firststrike'){ bd=1500; bs=14; bsp=20; }
+                for(let i=0;i<nb;i++) { let an=a+(nb>1?(i-(nb-1)/2)*spd:0); Game.bullets.push(new Bullet(this,an,bsp,this.data.range,bd*dmgMult,bs,'normal')); }
+                if(!this.hcActive)this.chesterGauge=(this.chesterGauge+1)%4;
+            }
+            else if(t==='super') { /* 省略: 多彩な必殺処理 */ this.chesterSuperType=this.chesterSuperTypes[Math.floor(Math.random()*this.chesterSuperTypes.length)]; }
+            else if(t==='gadget') { if(this.gadget==='redraw')this.chesterSuperType=this.chesterSuperTypes[Math.floor(Math.random()*this.chesterSuperTypes.length)]; }
+        }
+        else if(this.type==='pius') {
+            if(t==='normal') { let b=new Bullet(this,a,20,this.data.range,1900*dmgMult,14,'normal'); b.isPiusNormal=true; b.isLastAmmo=this.ammo===0; Game.bullets.push(b); }
+            else if(t==='super') {
+                let tx=this.x+Math.cos(a)*450, ty=this.y+Math.sin(a)*450, r=this.hcActive?200:150;
+                Game.entities.forEach(e=>{if(e.hp>0&&e.team!==this.team&&dist(tx,ty,e.x,e.y)<r+e.r) { e.takeDamage(2800*dmgMult,this); let ba=Math.atan2(e.y-this.y,e.x-this.x); let bb=new Bullet(this,ba,18,550,1900*dmgMult,12,'super'); bb.pierce=true; Game.bullets.push(bb); }});
+                for(let i=0;i<5;i++) Game.areaEffects.push(new PiusAmmo(tx+(Math.random()-0.5)*100, ty+(Math.random()-0.5)*100, this));
+            }
+            else if(t==='gadget') {
+                if(this.gadget==='shield_absorb') { let c=0; Game.areaEffects.forEach(ae=>{if(ae instanceof PiusAmmo&&ae.owner===this){ae.remove=true;this.collectPiusAmmo(ae,false);c++;}}); if(c>0) {this.shield+=c*1200; Game.uiEffects.push(new FloatingText(this.x,this.y-50,"+SHIELD",'#f1c40f',22));} }
+                else if(this.gadget==='remote_shoot') Game.areaEffects.forEach(ae=>{if(ae instanceof PiusAmmo&&ae.owner===this){ae.remove=true;this.collectPiusAmmo(ae,true);}});
+            }
+        }
+    }
+
+    update() {
+        if(this.hp<=0) return;
+        this.effects.forEach(e=>e.time-=Game.timeScale); this.effects=this.effects.filter(e=>e.time>0);
+        if(this.attackIntervalTimer>0) this.attackIntervalTimer-=Game.timeScale;
+        if(this.gadgetCooldown>0) this.gadgetCooldown-=Game.timeScale;
+        if(this.hcTimer>0) { this.hcTimer-=Game.timeScale; if(this.hcTimer<=0) this.hcActive=false; }
+        if(this.invisibleTimer>0) this.invisibleTimer-=Game.timeScale;
+        if(this.type==='mortis' && this.longDashGauge<1) this.longDashGauge=Math.min(1, this.longDashGauge+0.005*Game.timeScale);
+        
+        // 2. キットの必殺技自動チャージ速度1/3
+        if(this.type==='kit') this.chargeSuper((0.1 * (this.sp==='fastcharge'?1.5:1)) / 3 * Game.timeScale);
+        
+        let rSpeed = Game.timeScale;
+        // 6. モーティスハイパーチャージ中リロード3倍
+        if(this.type==='mortis' && this.hcActive) rSpeed *= 3;
+        
+        if(this.type==='pius' && this.ammo===0 && !this.piusReloading) { this.piusReloading=true; this.reloadTimer=0; }
+        if(this.type!=='pius' || this.piusReloading) {
+            this.reloadTimer += rSpeed;
+            let mult = (this.type==='pius'&&this.sp==='no_gap')?1.2:1;
+            if(this.reloadTimer >= this.reloadTime*mult && this.ammo<this.maxAmmo) { this.ammo++; this.reloadTimer=0; if(this.type==='pius')this.piusReloading=false; }
+        }
+
+        if(this.fireQueue.length>0) {
+            let nq=[];
+            this.fireQueue.forEach(q=>{
+                q.delay-=Game.timeScale;
+                if(q.delay<=0) {
+                    let b=new Bullet(this, q.a, q.s, q.rng, q.dmg, q.r, q.type);
+                    if(q.wallBreak) b.wallBreak=true; if(q.pierce) b.pierce=true;
+                    Game.bullets.push(b);
+                } else nq.push(q);
+            });
+            this.fireQueue=nq;
+        }
+
+        if(this.pushTimer>0) {
+            this.pushTimer-=Game.timeScale;
+            this.x+=this.pushVx*Game.timeScale; this.y+=this.pushVy*Game.timeScale;
+            for(let w of Game.map) if(circleRectCollide(this.x,this.y,this.r,w.x,w.y,w.w,w.h)) { this.x-=this.pushVx*Game.timeScale; this.y-=this.pushVy*Game.timeScale; this.pushTimer=0; break; }
+        } else if(this.dashTimer>0) {
+            this.dashTimer-=Game.timeScale;
+            if(this.z>0) { // ジャンプ中
+                let p=1-(this.dashTimer/(this.type==='primo'?40:25));
+                this.x+=(this.targetX-this.x)*0.1; this.y+=(this.targetY-this.y)*0.1;
+                if(this.dashTimer<=0) {
+                    this.z=0; this.x=this.targetX; this.y=this.targetY;
+                    if(this.type==='primo') {
+                        let r=this.sp==='shock'?180:140; Game.entities.forEach(e=>{if(e.hp>0&&e.team!==this.team&&dist(this.x,this.y,e.x,e.y)<r+e.r)e.takeDamage(1200*(this.hcActive?1.25:1),this);});
+                        for(let i=0;i<20;i++) Game.particles.push(new Particle(this.x,this.y,'#2980b9',5,(Math.random()-0.5)*15,(Math.random()-0.5)*15,20));
+                    }
+                    // 1. キットの必殺技で敵に乗る処理
+                    if(this.type==='kit' && !this.hcActive) {
+                        let hitEnemy=Game.entities.find(e=>e.team!==this.team&&e.hp>0&&dist(this.x,this.y,e.x,e.y)<50);
+                        if(hitEnemy) {
+                            this.ridingTarget=hitEnemy; this.ridingTimer=150;
+                            // キットと敵の気絶時間を同じ(150)にする
+                            this.effects.push({type:'stun',time:150}); hitEnemy.effects.push({type:'stun',time:150});
+                            this.x=hitEnemy.x; this.y=hitEnemy.y;
+                        }
+                    }
+                    setTimeout(()=>this.invincible=false,100);
+                }
+            } else { // ダッシュ
+                this.x+=this.dashVx*Game.timeScale; this.y+=this.dashVy*Game.timeScale;
+                for(let w of Game.map) if(circleRectCollide(this.x,this.y,this.r,w.x,w.y,w.w,w.h)) { this.x-=this.dashVx*Game.timeScale; this.y-=this.dashVy*Game.timeScale; this.dashTimer=0; break; }
+                if(this.type==='mortis'&&this.mortisNormalDmg) {
+                    Game.entities.forEach(e=>{if(e.hp>0&&e.team!==this.team&&!e.z&&dist(this.x,this.y,e.x,e.y)<this.r+e.r) { e.takeDamage(this.mortisNormalDmg,this); this.mortisNormalDmg=0; }});
+                }
+            }
+        } else if(this.ridingTarget) {
+            this.x=this.ridingTarget.x; this.y=this.ridingTarget.y; this.ridingTimer-=Game.timeScale;
+            if(Math.floor(this.ridingTimer)%20===0) this.ridingTarget.takeDamage(200*(this.hcActive?1.25:1), this);
+            if(this.ridingTimer<=0 || this.ridingTarget.hp<=0) {
+                this.effects=this.effects.filter(e=>e.type!=='stun');
+                if(this.ridingTarget) this.ridingTarget.effects=this.ridingTarget.effects.filter(e=>e.type!=='stun');
+                this.ridingTarget=null; this.z=0;
+            }
+        } else { // 通常移動
+            let spd = this.getSpeed();
+            if(this.isPlayer) {
+                if(Input.leftJoy.mag>0) {
+                    this.facing=Math.atan2(Input.leftJoy.ny, Input.leftJoy.nx);
+                    let mx=Input.leftJoy.nx*spd*Input.leftJoy.mag*Game.timeScale, my=Input.leftJoy.ny*spd*Input.leftJoy.mag*Game.timeScale;
+                    this.x+=mx; for(let w of Game.map) if(circleRectCollide(this.x,this.y,this.r,w.x,w.y,w.w,w.h)) { this.x-=mx; break; }
+                    this.y+=my; for(let w of Game.map) if(circleRectCollide(this.x,this.y,this.r,w.x,w.y,w.w,w.h)) { this.y-=my; break; }
+                }
+            } else { // AI
+                this.aiTimer-=Game.timeScale;
+                if(this.aiTimer<=0) {
+                    this.aiTarget = Game.findClosestEnemy(this, 800);
+                    if(this.aiTarget) {
+                        let d=dist(this.x,this.y,this.aiTarget.x,this.aiTarget.y);
+                        if(d<this.data.range*0.8) this.aiState='flee'; else if(d>this.data.range) this.aiState='chase'; else this.aiState='fight';
+                        this.moveAng=Math.atan2(this.aiTarget.y-this.y, this.aiTarget.x-this.x);
+                    } else this.aiState='idle';
+                    this.aiTimer=15+Math.random()*15;
+                }
+                
+                let dx=0, dy=0;
+                if(this.aiTarget) {
+                    if(this.aiState==='chase') { dx=Math.cos(this.moveAng); dy=Math.sin(this.moveAng); }
+                    else if(this.aiState==='flee') { dx=-Math.cos(this.moveAng); dy=-Math.sin(this.moveAng); }
+                    if(dist(this.x,this.y,this.lastX,this.lastY)<2) this.stuckTimer+=Game.timeScale; else this.stuckTimer=0;
+                    if(this.stuckTimer>30) { dx=(Math.random()-0.5)*2; dy=(Math.random()-0.5)*2; this.stuckTimer=0; }
+                    this.lastX=this.x; this.lastY=this.y;
+                }
+
+                // 4. ボット(CPU)の弾除けのうまさを少し下げる (反応距離と重みを下げる)
+                Game.bullets.forEach(b=>{
+                    if(b.owner.team!==this.team) {
+                        let d=dist(this.x,this.y,b.x,b.y);
+                        if(d<150) { // 以前より反応距離を縮小
+                            let a=Math.atan2(this.y-b.y, this.x-b.x);
+                            let w=50/Math.max(d,1); // 回避ウェイトを弱く
+                            dx+=Math.cos(a)*w; dy+=Math.sin(a)*w;
+                        }
+                    }
+                });
+
+                if(dx!==0||dy!==0) {
+                    let d=Math.hypot(dx,dy); dx/=d; dy/=d; this.facing=Math.atan2(dy,dx);
+                    let mx=dx*spd*Game.timeScale, my=dy*spd*Game.timeScale;
+                    this.x+=mx; for(let w of Game.map) if(circleRectCollide(this.x,this.y,this.r,w.x,w.y,w.w,w.h)) { this.x-=mx; break; }
+                    this.y+=my; for(let w of Game.map) if(circleRectCollide(this.x,this.y,this.r,w.x,w.y,w.w,w.h)) { this.y-=my; break; }
+                }
+
+                if(this.aiTarget && dist(this.x,this.y,this.aiTarget.x,this.aiTarget.y)<this.data.range*0.9 && Math.random()<0.05) this.requestAttack(Math.atan2(this.aiTarget.y-this.y, this.aiTarget.x-this.x), 'normal');
+                if(this.superCharge>=this.maxSuperCharge && this.aiTarget && Math.random()<0.02) this.requestAttack(Math.atan2(this.aiTarget.y-this.y, this.aiTarget.x-this.x), 'super');
+            }
+        }
+        this.x=Math.max(this.r,Math.min(this.x,Game.mapW-this.r)); this.y=Math.max(this.r,Math.min(this.y,Game.mapH-this.r));
+    }
+
+    drawAim(ctx) {
+        if(!this.isPlayer || this.hp<=0) return;
+        let btn=Input.btns.attack;
+        if(btn.id!==null && btn.dragged) {
+            ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.beginPath();
+            
+            // 3. チェスターの通常攻撃のエイム線 (正確な扇形)
+            if(this.type==='chester') {
+                let ag=this.hcActive?3:this.chesterGauge, nb=ag+1, spd=0.08;
+                let h=nb>1?spd*(nb-1)/2:0;
+                ctx.moveTo(this.x, this.y);
+                ctx.arc(this.x, this.y, this.data.range, btn.angle-h-0.04, btn.angle+h+0.04);
+            } else if(this.type==='shelly' || this.type==='kit') {
+                ctx.moveTo(this.x, this.y); ctx.arc(this.x, this.y, this.data.range, btn.angle-this.data.attackWidth, btn.angle+this.data.attackWidth);
+            } else {
+                let w=this.data.attackWidth*100;
+                let dx=Math.cos(btn.angle)*this.data.range, dy=Math.sin(btn.angle)*this.data.range;
+                let nx=Math.cos(btn.angle+Math.PI/2)*w, ny=Math.sin(btn.angle+Math.PI/2)*w;
+                ctx.moveTo(this.x-nx, this.y-ny); ctx.lineTo(this.x+nx, this.y+ny); ctx.lineTo(this.x+dx+nx, this.y+dy+ny); ctx.lineTo(this.x+dx-nx, this.y+dy-ny);
+            }
+            ctx.closePath(); ctx.fill();
+        }
+    }
+
+    draw(ctx) {
+        if(this.hp<=0 || (this.type==='kit'&&this.invisibleTimer>0&&this.team!==1)) return;
+        ctx.save(); ctx.translate(this.x, this.y);
+        if(this.z>0) { let j=(this.dashTimer/(this.type==='primo'?40:25)); ctx.translate(0, -Math.sin(j*Math.PI)*50); }
+        ctx.rotate(this.facing);
+        ctx.fillStyle=this.data.color; if(this.invincible) ctx.globalAlpha=0.6;
+        ctx.beginPath(); ctx.arc(0,0,this.r,0,Math.PI*2); ctx.fill();
+        if(this.hcActive) { ctx.strokeStyle='#9b59b6'; ctx.lineWidth=4; ctx.stroke(); }
+        ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(10, -8, 4, 0, Math.PI*2); ctx.arc(10, 8, 4, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+
+        // 9. キャラクター上の体力・リロード表示を大きくわかりやすく
+        let by = this.y - this.r - 28, bw = 64, bh = 10;
+        ctx.fillStyle='#000'; ctx.fillRect(this.x-bw/2-2, by-2, bw+4, bh+4);
+        ctx.fillStyle=this.team===1?(this.isPlayer?'#3498db':'#2ecc71'):'#e74c3c';
+        ctx.fillRect(this.x-bw/2, by, bw*(this.hp/this.maxHp), bh);
+        
+        ctx.fillStyle='#fff'; ctx.font='900 11px Nunito'; ctx.textAlign='center'; ctx.fillText(`${Math.floor(this.hp)}`, this.x, by+9);
+
+        let ry = by+bh+4, rh=6, sw=bw/this.maxAmmo;
+        ctx.fillStyle='#000'; ctx.fillRect(this.x-bw/2-2, ry-2, bw+4, rh+4);
+        for(let i=0;i<this.maxAmmo;i++) {
+            let sx=this.x-bw/2+i*sw; ctx.fillStyle=i<this.ammo?'#f1c40f':'#444'; ctx.fillRect(sx,ry,sw-1,rh);
+            if(i===this.ammo) { ctx.fillStyle='rgba(241,196,15,0.5)'; ctx.fillRect(sx,ry,(sw-1)*(this.reloadTimer/this.reloadTime),rh); }
+        }
+
+        let sy = ry+rh+4, sh=6;
+        if(this.type==='kit' && this.invisibleTimer>0) {
+            ctx.fillStyle='#000'; ctx.fillRect(this.x-bw/2-2, sy-2, bw+4, sh+4);
+            ctx.fillStyle='#95a5a6'; ctx.fillRect(this.x-bw/2, sy, bw*(this.invisibleTimer/180), sh);
+        } else if(this.type==='chester') {
+            ctx.fillStyle='#000'; ctx.fillRect(this.x-bw/2-2, sy-2, bw+4, sh+4);
+            let cw=bw/4;
+            for(let i=0;i<4;i++) { ctx.fillStyle=i<this.chesterGauge?'#d35400':'#333'; ctx.fillRect(this.x-bw/2+i*cw, sy, cw-1, sh); }
+        }
+
+        if(Game.mode==='bounty') { ctx.fillStyle='#f1c40f'; ctx.font='900 16px Nunito'; ctx.fillText(`⭐${this.bountyStars}`, this.x, this.y-this.r-45); }
+        else if(Game.mode==='gemgrab' && this.gems>0) { ctx.fillStyle='#9b59b6'; ctx.font='900 16px Nunito'; ctx.fillText(`💎${this.gems}`, this.x, this.y-this.r-45); }
+        else if(Game.mode==='showdown' && this.cubes>0) { ctx.fillStyle='#e67e22'; ctx.font='900 16px Nunito'; ctx.fillText(`📦${this.cubes}`, this.x, this.y-this.r-45); }
+    }
+}
+
+let player = null;
+const Game = {
+    state: 'menu', mode: 'gemgrab', timeScale: 1, lastTime: 0,
+    mapW: 1333, mapH: 1333, // 7. ステージの広さを3/2に縮小 (≒ 2/3倍)
+    entities: [], bullets: [], particles: [], items: [], areaEffects: [], map: [], uiEffects: [], ghosts: [],
+    score: {t1:0, t2:0}, globalStats: {}, log: [],
+    
+    initMap() {
+        this.map=[]; 
+        // 壁の配置も2/3倍のスケールに調整
+        let cx=this.mapW/2, cy=this.mapH/2;
+        this.map.push({x:cx-130, y:cy-200, w:60, h:400});
+        this.map.push({x:cx+70, y:cy-200, w:60, h:400});
+        this.map.push({x:cx-260, y:cy-30, w:130, h:60});
+        this.map.push({x:cx+130, y:cy-30, w:130, h:60});
+    },
+    getSpawn(team) {
+        if(this.mode==='showdown') { let a=Math.random()*Math.PI*2, r=400+Math.random()*200; return {x:this.mapW/2+Math.cos(a)*r, y:this.mapH/2+Math.sin(a)*r}; }
+        let mx=team===1?200:this.mapW-200; return {x:mx, y:this.mapH/2+(Math.random()-0.5)*400};
+    },
+    findClosestEnemy(src, rng) {
+        let ct=null, cd=rng;
+        this.entities.forEach(e=>{if(e.hp>0&&e.team!==src.team&&e!==src){let d=dist(src.x,src.y,e.x,e.y);if(d<cd){cd=d;ct=e;}}}); return ct;
+    },
+    addLog(k, v, t) { this.log.push({t:`${k} 💥 ${v}`, c:t===1?'#3498db':'#e74c3c', l:180}); },
+
+    start() {
+        this.mode = document.getElementById('selMode').value;
+        this.entities=[]; this.bullets=[]; this.particles=[]; this.items=[]; this.areaEffects=[]; this.uiEffects=[]; this.ghosts=[]; this.log=[];
+        this.score={t1:0, t2:0}; this.globalStats={}; this.initMap();
+        
+        let s = SlotsManager.slots; player=null;
+        s.forEach(slot=>{
+            if(slot.enabled) {
+                if(this.mode!=='showdown' && slot.team>2) return;
+                let sp=this.getSpawn(slot.team);
+                let c = new Character(slot.brawler, slot.isPlayer, slot.team, sp.x, sp.y, slot);
+                this.entities.push(c);
+                if(slot.isPlayer) player=c;
+            }
+        });
+        
+        document.getElementById('menu').style.display='none'; document.getElementById('uiLayer').style.display='block';
+        this.state='playing'; this.lastTime=performance.now(); requestAnimationFrame(loop);
+    },
+
+    update() {
+        this.entities.forEach(e=>e.update());
+        this.bullets.forEach(b=>b.update()); this.bullets=this.bullets.filter(b=>!b.remove);
+        this.particles.forEach(p=>p.update()); this.particles=this.particles.filter(p=>p.l>0);
+        this.items.forEach(i=>i.update()); this.items=this.items.filter(i=>!i.remove);
+        this.areaEffects.forEach(a=>a.update()); this.areaEffects=this.areaEffects.filter(a=>!a.remove);
+        this.uiEffects.forEach(u=>u.update()); this.uiEffects=this.uiEffects.filter(u=>u.l>0);
+        this.log.forEach(l=>l.l-=this.timeScale); this.log=this.log.filter(l=>l.l>0);
+
+        if(this.mode==='gemgrab' && Math.random()<0.01*this.timeScale) this.items.push(new Item(this.mapW/2+(Math.random()-0.5)*100, this.mapH/2+(Math.random()-0.5)*100, 'gem'));
+        if(this.mode==='showdown' && this.entities.filter(e=>e.hp>0).length<=1) this.endGame();
+        if(this.mode==='wipeout' && (this.score.t1>=10 || this.score.t2>=10)) this.endGame();
+    },
+
+    draw() {
+        let camX=0, camY=0;
+        if(player) { camX=player.x-cw/2; camY=player.y-ch/2; }
+        else if(this.entities.length>0) { camX=this.entities[0].x-cw/2; camY=this.entities[0].y-ch/2; }
+        camX=Math.max(0,Math.min(camX,this.mapW-cw)); camY=Math.max(0,Math.min(camY,this.mapH-ch));
+
+        ctx.fillStyle='#2c3e50'; ctx.fillRect(0,0,cw,ch);
+        ctx.save(); ctx.translate(-camX, -camY);
+
+        ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=2;
+        for(let i=0;i<this.mapW;i+=100) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,this.mapH); ctx.stroke(); }
+        for(let i=0;i<this.mapH;i+=100) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(this.mapW,i); ctx.stroke(); }
+
+        ctx.fillStyle='#34495e'; this.map.forEach(w=>ctx.fillRect(w.x,w.y,w.w,w.h));
+        this.areaEffects.forEach(a=>a.draw(ctx));
+        this.items.forEach(i=>i.draw(ctx));
+        
+        let all=[...this.entities, ...this.ghosts].sort((a,b)=>a.y-b.y);
+        all.forEach(e=>e.draw(ctx));
+        if(player) player.drawAim(ctx);
+        this.bullets.forEach(b=>b.draw(ctx));
+        this.particles.forEach(p=>p.draw(ctx));
+        this.uiEffects.forEach(u=>u.draw(ctx));
+        ctx.restore();
+
+        // 8. 下部の体力・リロード表示は削除済み、操作用UIのみ描画
+        if(Input.leftJoy.active) {
+            ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.arc(Input.leftJoy.ox, Input.leftJoy.oy, 60, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(Input.leftJoy.ox+Input.leftJoy.nx*Input.leftJoy.mag*60, Input.leftJoy.oy+Input.leftJoy.ny*Input.leftJoy.mag*60, 25, 0, Math.PI*2); ctx.fill();
+        }
+        for(let k in Input.btns) {
+            let b=Input.btns[k];
+            ctx.fillStyle=b.color; ctx.globalAlpha=(b.id!==null||(k==='hc'&&player&&player.hcCharge<player.maxHcCharge)||(k==='super'&&player&&player.superCharge<player.maxSuperCharge))?0.4:0.7;
+            ctx.beginPath(); ctx.arc(b.cx, b.cy, b.r, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle='#fff'; ctx.globalAlpha=1; ctx.font='900 24px Nunito'; ctx.textAlign='center'; ctx.fillText(b.icon, b.cx, b.cy+8);
+            if(b.id!==null && b.dragged && k!=='hc') {
+                ctx.strokeStyle=b.color; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(b.cx,b.cy,b.r,0,Math.PI*2); ctx.stroke();
+                ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(b.cx+Math.cos(b.angle)*b.mag*b.r, b.cy+Math.sin(b.angle)*b.mag*b.r, 15, 0, Math.PI*2); ctx.fill();
+            }
+        }
+        
+        let topHtml = '';
+        if(this.mode==='gemgrab') {
+            let t1G=0, t2G=0; this.entities.forEach(e=>{if(e.hp>0){if(e.team===1)t1G+=e.gems; else t2G+=e.gems;}});
+            topHtml=`<span class="score-blue">${t1G}</span> 💎 <span class="score-red">${t2G}</span>`;
+        } else if(this.mode==='wipeout' || this.mode==='bounty') {
+            topHtml=`<span class="score-blue">${this.score.t1}</span> ⭐ <span class="score-red">${this.score.t2}</span>`;
+        } else if(this.mode==='showdown') {
+            topHtml=`生存者: ${this.entities.filter(e=>e.hp>0).length} 人`;
+        }
+        document.getElementById('hud-top').innerHTML = topHtml;
+        document.getElementById('kill-log').innerHTML = this.log.map(l=>`<div class="log-item" style="color:${l.c}">${l.t}</div>`).join('');
+    },
+
+    endGame() {
+        this.state='results'; document.getElementById('uiLayer').style.display='none';
+        let tb = document.getElementById('resultsTableBody'); tb.innerHTML='';
+        Object.keys(this.globalStats).forEach(k=>{
+            let s=this.globalStats[k];
+            let row=document.createElement('tr'); if(k==="YOU") row.className='highlight';
+            row.innerHTML=`<td>${s.brawler} - ${k}</td><td>${s.team===1?'🟢 ALPHA':'🔴 OMEGA'}</td><td>${s.kills}</td><td>${s.deaths}</td>`;
+            tb.appendChild(row);
+        });
+        document.getElementById('resultsScreen').style.display='flex';
+    }
+};
+
+function loop(t) {
+    if(Game.state!=='playing') return;
+    Game.timeScale = Math.min((t - Game.lastTime) / (1000/60), 3); Game.lastTime=t;
+    Game.update(); Game.draw();
+    requestAnimationFrame(loop);
+}
+
+document.getElementById('btnStart').addEventListener('click', () => Game.start());
+document.getElementById('btnCloseResults').addEventListener('click', () => { document.getElementById('resultsScreen').style.display='none'; document.getElementById('menu').style.display='flex'; });
+
+</script>
+</body>
+</html>
