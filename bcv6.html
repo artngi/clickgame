@@ -1522,7 +1522,7 @@ class Character extends Entity {
                     Game.uiEffects.push(new FloatingText(this.x, this.y - 50, `+${Math.floor(healAmt)}`, '#2ecc71', 24));
                 } else if (currentSuper === 'poison') {
                     for (let i = -1; i <= 1; i++) {
-                        let b = new Bullet(this, angle + i * 0.2, 12, 350, 1500 * dmgMult, 16, 'super');
+                        let b = new Bullet(this, angle + i * 0.2, 12, 350, 1000 * dmgMult, 16, 'super');
                         b.pierce = true; b.effects.push({ type: 'poison', time: 90 }); Game.bullets.push(b);
                     }
                 } else if (currentSuper === 'ice') {
@@ -1607,7 +1607,7 @@ class Character extends Entity {
             if (e.type === 'poison') {
                 let prevSec = Math.floor((e.time + Game.timeScale) / 30);
                 let currSec = Math.floor(e.time / 30);
-                if (currSec < prevSec) this.takeDamage(400, null);
+                if (currSec < prevSec) this.takeDamage(1000, null);
             }
         });
 
