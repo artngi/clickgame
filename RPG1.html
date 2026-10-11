@@ -1,0 +1,865 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI仙人の開拓記 - Dynamic RPG</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #0b0f19;
+            color: #e2e8f0;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        .font-cinzel { font-family: 'Cinzel', serif; }
+        
+        /* Pixel art / Retro effect overlay */
+        .scanlines {
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0, 0, 0, 0.2) 50%,
+                rgba(0, 0, 0, 0.2)
+            );
+            background-size: 100% 4px;
+        }
+
+        /* Glassmorphism */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 2px;
+        }
+
+        /* Glowing text & borders */
+        .glow-gold {
+            text-shadow: 0 0 8px rgba(234, 179, 8, 0.6);
+        }
+        .glow-cyan {
+            text-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+        }
+        .border-glow {
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.3);
+        }
+
+        /* Joystick styles */
+        #joystick-zone {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex justify-center items-center bg-slate-950">
+
+    <!-- Mobile Screen Frame Simulation -->
+    <div id="app-container" class="relative w-full max-w-md h-full sm:h-[92vh] sm:rounded-3xl overflow-hidden glass-panel flex flex-col shadow-2xl border border-slate-800">
+        
+        <header class="h-14 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between px-4 z-20">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center">
+                    <i class="fa-solid fa-hat-wizard text-amber-400 text-sm"></i>
+                </div>
+                <div>
+                    <h1 class="text-xs font-bold text-slate-300">仙人の改変世界</h1>
+                    <p class="text-[10px] text-amber-400 font-mono" id="game-version">Ver 1.0.0 [Vanilla]</p>
+                </div>
+            </div>
+            <button id="btn-hermit-ai" class="bg-gradient-to-r from-amber-600 to-purple-600 hover:from-amber-500 hover:to-purple-500 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center space-x-1 border border-amber-300/30 transition-all animate-pulse">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
+                <span>AI仙人に乞う</span>
+            </button>
+        </header>
+
+        <main class="flex-1 relative bg-slate-950 overflow-hidden flex flex-col">
+            
+            <!-- Map Canvas View -->
+            <div id="world-view" class="absolute inset-0 z-0">
+                <canvas id="game-canvas" class="w-full h-full block"></canvas>
+                
+                <!-- Map Overlay HUD -->
+                <div class="absolute top-3 left-3 glass-card px-3 py-1.5 rounded-lg text-xs flex items-center space-x-2">
+                    <i class="fa-solid fa-compass text-cyan-400"></i>
+                    <span id="location-name" class="font-bold text-slate-200">始まりの村</span>
+                </div>
+
+                <!-- Active Custom World Effects / Mods Indicator -->
+                <div id="active-mods-badge" class="absolute top-3 right-3 hidden glass-card px-2 py-1 rounded-md text-[10px] text-purple-300 border border-purple-500/30 flex items-center space-x-1">
+                    <i class="fa-solid fa-microchip text-purple-400"></i>
+                    <span id="active-mod-count">0 MODS</span>
+                </div>
+            </div>
+
+            <!-- Turn-Based Battle View Overlay -->
+            <div id="battle-view" class="absolute inset-0 z-10 bg-slate-950/95 hidden flex-col justify-between p-4 transition-all duration-300">
+                <!-- Enemy Side -->
+                <div class="flex flex-col items-center pt-6 space-y-2">
+                    <div id="enemy-avatar" class="w-28 h-28 glass-card rounded-2xl flex items-center justify-center text-6xl shadow-2xl relative border border-rose-500/30">
+                        👾
+                    </div>
+                    <div class="text-center w-full max-w-xs">
+                        <div class="flex justify-between items-center text-xs mb-1 font-bold">
+                            <span id="enemy-name" class="text-rose-400">野生のスライム</span>
+                            <span id="enemy-hp-text" class="text-slate-400">Lv.1</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-700">
+                            <div id="enemy-hp-bar" class="bg-rose-500 h-full w-full transition-all duration-300"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Battle Log -->
+                <div id="battle-log" class="glass-card rounded-xl p-3 h-24 overflow-y-auto text-xs space-y-1 font-mono border border-slate-700/50 my-2">
+                    <p class="text-slate-400">モンスターが現れた！</p>
+                </div>
+
+                <!-- Player Battle Stats & Actions -->
+                <div class="space-y-3">
+                    <!-- Player Health / Mana Bars -->
+                    <div class="glass-card p-3 rounded-xl space-y-1.5">
+                        <div class="flex justify-between text-xs font-bold">
+                            <span id="player-battle-name" class="text-cyan-400">勇者 (Lv.1)</span>
+                            <span id="player-hp-text" class="text-emerald-400">HP 100/100</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div id="player-hp-bar" class="bg-emerald-500 h-full w-full transition-all duration-300"></div>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="player-mp-bar" class="bg-cyan-500 h-full w-full transition-all duration-300"></div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons Grid -->
+                    <div id="battle-actions" class="grid grid-cols-2 gap-2">
+                        <button onclick="executeBattleAction('attack')" class="glass-card hover:bg-slate-800 p-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 text-rose-300 border border-rose-500/20 active:scale-95 transition-all">
+                            <i class="fa-solid fa-sword"></i>
+                            <span>攻撃</span>
+                        </button>
+                        <button onclick="executeBattleAction('skill')" class="glass-card hover:bg-slate-800 p-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 text-cyan-300 border border-cyan-500/20 active:scale-95 transition-all">
+                            <i class="fa-solid fa-wand-magic"></i>
+                            <span>スキル</span>
+                        </button>
+                        <button onclick="executeBattleAction('item')" class="glass-card hover:bg-slate-800 p-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 text-amber-300 border border-amber-500/20 active:scale-95 transition-all">
+                            <i class="fa-solid fa-flask"></i>
+                            <span>道具</span>
+                        </button>
+                        <button onclick="executeBattleAction('run')" class="glass-card hover:bg-slate-800 p-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 text-slate-300 border border-slate-500/20 active:scale-95 transition-all">
+                            <i class="fa-solid fa-person-running"></i>
+                            <span>逃げる</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Floating Text Notifications -->
+            <div id="toast-container" class="absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center space-y-2 w-11/12 max-w-xs"></div>
+
+        </main>
+
+        <div id="world-controls" class="h-48 bg-slate-900/95 border-t border-slate-800 p-3 flex justify-between items-center z-10">
+            <!-- D-Pad / Joystick Area -->
+            <div id="joystick-zone" class="w-36 h-36 relative flex items-center justify-center rounded-full bg-slate-950/60 border border-slate-800 shadow-inner">
+                <div id="joystick-base" class="w-28 h-28 rounded-full bg-slate-900/80 border border-slate-700/60 flex items-center justify-center relative">
+                    <div id="joystick-stick" class="w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-600 to-indigo-500 shadow-lg border border-cyan-300/40 transform transition-transform"></div>
+                </div>
+            </div>
+
+            <!-- Action Buttons Area -->
+            <div class="flex flex-col space-y-2">
+                <button id="btn-interact" class="w-24 h-12 glass-card rounded-xl border border-amber-500/30 flex items-center justify-center space-x-1 text-amber-300 font-bold active:scale-95 transition-all shadow-md">
+                    <i class="fa-solid fa-hand"></i>
+                    <span class="text-xs">調べ/話す</span>
+                </button>
+                <div class="flex space-x-2">
+                    <button onclick="toggleModal('status-modal')" class="w-11 h-11 glass-card rounded-xl flex items-center justify-center text-slate-300 border border-slate-700 active:scale-95">
+                        <i class="fa-solid fa-user"></i>
+                    </button>
+                    <button onclick="toggleModal('inventory-modal')" class="w-11 h-11 glass-card rounded-xl flex items-center justify-center text-slate-300 border border-slate-700 active:scale-95">
+                        <i class="fa-solid fa-bag-shopping"></i>
+                    </button>
+                    <button onclick="toggleModal('code-inspector-modal')" class="w-11 h-11 glass-card rounded-xl flex items-center justify-center text-purple-400 border border-purple-800/50 active:scale-95">
+                        <i class="fa-solid fa-code"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="hermit-modal" class="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex-col justify-end transition-all">
+            <div class="glass-panel border-t border-amber-500/40 rounded-t-3xl p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500 flex items-center justify-center text-2xl">
+                            🧙‍♂️
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-amber-400 text-sm">全知全能のAI仙人</h2>
+                            <p class="text-[10px] text-slate-400">世界コードの書き換え者</p>
+                        </div>
+                    </div>
+                    <button onclick="toggleModal('hermit-modal')" class="text-slate-400 hover:text-white p-1">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Dialogue Display -->
+                <div id="hermit-dialogue" class="bg-slate-900/90 rounded-2xl p-3 border border-amber-900/30 text-xs leading-relaxed text-amber-100 font-serif min-h-[70px]">
+                    「フォフォフォ！ワシはプログラムを書き換える力を得たゲーム仙人じゃ。どのような機能をこの世界に加えるか、言ってみるが良い！」
+                </div>
+
+                <!-- Prompt Input Area -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-bold text-slate-400 flex justify-between">
+                        <span>仙人への願い・機能リクエスト</span>
+                        <span class="text-purple-400 text-[10px]">Gemini 3 Flash API連携</span>
+                    </label>
+                    <textarea id="ai-prompt-input" rows="3" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500 placeholder-slate-500 transition-colors" placeholder="例: 「クリティカル率を50%にして！」「必殺技『超ギガサンダー』を使えるようにして」「敵を倒した時ゴールドが10倍になるようにして」"></textarea>
+                </div>
+
+                <!-- Quick Presets for Demo -->
+                <div class="space-y-1">
+                    <span class="text-[10px] text-slate-500">クイックリクエスト例:</span>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button onclick="fillPresetPrompt('プレイヤーの攻撃力を999にして')" class="text-[10px] bg-slate-800/80 hover:bg-slate-700 text-amber-300 px-2.5 py-1 rounded-full border border-slate-700">⚔️ 超パワーアップ</button>
+                        <button onclick="fillPresetPrompt('新しい最強スキル『天雷神掌』を追加して')" class="text-[10px] bg-slate-800/80 hover:bg-slate-700 text-cyan-300 px-2.5 py-1 rounded-full border border-slate-700">⚡ 新スキル開発</button>
+                        <button onclick="fillPresetPrompt('敵のドロップ金貨を100倍にして')" class="text-[10px] bg-slate-800/80 hover:bg-slate-700 text-emerald-300 px-2.5 py-1 rounded-full border border-slate-700">💰 大富豪モード</button>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button id="btn-submit-ai" onclick="requestCodeModification()" class="w-full py-3 bg-gradient-to-r from-amber-500 via-purple-600 to-indigo-600 hover:opacity-90 text-white rounded-xl font-bold text-xs shadow-lg flex items-center justify-center space-x-2 border border-amber-300/30">
+                    <i class="fa-solid fa-sparkles"></i>
+                    <span>世界の理（コード）を改変する</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="code-inspector-modal" class="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-md hidden flex-col p-4 transition-all">
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-code text-purple-400"></i>
+                    <h2 class="font-bold text-slate-200 text-sm">現在アクティブなゲームコード (State)</h2>
+                </div>
+                <button onclick="toggleModal('code-inspector-modal')" class="text-slate-400 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-3 overflow-y-auto font-mono text-[11px] text-emerald-400 leading-tight">
+                <pre id="code-display-area">// AI仙人によって改変されたゲームデータオブジェクト</pre>
+            </div>
+        </div>
+
+        <!-- Status Modal -->
+        <div id="status-modal" class="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-md hidden flex-col p-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="font-bold text-amber-400 text-base">ステータス</h2>
+                <button onclick="toggleModal('status-modal')" class="text-slate-400 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div id="status-content" class="space-y-3 font-mono text-xs">
+                <!-- Dynamic Content -->
+            </div>
+        </div>
+
+        <!-- Inventory Modal -->
+        <div id="inventory-modal" class="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-md hidden flex-col p-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="font-bold text-cyan-400 text-base">所持品・スキル</h2>
+                <button onclick="toggleModal('inventory-modal')" class="text-slate-400 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div id="inventory-content" class="space-y-3 overflow-y-auto flex-1">
+                <!-- Dynamic Content -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        
+        // Gemini API Settings
+        const GEMINI_API_KEY = ""; // Dynamic key attached at runtime
+        const GEMINI_MODEL = "gemini-3-flash-preview";
+
+        // Base Prompt Template for the Hermit (System Instruction)
+        const HERMIT_SYSTEM_PROMPT = `
+あなたはゲームの仙人として存在しています。しゃべり方は仙人っぽく（語尾は「じゃ」「のう」「フォフォフォ」など）。
+あなたはそのゲームのプログラム（JSONデータ及びパラメータ関数）を改変する力があります。
+ユーザー（プレイヤー）のお願いを聞き入れ、現在のゲームプログラム（Data JSON）を修正し、
+プレイヤーへの返答メッセージと、更新されたJSONデータを指定のフォーマットで返してください。
+
+必ず以下のJSONフォーマットのみを厳密に出力してください（余計な解説文章やMarkdownタグは含めないでください）。
+
+{
+  "dialogue": "仙人としての返答セリフ（2〜3文程度）",
+  "updatedData": {
+    // 修正・追加されたゲームデータ構造（渡された元のJSON構造をそのまま更新・拡張したもの）
+  }
+}
+`;
+
+        // Modifiable Core Game State & Code Structure
+        let gameState = {
+            version: "1.0.0",
+            modCount: 0,
+            player: {
+                name: "修業者",
+                level: 1,
+                hp: 100,
+                maxHp: 100,
+                mp: 30,
+                maxMp: 30,
+                atk: 15,
+                def: 8,
+                gold: 50,
+                exp: 0,
+                nextExp: 30,
+                x: 8,
+                y: 8,
+                skills: [
+                    { id: "fire", name: "火炎術", mpCost: 10, power: 30, desc: "初級の攻撃魔法" },
+                    { id: "heal", name: "治癒術", mpCost: 8, power: 40, desc: "HPを回復する" }
+                ],
+                items: [
+                    { id: "potion", name: "薬草", count: 3, desc: "HPを30回復" }
+                ]
+            },
+            battleRules: {
+                expMultiplier: 1.0,
+                goldMultiplier: 1.0,
+                critRate: 0.1,
+                critDamageMultiplier: 1.5
+            },
+            monsters: [
+                { id: "slime", name: "緑スライム", emoji: "🟢", hp: 30, maxHp: 30, atk: 6, exp: 10, gold: 15 },
+                { id: "goblin", name: "ゴブリン", emoji: "👺", hp: 60, maxHp: 60, atk: 12, exp: 25, gold: 35 },
+                { id: "wolf", name: "魔狼", emoji: "🐺", hp: 100, maxHp: 100, atk: 22, exp: 50, gold: 70 }
+            ],
+            customEffects: []
+        };
+
+        // World Grid Setup (Simple Tilemap)
+        const MAP_SIZE = 16;
+        const TILE_SIZE = 32;
+        // 0: Grass, 1: Tree/Wall, 2: Water, 3: Town, 4: Shrine
+        const mapData = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+            [1,0,3,0,0,1,0,0,0,2,2,2,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,2,2,2,0,0,0,1],
+            [1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],
+            [1,0,0,2,2,0,0,0,0,0,4,0,0,0,0,1],
+            [1,0,0,2,2,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,1,1,1,1,0,0,0,0,0,1],
+            [1,0,0,0,0,0,1,0,0,1,0,0,2,2,0,1],
+            [1,0,0,0,0,0,1,0,0,1,0,0,2,2,0,1],
+            [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        let canvas, ctx;
+        let activeEnemy = null;
+        let inBattle = false;
+
+        function initGame() {
+            canvas = document.getElementById('game-canvas');
+            ctx = canvas.getContext('2d');
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            setupJoystick();
+            updateUI();
+            requestAnimationFrame(gameLoop);
+            showToast("ゲーム世界生成完了！仙人に声をかけてみよう。");
+        }
+
+        function resizeCanvas() {
+            if (!canvas) return;
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+
+        function gameLoop() {
+            renderMap();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function renderMap() {
+            if (!ctx) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const offsetX = Math.floor(canvas.width / 2 - gameState.player.x * TILE_SIZE);
+            const offsetY = Math.floor(canvas.height / 2 - gameState.player.y * TILE_SIZE);
+
+            // Render Tiles
+            for (let r = 0; r < MAP_SIZE; r++) {
+                for (let c = 0; c < MAP_SIZE; c++) {
+                    const tile = mapData[r][c];
+                    const px = c * TILE_SIZE + offsetX;
+                    const py = r * TILE_SIZE + offsetY;
+
+                    // Tile Colors
+                    if (tile === 0) ctx.fillStyle = '#1e293b'; // Grass/Path
+                    else if (tile === 1) ctx.fillStyle = '#0f172a'; // Wall/Mountain
+                    else if (tile === 2) ctx.fillStyle = '#0284c7'; // Water
+                    else if (tile === 3) ctx.fillStyle = '#eab308'; // Town
+                    else if (tile === 4) ctx.fillStyle = '#a855f7'; // Shrine
+
+                    ctx.fillRect(px, py, TILE_SIZE - 1, TILE_SIZE - 1);
+
+                    // Tile Icons
+                    if (tile === 3) {
+                        ctx.fillStyle = '#000';
+                        ctx.font = '16px sans-serif';
+                        ctx.fillText('🏰', px + 6, py + 22);
+                    } else if (tile === 4) {
+                        ctx.fillText('⛩️', px + 6, py + 22);
+                    }
+                }
+            }
+
+            // Render Player
+            const playerPx = gameState.player.x * TILE_SIZE + offsetX;
+            const playerPy = gameState.player.y * TILE_SIZE + offsetY;
+            ctx.font = '20px sans-serif';
+            ctx.fillText('🧙‍♂️', playerPx + 4, playerPy + 24);
+        }
+
+        let joystickActive = false;
+        let lastMoveTime = 0;
+
+        function setupJoystick() {
+            const zone = document.getElementById('joystick-zone');
+            const stick = document.getElementById('joystick-stick');
+            const maxRadius = 35;
+
+            function handleStart(e) {
+                joystickActive = true;
+                handleMove(e);
+            }
+
+            function handleMove(e) {
+                if (!joystickActive || inBattle) return;
+                const rect = zone.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                let dx = clientX - (rect.left + rect.width / 2);
+                let dy = clientY - (rect.top + rect.height / 2);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance > maxRadius) {
+                    dx = (dx / distance) * maxRadius;
+                    dy = (dy / distance) * maxRadius;
+                }
+
+                stick.style.transform = `translate(${dx}px, ${dy}px)`;
+
+                // Movement cooldown
+                const now = Date.now();
+                if (now - lastMoveTime > 180) {
+                    let moveX = 0, moveY = 0;
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        if (dx > 10) moveX = 1;
+                        else if (dx < -10) moveX = -1;
+                    } else {
+                        if (dy > 10) moveY = 1;
+                        else if (dy < -10) moveY = -1;
+                    }
+
+                    if (moveX !== 0 || moveY !== 0) {
+                        movePlayer(moveX, moveY);
+                        lastMoveTime = now;
+                    }
+                }
+            }
+
+            function handleEnd() {
+                joystickActive = false;
+                stick.style.transform = `translate(0px, 0px)`;
+            }
+
+            zone.addEventListener('touchstart', handleStart);
+            zone.addEventListener('touchmove', handleMove);
+            zone.addEventListener('touchend', handleEnd);
+            zone.addEventListener('mousedown', handleStart);
+            window.addEventListener('mousemove', handleMove);
+            window.addEventListener('mouseup', handleEnd);
+
+            document.getElementById('btn-interact').addEventListener('click', interactTile);
+            document.getElementById('btn-hermit-ai').addEventListener('click', () => toggleModal('hermit-modal'));
+        }
+
+        function movePlayer(dx, dy) {
+            const newX = gameState.player.x + dx;
+            const newY = gameState.player.y + dy;
+
+            if (newX >= 0 && newX < MAP_SIZE && newY >= 0 && newY < MAP_SIZE) {
+                const tile = mapData[newY][newX];
+                if (tile !== 1) { // 1 is wall
+                    gameState.player.x = newX;
+                    gameState.player.y = newY;
+
+                    // Random Battle Encounter (15% chance on path)
+                    if (tile === 0 && Math.random() < 0.15) {
+                        startBattle();
+                    }
+                }
+            }
+        }
+
+        function interactTile() {
+            const tile = mapData[gameState.player.y][gameState.player.x];
+            if (tile === 3) {
+                // Town Healing
+                gameState.player.hp = gameState.player.maxHp;
+                gameState.player.mp = gameState.player.maxMp;
+                showToast("町で休息した！HPとMPが全回復！", "cyan");
+                updateUI();
+            } else if (tile === 4) {
+                // Shrine / AI Hermit
+                toggleModal('hermit-modal');
+            } else {
+                showToast("周りには何もないようだ。");
+            }
+        }
+
+        function startBattle() {
+            inBattle = true;
+            // Pick a monster based on state
+            const randIndex = Math.floor(Math.random() * gameState.monsters.length);
+            const template = gameState.monsters[randIndex];
+            activeEnemy = JSON.parse(JSON.stringify(template)); // Clone monster
+
+            document.getElementById('enemy-avatar').innerText = activeEnemy.emoji;
+            document.getElementById('enemy-name').innerText = activeEnemy.name;
+            document.getElementById('battle-log').innerHTML = `<p class="text-amber-400">${activeEnemy.name} が立ちはだかった！</p>`;
+
+            updateBattleUI();
+            document.getElementById('battle-view').classList.remove('hidden');
+            document.getElementById('battle-view').classList.add('flex');
+        }
+
+        function updateBattleUI() {
+            if (!activeEnemy) return;
+
+            // Enemy
+            const eHpPercent = Math.max(0, (activeEnemy.hp / activeEnemy.maxHp) * 100);
+            document.getElementById('enemy-hp-bar').style.width = `${eHpPercent}%`;
+            document.getElementById('enemy-hp-text').innerText = `HP: ${activeEnemy.hp}/${activeEnemy.maxHp}`;
+
+            // Player
+            const pHpPercent = Math.max(0, (gameState.player.hp / gameState.player.maxHp) * 100);
+            const pMpPercent = Math.max(0, (gameState.player.mp / gameState.player.maxMp) * 100);
+            document.getElementById('player-hp-bar').style.width = `${pHpPercent}%`;
+            document.getElementById('player-mp-bar').style.width = `${pMpPercent}%`;
+            document.getElementById('player-battle-name').innerText = `${gameState.player.name} (Lv.${gameState.player.level})`;
+            document.getElementById('player-hp-text').innerText = `HP ${gameState.player.hp}/${gameState.player.maxHp}`;
+        }
+
+        function appendBattleLog(msg) {
+            const log = document.getElementById('battle-log');
+            log.innerHTML += `<p class="text-slate-300">${msg}</p>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function executeBattleAction(action) {
+            if (!inBattle || !activeEnemy) return;
+
+            if (action === 'attack') {
+                // Calculate Damage
+                let isCrit = Math.random() < gameState.battleRules.critRate;
+                let damage = Math.max(1, gameState.player.atk - Math.floor(Math.random() * 3));
+                if (isCrit) damage = Math.floor(damage * gameState.battleRules.critDamageMultiplier);
+
+                activeEnemy.hp -= damage;
+                appendBattleLog(`🗡️ ${gameState.player.name}の攻撃！ ${activeEnemy.name}に ${damage} のダメージ！ ${isCrit ? '🔥クリティカル！' : ''}`);
+
+                if (checkBattleEnd()) return;
+                setTimeout(enemyTurn, 600);
+            } else if (action === 'skill') {
+                if (gameState.player.skills.length === 0) {
+                    appendBattleLog("使用できるスキルがない！");
+                    return;
+                }
+                const skill = gameState.player.skills[0]; // Simple selection: use first skill
+                if (gameState.player.mp < skill.mpCost) {
+                    appendBattleLog("MPが足りない！");
+                    return;
+                }
+                gameState.player.mp -= skill.mpCost;
+                
+                if (skill.id === 'heal') {
+                    gameState.player.hp = Math.min(gameState.player.maxHp, gameState.player.hp + skill.power);
+                    appendBattleLog(`✨ ${skill.name}！ HPが ${skill.power} 回復した！`);
+                } else {
+                    activeEnemy.hp -= skill.power;
+                    appendBattleLog(`⚡ ${skill.name}！ ${activeEnemy.name}に ${skill.power} のダメージ！`);
+                }
+
+                updateBattleUI();
+                if (checkBattleEnd()) return;
+                setTimeout(enemyTurn, 600);
+            } else if (action === 'item') {
+                const potion = gameState.player.items.find(i => i.id === 'potion');
+                if (potion && potion.count > 0) {
+                    potion.count--;
+                    gameState.player.hp = Math.min(gameState.player.maxHp, gameState.player.hp + 40);
+                    appendBattleLog(`🧪 薬草を使った！ HPが 40 回復した！`);
+                    updateBattleUI();
+                    setTimeout(enemyTurn, 600);
+                } else {
+                    appendBattleLog("回復アイテムがない！");
+                }
+            } else if (action === 'run') {
+                appendBattleLog("逃げ出した！");
+                setTimeout(endBattle, 500);
+            }
+        }
+
+        function enemyTurn() {
+            if (!inBattle || activeEnemy.hp <= 0) return;
+
+            let damage = Math.max(1, activeEnemy.atk - Math.floor(gameState.player.def / 2));
+            gameState.player.hp -= damage;
+            appendBattleLog(`💥 ${activeEnemy.name}の攻撃！ ${gameState.player.name}は ${damage} のダメージを受けた！`);
+            updateBattleUI();
+
+            if (gameState.player.hp <= 0) {
+                appendBattleLog("☠️ あなたは倒れてしまった...");
+                setTimeout(() => {
+                    gameState.player.hp = gameState.player.maxHp;
+                    endBattle();
+                    showToast("町で目を覚ました...", "rose");
+                    gameState.player.x = 2; gameState.player.y = 2; // Move to town
+                }, 1200);
+            }
+        }
+
+        function checkBattleEnd() {
+            updateBattleUI();
+            if (activeEnemy.hp <= 0) {
+                const earnedGold = Math.floor(activeEnemy.gold * gameState.battleRules.goldMultiplier);
+                const earnedExp = Math.floor(activeEnemy.exp * gameState.battleRules.expMultiplier);
+
+                gameState.player.gold += earnedGold;
+                gameState.player.exp += earnedExp;
+
+                appendBattleLog(`🎉 勝利！ ${earnedExp} EXP と ${earnedGold} G を獲得！`);
+
+                // Level up check
+                if (gameState.player.exp >= gameState.player.nextExp) {
+                    gameState.player.level++;
+                    gameState.player.maxHp += 20;
+                    gameState.player.hp = gameState.player.maxHp;
+                    gameState.player.atk += 5;
+                    gameState.player.nextExp *= 2;
+                    appendBattleLog(`🌟 レベルアップ！ Lv.${gameState.player.level} になった！`);
+                }
+
+                setTimeout(endBattle, 1200);
+                return true;
+            }
+            return false;
+        }
+
+        function endBattle() {
+            inBattle = false;
+            activeEnemy = null;
+            document.getElementById('battle-view').classList.add('hidden');
+            document.getElementById('battle-view').classList.remove('flex');
+            updateUI();
+        }
+
+        async function requestCodeModification() {
+            const promptInput = document.getElementById('ai-prompt-input');
+            const userPrompt = promptInput.value.trim();
+
+            if (!userPrompt) {
+                showToast("願い事を入力してください！");
+                return;
+            }
+
+            const btn = document.getElementById('btn-submit-ai');
+            const dialogueBox = document.getElementById('hermit-dialogue');
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> <span>仙人が術を唱え中...</span>`;
+            dialogueBox.innerHTML = `「むむむ...！プログラムの法則を書き換えておるぞ。少々待つんじゃ...」`;
+
+            try {
+                // Construct API Request Payload
+                const fullPrompt = `${HERMIT_SYSTEM_PROMPT}\n\n現在のゲームプログラムデータ:\n${JSON.stringify(gameState, null, 2)}\n\nプレイヤーからの願い(プロンプト):\n${userPrompt}`;
+
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: fullPrompt }] }]
+                    })
+                });
+
+                const result = await response.json();
+                const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (rawText) {
+                    // Sanitize JSON text
+                    const cleanedJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const parsed = JSON.parse(cleanedJson);
+
+                    if (parsed.updatedData) {
+                        // Apply Modification to Real Game State
+                        gameState = parsed.updatedData;
+                        gameState.modCount = (gameState.modCount || 0) + 1;
+
+                        // Display Hermit Dialogue
+                        dialogueBox.innerText = `「${parsed.dialogue || "世界を書き換えたぞ！"}」`;
+                        
+                        showToast("✨ ゲームのコードがリアルタイム改変されました！", "purple");
+                        updateUI();
+                        promptInput.value = "";
+                    } else {
+                        throw new Error("Invalid structure returned");
+                    }
+                } else {
+                    throw new Error("No response content from AI");
+                }
+
+            } catch (err) {
+                console.error("AI Hermit Error:", err);
+                dialogueBox.innerText = "「フォフォ... 術が失敗してしまったようじゃ（APIエラーまたは不正な構文）。もう一度頼んでおくれ」";
+                showToast("改変に失敗しました", "rose");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-sparkles"></i> <span>世界の理（コード）を改変する</span>`;
+            }
+        }
+
+        function updateUI() {
+            // Version HUD
+            document.getElementById('game-version').innerText = `Ver ${gameState.version || '1.0'} [MODS: ${gameState.modCount || 0}]`;
+            
+            // Mods badge
+            const badge = document.getElementById('active-mods-badge');
+            if (gameState.modCount > 0) {
+                badge.classList.remove('hidden');
+                document.getElementById('active-mod-count').innerText = `${gameState.modCount} MODS`;
+            }
+
+            // Code Inspector Area
+            document.getElementById('code-display-area').innerText = JSON.stringify(gameState, null, 2);
+
+            // Status Modal Content
+            document.getElementById('status-content').innerHTML = `
+                <div class="glass-card p-3 rounded-xl space-y-2 border border-slate-700">
+                    <p class="text-amber-300 font-bold text-sm">${gameState.player.name} (Lv.${gameState.player.level})</p>
+                    <div class="grid grid-cols-2 gap-2 text-slate-300">
+                        <div>HP: <span class="text-emerald-400 font-bold">${gameState.player.hp}/${gameState.player.maxHp}</span></div>
+                        <div>MP: <span class="text-cyan-400 font-bold">${gameState.player.mp}/${gameState.player.maxMp}</span></div>
+                        <div>攻撃力: <span class="text-rose-400 font-bold">${gameState.player.atk}</span></div>
+                        <div>防御力: <span class="text-blue-400 font-bold">${gameState.player.def}</span></div>
+                        <div>所持金: <span class="text-amber-400 font-bold">${gameState.player.gold} G</span></div>
+                        <div>EXP: <span class="text-purple-400 font-bold">${gameState.player.exp}/${gameState.player.nextExp}</span></div>
+                    </div>
+                </div>
+            `;
+
+            // Inventory Modal Content
+            let skillsHTML = gameState.player.skills.map(s => `
+                <div class="glass-card p-2 rounded-lg border border-cyan-900/40">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="font-bold text-cyan-300">${s.name}</span>
+                        <span class="text-[10px] bg-cyan-900/60 px-1.5 py-0.5 rounded text-cyan-200">消費MP: ${s.mpCost}</span>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1">${s.desc || '威力: ' + s.power}</p>
+                </div>
+            `).join('');
+
+            let itemsHTML = gameState.player.items.map(i => `
+                <div class="glass-card p-2 rounded-lg border border-amber-900/40 flex justify-between items-center">
+                    <div>
+                        <p class="font-bold text-xs text-amber-200">${i.name}</p>
+                        <p class="text-[10px] text-slate-400">${i.desc}</p>
+                    </div>
+                    <span class="text-xs font-bold text-amber-400">x${i.count}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('inventory-content').innerHTML = `
+                <div class="space-y-2">
+                    <h3 class="text-xs font-bold text-slate-400">⚡ 習得中のスキル</h3>
+                    ${skillsHTML}
+                    <h3 class="text-xs font-bold text-slate-400 pt-2">🎒 所持アイテム</h3>
+                    ${itemsHTML}
+                </div>
+            `;
+        }
+
+        function fillPresetPrompt(text) {
+            document.getElementById('ai-prompt-input').value = text;
+        }
+
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function showToast(text, color = "amber") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let colorClasses = "border-amber-500/40 text-amber-200";
+            if (color === "cyan") colorClasses = "border-cyan-500/40 text-cyan-200";
+            if (color === "purple") colorClasses = "border-purple-500/40 text-purple-200";
+            if (color === "rose") colorClasses = "border-rose-500/40 text-rose-200";
+
+            toast.className = `glass-card ${colorClasses} px-3 py-1.5 rounded-full text-xs font-bold shadow-xl border animate-bounce`;
+            toast.innerText = text;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 2500);
+        }
+
+        // Start Application on Load
+        window.onload = () => {
+            initGame();
+        };
+    </script>
+</body>
+</html>
