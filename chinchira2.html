@@ -1,0 +1,490 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>極・ちんちらざむらい</title>
+    <style>
+        :root {
+            --bg-color: #0d0d0d;
+            --container-bg: #1a1a1a;
+            --accent-gold: #d4af37;
+            --accent-red: #e63946;
+            --text-color: #f1f1f1;
+            --neon-blue: #00f2ff;
+        }
+
+        body {
+            font-family: 'Hiragino Mincho ProN', 'MS PMincho', serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #scaler-wrapper {
+            width: 500px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transform-origin: center center;
+            transition: transform 0.1s ease-out;
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--container-bg);
+            padding: 25px;
+            border-radius: 4px;
+            border: 2px solid var(--accent-gold);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.2), inset 0 0 10px rgba(0,0,0,1);
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 26px;
+            letter-spacing: 0.4em;
+            color: var(--accent-gold);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            border-bottom: 1px solid var(--accent-gold);
+            padding-bottom: 8px;
+            margin-top: 0;
+        }
+
+        #status-bar {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: var(--accent-gold);
+            font-size: 14px;
+        }
+
+        #chinchilla-area {
+            font-size: 70px;
+            height: 90px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));
+        }
+
+        #message-area {
+            font-size: 18px;
+            font-weight: bold;
+            height: 35px;
+            margin: 8px 0;
+            color: var(--neon-blue);
+            text-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        #log-container {
+            background: rgba(0, 0, 0, 0.85);
+            color: #ccc;
+            text-align: left;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            height: 120px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            box-sizing: border-box;
+            scroll-behavior: smooth;
+        }
+
+        .log-player { color: var(--neon-blue); }
+        .log-cpu { color: var(--accent-red); }
+
+        #timer-container {
+            width: 100%;
+            height: 10px;
+            background-color: #333;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            border: 1px solid var(--accent-gold);
+        }
+
+        #timer-bar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, var(--accent-gold), var(--accent-red));
+            box-shadow: 0 0 10px var(--accent-red);
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        button {
+            padding: 12px 5px;
+            font-size: 14px;
+            font-family: inherit;
+            font-weight: bold;
+            border: 1px solid var(--accent-gold);
+            background: rgba(212, 175, 55, 0.1);
+            color: var(--accent-gold);
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button:hover {
+            background: var(--accent-gold);
+            color: black;
+        }
+
+        button:active {
+            transform: translateY(2px);
+        }
+
+        #retry-btn {
+            background: var(--accent-red);
+            color: white;
+            border: none;
+            width: 100%;
+            margin-top: 15px;
+            display: none;
+            font-size: 16px;
+            letter-spacing: 0.2em;
+        }
+
+        #result-area {
+            display: none;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border: 2px double var(--accent-gold);
+            margin-bottom: 15px;
+            animation: fadeIn 1s;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .shake {
+            animation: shake 0.2s ease-in-out 0s 2;
+        }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(5px); }
+            50% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+            100% { transform: translateX(0); }
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="scaler-wrapper">
+    <div id="game-container">
+        <h1>ちんちらざむらい</h1>
+        
+        <div id="status-bar">
+            <span id="level-display">級数: 1</span>
+            <span id="target-display"></span>
+        </div>
+
+        <div id="result-area">
+            <h2 style="color:var(--accent-gold)">【 勝利・免許皆伝 】</h2>
+            <p>総所要時間: <span id="res-total-time" style="color:var(--neon-blue)">0</span> 秒</p>
+            <p>平均反射速度: <span id="res-avg-time" style="color:var(--neon-blue)">0</span> 秒</p>
+        </div>
+
+        <div id="chinchilla-area">🐭</div>
+        <div id="message-area">いざ、尋常に…</div>
+
+        <div id="log-container"></div>
+
+        <div id="timer-container" class="hidden">
+            <div id="timer-bar"></div>
+        </div>
+
+        <div id="action-area" class="btn-grid hidden">
+            <button onclick="playerAttack('chinchilla')">ちんちら</button>
+            <button onclick="playerAttack('ochinchilla')">おちんちら</button>
+            <button onclick="playerAttack('samurai')">さむらい</button>
+            <button onclick="playerAttack('chinsamu')">ちんちらざむらい</button>
+        </div>
+
+        <div id="defend-area" class="btn-grid hidden">
+            <button onclick="playerDefend('none')">回答しない</button>
+            <button onclick="playerDefend('biroon')">びろーん</button>
+            <button onclick="playerDefend('shakiin')">シャキーン</button>
+            <button onclick="playerDefend('chinsamu')">ちんちらざむらい</button>
+        </div>
+
+        <button id="retry-btn" onclick="initGame()">不撓不屈（もう一度）</button>
+    </div>
+</div>
+
+<script>
+    const attacks = {
+        'chinchilla': { attackName: 'ちんちら', defendId: 'none', defendName: '（静寂）' },
+        'ochinchilla': { attackName: 'おちんちら', defendId: 'biroon', defendName: 'びろーん' },
+        'samurai': { attackName: 'さむらい', defendId: 'shakiin', defendName: 'シャキーン' },
+        'chinsamu': { attackName: 'ちんちらざむらい！ちんちらざむらい！', defendId: 'chinsamu', defendName: 'ちんちらざむらい！' }
+    };
+
+    let level = 1;
+    let finalLevelSurviveCount = 0;
+    let logs = [];
+    let reactionTimes = [];
+    let gameStartTime = 0;
+    let currentEnemyAttack = '';
+    let timeLimit = 10;
+    let turnStartTime = 0;
+    let timerInterval = null;
+    let isGameOver = false;
+
+    const elLevel = document.getElementById('level-display');
+    const elTarget = document.getElementById('target-display');
+    const elMessage = document.getElementById('message-area');
+    const elChinchilla = document.getElementById('chinchilla-area');
+    const elLog = document.getElementById('log-container');
+    const elTimerContainer = document.getElementById('timer-container');
+    const elTimerBar = document.getElementById('timer-bar');
+    const elActionArea = document.getElementById('action-area');
+    const elDefendArea = document.getElementById('defend-area');
+    const elRetryBtn = document.getElementById('retry-btn');
+    const elResultArea = document.getElementById('result-area');
+    const scalerWrapper = document.getElementById('scaler-wrapper');
+    const gameContainer = document.getElementById('game-container');
+
+    // 縦横正規化（レスポンシブ・スケーリング）プログラム
+    function normalizeScreenSize() {
+        const padding = 20;
+        const availableWidth = window.innerWidth - padding;
+        const availableHeight = window.innerHeight - padding;
+        
+        // コンテナの元の自然なサイズを取得するために一時的にscaleをリセット
+        scalerWrapper.style.transform = 'scale(1)';
+        const contentWidth = gameContainer.offsetWidth;
+        const contentHeight = gameContainer.offsetHeight;
+
+        const scaleX = availableWidth / contentWidth;
+        const scaleY = availableHeight / contentHeight;
+
+        // 縦横どちらがはみ出ているか、余っているかを正確に確認し、ぴったり入り切るようにスケールを決定
+        // 小さくなりすぎないように最小スケールを担保しつつ、画面内に必ず収める相似スケーリング
+        let scale = Math.min(scaleX, scaleY);
+        
+        // 画面が大きい場合でも過剰に引き延ばさず、スマホ・PC両方で適切に表示
+        if (scale > 1.2) {
+            scale = 1.2;
+        }
+        
+        scalerWrapper.style.transform = `scale(${scale})`;
+    }
+
+    window.addEventListener('resize', normalizeScreenSize);
+    window.addEventListener('orientationchange', normalizeScreenSize);
+
+    function initGame() {
+        level = 1;
+        finalLevelSurviveCount = 0;
+        logs = [];
+        reactionTimes = [];
+        isGameOver = false;
+        gameStartTime = performance.now();
+
+        elChinchilla.style.opacity = '1';
+        elChinchilla.style.transform = 'scale(1)';
+        elChinchilla.innerText = '🐭';
+        elResultArea.style.display = 'none';
+        elRetryBtn.style.display = 'none';
+        
+        updateStatus();
+        elLog.innerHTML = "";
+        addLog("⚔️ 果たし合い開始 ⚔️");
+        startPlayerTurn();
+        normalizeScreenSize();
+    }
+
+    function updateStatus() {
+        elLevel.innerText = `級数: ${level === 10 ? '皆伝' : level}`;
+        if (level === 10) {
+            elTarget.innerText = `残り殺陣: ${10 - finalLevelSurviveCount}`;
+            elTarget.style.color = 'var(--accent-red)';
+        } else {
+            elTarget.innerText = "";
+        }
+    }
+
+    function addLog(text, type = '') {
+        const spanClass = type === 'player' ? 'log-player' : (type === 'cpu' ? 'log-cpu' : '');
+        logs.push(`<span class="${spanClass}">${text}</span>`);
+        if (logs.length > 30) logs.shift(); // 履歴を保持しつつ制限
+        elLog.innerHTML = logs.join('<br>');
+        // 常に最新のログが完全に見えるように最下部にスクロールさせる
+        elLog.scrollTop = elLog.scrollHeight;
+    }
+
+    function startPlayerTurn() {
+        if (isGameOver) return;
+        elTimerContainer.classList.add('hidden');
+        elDefendArea.classList.add('hidden');
+        elActionArea.classList.remove('hidden');
+        elMessage.innerText = "仕掛けよ！";
+        elMessage.style.color = varName('--neon-blue');
+        normalizeScreenSize();
+    }
+
+    function playerAttack(attackId) {
+        if (isGameOver) return;
+        elActionArea.classList.add('hidden');
+        
+        const attackName = attacks[attackId].attackName;
+        elMessage.innerText = attackName + "！！";
+        elMessage.style.color = "white";
+        document.body.classList.add('shake');
+        setTimeout(() => document.body.classList.remove('shake'), 200);
+
+        addLog(`あなた: ${attackName}`, 'player');
+        
+        setTimeout(() => {
+            if (isGameOver) return;
+            addLog(`最強CPU: ${attacks[attackId].defendName}`, 'cpu');
+            setTimeout(startEnemyTurn, 600);
+        }, 500);
+    }
+
+    function startEnemyTurn() {
+        if (isGameOver) return;
+        const keys = Object.keys(attacks);
+        currentEnemyAttack = keys[Math.floor(Math.random() * keys.length)];
+        
+        addLog(`最強CPU: ${attacks[currentEnemyAttack].attackName}`, 'cpu');
+        startPlayerDefend();
+    }
+
+    function startPlayerDefend() {
+        if (isGameOver) return;
+        elActionArea.classList.add('hidden');
+        elDefendArea.classList.remove('hidden');
+        elTimerContainer.classList.remove('hidden');
+        
+        elMessage.innerText = "応じよ！";
+        elMessage.style.color = varName('--accent-red');
+
+        timeLimit = Math.max(1, 11 - level);
+        turnStartTime = performance.now();
+        
+        if (timerInterval) cancelAnimationFrame(timerInterval);
+        timerInterval = requestAnimationFrame(updateTimer);
+        normalizeScreenSize();
+    }
+
+    function updateTimer() {
+        if (isGameOver) return;
+        const now = performance.now();
+        const elapsed = (now - turnStartTime) / 1000;
+        const remaining = Math.max(0, timeLimit - elapsed);
+        const percent = (remaining / timeLimit) * 100;
+        
+        elTimerBar.style.width = `${percent}%`;
+
+        if (remaining <= 0) {
+            triggerGameOver("反応が遅い！");
+        } else {
+            timerInterval = requestAnimationFrame(updateTimer);
+        }
+    }
+
+    function playerDefend(defendId) {
+        if (isGameOver) return;
+        cancelAnimationFrame(timerInterval);
+        
+        const reactTime = (performance.now() - turnStartTime) / 1000;
+        reactionTimes.push(reactTime);
+
+        const correctDefendId = attacks[currentEnemyAttack].defendId;
+        const chosenDefendName = Object.values(attacks).find(a => a.defendId === defendId)?.defendName || "無言";
+
+        elMessage.innerText = chosenDefendName + "！！";
+
+        if (defendId === correctDefendId) {
+            addLog(`あなた: ${chosenDefendName}`, 'player');
+            if (level < 10) level++;
+            else finalLevelSurviveCount++;
+            
+            updateStatus();
+            if (level === 10 && finalLevelSurviveCount >= 10) {
+                triggerGameClear();
+            } else {
+                setTimeout(startPlayerTurn, 600);
+            }
+        } else {
+            addLog(`あなた: ${chosenDefendName}`, 'player');
+            triggerGameOver("見切られた！");
+        }
+    }
+
+    function triggerGameOver(reason) {
+        isGameOver = true;
+        cancelAnimationFrame(timerInterval);
+        elActionArea.classList.add('hidden');
+        elDefendArea.classList.add('hidden');
+        elTimerContainer.classList.add('hidden');
+
+        addLog(`―― 終焉 ――`);
+        elMessage.innerText = "🐭「切腹じゃ...」";
+        elMessage.style.color = "white";
+        elRetryBtn.style.display = 'block';
+        normalizeScreenSize();
+    }
+
+    function triggerGameClear() {
+        isGameOver = true;
+        elActionArea.classList.add('hidden');
+        elDefendArea.classList.add('hidden');
+        elTimerContainer.classList.add('hidden');
+
+        addLog("⚔️ 決着 ⚔️");
+        elMessage.innerText = "🐭「かたじけない...」";
+        elMessage.style.color = varName('--accent-gold');
+        
+        elChinchilla.style.transform = 'scale(0) rotate(720deg)';
+        elChinchilla.style.opacity = '0';
+
+        setTimeout(() => {
+            const totalTime = ((performance.now() - gameStartTime) / 1000).toFixed(2);
+            const avgTime = (reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length).toFixed(2);
+            document.getElementById('res-total-time').innerText = totalTime;
+            document.getElementById('res-avg-time').innerText = avgTime;
+            elResultArea.style.display = 'block';
+            elRetryBtn.style.display = 'block';
+            normalizeScreenSize();
+        }, 1000);
+    }
+
+    function varName(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name.replace('var(','').replace(')','')).trim();
+    }
+
+    // 初回初期化とサイズ調整
+    window.onload = function() {
+        initGame();
+        normalizeScreenSize();
+    };
+</script>
+
+</body>
+</html>
