@@ -1027,7 +1027,7 @@
     function initSocketConnection() {
         if (socket && socket.connected) return;
         
-        socket = io();
+        socket = io(https://chinchira-server-2.onrender.com);
 
         socket.on('connect', () => {
             document.getElementById('connection-status').innerText = "● 接続完了";
