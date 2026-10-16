@@ -1,0 +1,1171 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>極・ちんちらざむらい</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d0d0d;
+            --container-bg: #1a1a1a;
+            --accent-gold: #d4af37;
+            --accent-red: #e63946;
+            --text-color: #f1f1f1;
+            --neon-blue: #00f2ff;
+        }
+
+        body {
+            font-family: 'Hiragino Mincho ProN', 'MS PMincho', serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #scaler-wrapper {
+            width: 500px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transform-origin: center center;
+            transition: transform 0.1s ease-out;
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--container-bg);
+            padding: 25px;
+            border-radius: 4px;
+            border: 2px solid var(--accent-gold);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.2), inset 0 0 10px rgba(0,0,0,1);
+            position: relative;
+            box-sizing: border-box;
+            min-height: 620px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-size: 26px;
+            letter-spacing: 0.4em;
+            color: var(--accent-gold);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            border-bottom: 1px solid var(--accent-gold);
+            padding-bottom: 8px;
+            margin-top: 0;
+        }
+
+        .screen { display: none; flex-direction: column; height: 100%; flex-grow: 1; }
+        .screen.active { display: flex; }
+
+        #opening-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #0d0d0d;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+        #opening-chinchilla {
+            font-size: 80px;
+            position: absolute;
+            bottom: 100px;
+            transition: transform 0.6s ease-out;
+        }
+        #opening-title {
+            font-size: 28px;
+            color: var(--accent-gold);
+            opacity: 0;
+            transform: translateY(-50px);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            margin-bottom: 20px;
+        }
+        #opening-start-btn {
+            display: none;
+            margin-top: 20px;
+            padding: 12px 24px;
+            font-size: 18px;
+            background: var(--accent-gold);
+            color: black;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 0 15px var(--accent-gold);
+        }
+
+        .home-profile {
+            background: rgba(255,255,255,0.05);
+            padding: 10px;
+            border: 1px solid var(--accent-gold);
+            margin-bottom: 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .home-chinchilla-box {
+            font-size: 80px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .home-chinchilla-box:hover { transform: scale(1.05); }
+        .menu-btn {
+            background: rgba(212, 175, 55, 0.15);
+            color: var(--accent-gold);
+            border: 1px solid var(--accent-gold);
+            padding: 14px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 8px 0;
+            transition: 0.2s;
+        }
+        .menu-btn:hover { background: var(--accent-gold); color: black; }
+
+        #modal-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 50;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: var(--container-bg);
+            border: 2px solid var(--accent-gold);
+            padding: 25px;
+            width: 80%;
+            border-radius: 6px;
+            box-shadow: 0 0 20px rgba(212,175,55,0.4);
+        }
+
+        #status-bar {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: var(--accent-gold);
+            font-size: 14px;
+        }
+        .battle-header-info {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 5px;
+            width: 100%;
+        }
+        .character-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .heart-display {
+            font-size: 18px;
+            letter-spacing: 2px;
+            margin-bottom: 2px;
+        }
+        .guard-wrapper {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 90px;
+            height: 90px;
+        }
+        .guard-circle {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 90px;
+            height: 90px;
+            box-sizing: border-box;
+            border: 3px solid var(--neon-blue);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--neon-blue);
+            opacity: 0.8;
+            transition: transform 0.3s, opacity 0.3s, background 0.3s, border-color 0.3s;
+            pointer-events: none;
+        }
+        .guard-shining {
+            background: rgba(255, 255, 255, 0.95) !important;
+            box-shadow: 0 0 30px #fff, inset 0 0 20px #fff !important;
+            border-color: #fff !important;
+        }
+        .guard-broken {
+            opacity: 0 !important;
+            transform: scale(1.3);
+        }
+
+        .shard-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: visible;
+            z-index: 10;
+        }
+
+        .shard {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: var(--neon-blue);
+            box-shadow: 0 0 8px #fff;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: flyShard 0.6s ease-out forwards;
+        }
+        @keyframes flyShard {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+        }
+
+        #chinchilla-area {
+            font-size: 70px;
+            height: 90px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));
+            margin: 0;
+            position: relative;
+            z-index: 2;
+        }
+
+        #message-area {
+            font-size: 18px;
+            font-weight: bold;
+            height: 30px;
+            margin: 4px 0;
+            color: var(--neon-blue);
+            text-shadow: 0 0 5px var(--neon-blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #log-container {
+            background: rgba(0, 0, 0, 0.85);
+            color: #ccc;
+            text-align: left;
+            padding: 10px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            height: 100px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            box-sizing: border-box;
+            scroll-behavior: smooth;
+        }
+
+        .log-player { color: var(--neon-blue); }
+        .log-cpu { color: var(--accent-red); }
+
+        #timer-container {
+            width: 100%;
+            height: 8px;
+            background-color: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            border: 1px solid var(--accent-gold);
+        }
+
+        #timer-bar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, var(--accent-gold), var(--accent-red));
+            box-shadow: 0 0 10px var(--accent-red);
+        }
+
+        .control-wrapper {
+            position: relative;
+            min-height: 95px;
+            margin-bottom: 10px;
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+
+        .hidden-grid {
+            opacity: 0;
+            pointer-events: none;
+            visibility: hidden;
+        }
+
+        button {
+            padding: 12px 5px;
+            font-size: 14px;
+            font-family: inherit;
+            font-weight: bold;
+            border: 1px solid var(--accent-gold);
+            background: rgba(212, 175, 55, 0.1);
+            color: var(--accent-gold);
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button:hover { background: var(--accent-gold); color: black; }
+        button:active { transform: translateY(2px); }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .battle-end-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+            display: none;
+        }
+        #retry-btn {
+            background: var(--accent-red);
+            color: white;
+            border: none;
+            font-size: 16px;
+            letter-spacing: 0.2em;
+        }
+        #return-home-btn {
+            background: #2a2a2a;
+            color: var(--accent-gold);
+            border: 1px solid var(--accent-gold);
+            font-size: 15px;
+        }
+
+        #result-area {
+            display: none;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px;
+            border: 2px double var(--accent-gold);
+            margin-bottom: 8px;
+            animation: fadeIn 1s;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .shake { animation: shake 0.2s ease-in-out 0s 2; }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(6px); }
+            50% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+            100% { transform: translateX(0); }
+        }
+
+        .hidden { visibility: hidden !important; pointer-events: none; }
+
+        .lobby-box {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #444;
+            border-radius: 4px;
+            height: 180px;
+            overflow-y: auto;
+            margin: 10px 0;
+            padding: 5px;
+            text-align: left;
+        }
+        .player-item {
+            padding: 8px;
+            border-bottom: 1px solid #222;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+        .player-item:hover, .player-item.selected {
+            background: rgba(212,175,55,0.2);
+            color: var(--accent-gold);
+        }
+
+        #vs-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 80;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .vs-text {
+            font-size: 40px;
+            color: var(--accent-red);
+            font-weight: bold;
+            text-shadow: 0 0 20px var(--accent-red);
+            transform: scale(0);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .vs-names {
+            font-size: 22px;
+            color: var(--accent-gold);
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div id="scaler-wrapper">
+    <div id="game-container">
+
+        <!-- オープニング画面 -->
+        <div id="opening-screen" onclick="skipOpening()">
+            <div id="opening-chinchilla">🐭</div>
+            <div id="opening-title">極・ちんちらざむらい</div>
+            <button id="opening-start-btn" onclick="goToHome(event)">ゲームスタート</button>
+        </div>
+
+        <!-- 状態1: ホーム画面 -->
+        <div id="screen-home" class="screen">
+            <h1>極・ちんちらざむらい</h1>
+            <div class="home-profile" onclick="changePlayerName()">
+                <div>プレイヤー名: <span id="home-name" style="color:var(--neon-blue);">プレイヤー1234</span> (タップして変更)</div>
+                <div>現在のXP: <span id="home-xp" style="color:var(--accent-gold);">100</span> XP</div>
+            </div>
+            <div style="font-size:13px; color:#aaa; margin-top:5px;">訓練場</div>
+            <div class="home-chinchilla-box" onclick="openTrainingModal()">🐭</div>
+            <button class="menu-btn" onclick="openOnlineLobby()">オンライン対戦</button>
+        </div>
+
+        <!-- 訓練場詳細モーダル -->
+        <div id="modal-overlay">
+            <div class="modal-content">
+                <h2 style="color:var(--accent-gold); margin-top:0;">訓練場</h2>
+                <div style="font-size:50px; margin:10px 0;">🐭</div>
+                <p style="font-size:13px; color:#ccc;">訓練場:ちんちら師匠と稽古をする</p>
+                <button class="menu-btn" style="width:100%; margin-top:15px;" onclick="startTraining()">訓練開始</button>
+                <button class="menu-btn" style="width:100%; background:transparent; color:#888; border-color:#555;" onclick="closeTrainingModal()">戻る</button>
+            </div>
+        </div>
+
+        <!-- 状態3: オンライン対戦ロビー -->
+        <div id="screen-lobby" class="screen">
+            <h1>オンライン対戦</h1>
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin:5px 0;">
+                <span id="connection-status" style="color:var(--accent-red);">● 未接続</span>
+                <span>XP: <span id="lobby-xp">100</span></span>
+            </div>
+            <div style="font-size:13px; text-align:left; margin-top:5px;">オンラインプレイヤー一覧:</div>
+            <div class="lobby-box" id="player-list-container">
+                <div style="padding:10px; color:#777; text-align:center;">プレイヤーを検索中...</div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button id="btn-challenge" class="menu-btn" style="flex:1; margin:0;" disabled onclick="sendChallenge()">- と対戦</button>
+                <button class="menu-btn" style="flex:1; margin:0; background:rgba(230,57,70,0.2); border-color:var(--accent-red);" onclick="startRandomMatch()">ランダム対戦</button>
+            </div>
+            <button class="menu-btn" style="margin-top:10px; background:transparent;" onclick="goToHome()">戻る</button>
+        </div>
+
+        <!-- 状態2 & 4: バトル画面 -->
+        <div id="screen-battle" class="screen">
+            <h1 id="battle-title">訓練場</h1>
+            
+            <div id="status-bar">
+                <span id="battle-level-display">級数: 1</span>
+                <span id="battle-target-display"></span>
+            </div>
+
+            <!-- 敵情報＆ハート＆ガード (左右真ん中配置) -->
+            <div class="battle-header-info">
+                <div class="character-card">
+                    <div id="enemy-heart" class="heart-display">❤️❤️❤️</div>
+                    <div class="guard-wrapper">
+                        <div id="enemy-guard" class="guard-circle"></div>
+                        <div class="shard-container" id="enemy-shard-container"></div>
+                        <div id="chinchilla-area">🐭</div>
+                    </div>
+                    <div id="enemy-name-display" style="font-size:12px; color:var(--accent-red); margin-top:4px;">ちんちら師匠</div>
+                </div>
+            </div>
+
+            <div id="result-area">
+                <h2 style="color:var(--accent-gold); margin:5px 0;" id="result-title">【 勝利 】</h2>
+                <p id="result-detail" style="margin:5px 0; font-size:13px;"></p>
+            </div>
+
+            <div id="message-area">いざ、尋常に…</div>
+
+            <div id="log-container"></div>
+
+            <div id="timer-container" class="hidden">
+                <div id="timer-bar"></div>
+            </div>
+
+            <!-- コントロールエリア（選択肢ボタン群） -->
+            <div class="control-wrapper" id="control-wrapper">
+                <!-- アクションエリア（攻撃選択肢） -->
+                <div id="action-area" class="btn-grid">
+                    <button onclick="playerAttack('chinchilla')">ちんちら</button>
+                    <button onclick="playerAttack('ochinchilla')">おちんちら</button>
+                    <button onclick="playerAttack('samurai')">さむらい</button>
+                    <button onclick="playerAttack('chinsamu')">ちんちらざむらい</button>
+                </div>
+
+                <!-- ディフェンスエリア（防御選択肢） -->
+                <div id="defend-area" class="btn-grid hidden-grid">
+                    <button onclick="playerDefend('none')">回答しない</button>
+                    <button onclick="playerDefend('biroon')">びろーん</button>
+                    <button onclick="playerDefend('shakiin')">シャキーン</button>
+                    <button onclick="playerDefend('chinsamu')">ちんちらざむらい</button>
+                </div>
+            </div>
+
+            <!-- 自分の「ハート＋ガード」エリア：選択肢ボタン群の下に配置 -->
+            <div style="display:flex; justify-content:center; align-items:center; margin-top:5px; margin-bottom:5px;">
+                <div class="character-card">
+                    <div class="guard-wrapper">
+                        <div id="player-guard" class="guard-circle"></div>
+                        <div class="shard-container" id="player-shard-container"></div>
+                        <div id="player-heart" class="heart-display" style="position:relative; z-index:2; margin:0;">❤️❤️❤️</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="battle-end-buttons" id="battle-end-buttons">
+                <button id="retry-btn" onclick="restartBattle()">不撓不屈（もう一度）</button>
+                <button id="return-home-btn" onclick="goToHome()">戻る</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- VS演出用オーバーレイ -->
+<div id="vs-overlay">
+    <div id="vs-name-left" class="vs-names" style="transform: translateX(-150px); opacity:0; transition: all 0.5s;">プレイヤー</div>
+    <div id="vs-center" class="vs-text">VS</div>
+    <div id="vs-name-right" class="vs-names" style="transform: translateX(150px); opacity:0; transition: all 0.5s;">相手</div>
+</div>
+
+<script>
+    let playerData = JSON.parse(localStorage.getItem('chinchilla_player_data')) || {
+        name: 'プレイヤー' + Math.floor(1000 + Math.random() * 9000),
+        xp: 100,
+        lastUpdated: 0
+    };
+
+    function savePlayerData() {
+        localStorage.setItem('chinchilla_player_data', JSON.stringify(playerData));
+    }
+
+    const attacks = {
+        'chinchilla': { attackName: 'ちんちら', defendId: 'none', defendName: '（静寂）' },
+        'ochinchilla': { attackName: 'おちんちら', defendId: 'biroon', defendName: 'びろーん' },
+        'samurai': { attackName: 'さむらい', defendId: 'shakiin', defendName: 'シャキーン' },
+        'chinsamu': { attackName: 'ちんちらざむらい！ちんちらざむらい！', defendId: 'chinsamu', defendName: 'ちんちらざむらい！' }
+    };
+
+    let gameMode = 'training';
+    let level = 1;
+    let finalLevelSurviveCount = 0;
+    let logs = [];
+    let reactionTimes = [];
+    let gameStartTime = 0;
+    let currentEnemyAttack = '';
+    let timeLimit = 10;
+    let turnStartTime = 0;
+    let timerInterval = null;
+    let isGameOver = false;
+
+    let playerHearts = 1;
+    let enemyHearts = 1;
+    let socket = null;
+    let onlineMatchId = null;
+    let selectedTargetId = null;
+    let onlinePlayersList = [];
+    let isMatching = false;
+
+    const scalerWrapper = document.getElementById('scaler-wrapper');
+    const gameContainer = document.getElementById('game-container');
+    const elOpeningScreen = document.getElementById('opening-screen');
+    const elOpeningChinchilla = document.getElementById('opening-chinchilla');
+    const elOpeningTitle = document.getElementById('opening-title');
+    const elOpeningStartBtn = document.getElementById('opening-start-btn');
+
+    const screens = {
+        home: document.getElementById('screen-home'),
+        lobby: document.getElementById('screen-lobby'),
+        battle: document.getElementById('screen-battle')
+    };
+
+    function switchScreen(screenName) {
+        Object.keys(screens).forEach(key => {
+            screens[key].classList.remove('active');
+        });
+        screens[screenName].classList.add('active');
+        normalizeScreenSize();
+    }
+
+    function normalizeScreenSize() {
+        const padding = 20;
+        const availableWidth = window.innerWidth - padding;
+        const availableHeight = window.innerHeight - padding;
+        
+        scalerWrapper.style.transform = 'scale(1)';
+        const contentWidth = gameContainer.offsetWidth;
+        const contentHeight = gameContainer.offsetHeight;
+
+        const scaleX = availableWidth / contentWidth;
+        const scaleY = availableHeight / contentHeight;
+
+        let scale = Math.min(scaleX, scaleY);
+        if (scale > 1.2) scale = 1.2;
+        scalerWrapper.style.transform = `scale(${scale})`;
+    }
+
+    window.addEventListener('resize', normalizeScreenSize);
+    window.addEventListener('orientationchange', normalizeScreenSize);
+
+    window.onload = function() {
+        startOpeningSequence();
+        updateHomeUI();
+        normalizeScreenSize();
+    };
+
+    let openingSkipped = false;
+    function startOpeningSequence() {
+        setTimeout(() => {
+            if(openingSkipped) return;
+            elOpeningChinchilla.style.transform = 'translateY(-180px) scale(1.2)';
+            setTimeout(() => {
+                if(openingSkipped) return;
+                elOpeningChinchilla.style.transform = 'translateY(0) scale(1)';
+                setTimeout(() => {
+                    if(openingSkipped) return;
+                    elOpeningTitle.style.opacity = '1';
+                    elOpeningTitle.style.transform = 'translateY(0)';
+                    elOpeningTitle.classList.add('shake');
+                    setTimeout(() => elOpeningTitle.classList.remove('shake'), 200);
+                    setTimeout(() => {
+                        if(openingSkipped) return;
+                        elOpeningStartBtn.style.display = 'block';
+                    }, 400);
+                }, 500);
+            }, 500);
+        }, 300);
+    }
+
+    function skipOpening() {
+        if(openingSkipped) return;
+        openingSkipped = true;
+        elOpeningChinchilla.style.transform = 'translateY(0) scale(1)';
+        elOpeningTitle.style.opacity = '1';
+        elOpeningTitle.style.transform = 'translateY(0)';
+        elOpeningStartBtn.style.display = 'block';
+    }
+
+    function goToHome(e) {
+        if(e) e.stopPropagation();
+        elOpeningScreen.style.display = 'none';
+        updateHomeUI();
+        switchScreen('home');
+    }
+
+    function updateHomeUI() {
+        document.getElementById('home-name').innerText = playerData.name;
+        document.getElementById('home-xp').innerText = playerData.xp;
+        document.getElementById('lobby-xp').innerText = playerData.xp;
+    }
+
+    function changePlayerName() {
+        const now = Date.now();
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        if (now - (playerData.lastUpdated || 0) < oneDayMs) {
+            alert("プレイヤー名の変更は1日1回までです。");
+            return;
+        }
+        const newName = prompt("新しいプレイヤー名を入力してください（8文字以内）:", playerData.name);
+        if (newName) {
+            if (newName.length > 8) {
+                alert("8文字以内で入力してください。");
+                return;
+            }
+            playerData.name = newName;
+            playerData.lastUpdated = now;
+            savePlayerData();
+            updateHomeUI();
+        }
+    }
+
+    function openTrainingModal() {
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+    function closeTrainingModal() {
+        document.getElementById('modal-overlay').style.display = 'none';
+    }
+
+    function startTraining() {
+        closeTrainingModal();
+        gameMode = 'training';
+        document.getElementById('battle-title').innerText = "訓練場";
+        document.getElementById('enemy-name-display').innerText = "ちんちら師匠";
+        document.getElementById('battle-end-buttons').style.display = 'none';
+        document.getElementById('result-area').style.display = 'none';
+        
+        document.getElementById('control-wrapper').style.display = 'block';
+
+        playerHearts = 1;
+        enemyHearts = 1;
+        updateHeartsUI();
+        resetGuards();
+
+        level = 1;
+        finalLevelSurviveCount = 0;
+        logs = [];
+        reactionTimes = [];
+        isGameOver = false;
+        gameStartTime = performance.now();
+
+        document.getElementById('chinchilla-area').style.opacity = '1';
+        document.getElementById('chinchilla-area').style.transform = 'scale(1)';
+        document.getElementById('chinchilla-area').innerText = '🐭';
+        
+        updateStatus();
+        document.getElementById('log-container').innerHTML = "";
+        addLog("⚔️ 訓練開始 ⚔️");
+        switchScreen('battle');
+        startPlayerTurn();
+    }
+
+    function updateStatus() {
+        const elLevel = document.getElementById('battle-level-display');
+        const elTarget = document.getElementById('battle-target-display');
+        if (gameMode === 'training') {
+            elLevel.innerText = `級数: ${level === 10 ? '皆伝' : level}`;
+            if (level === 10) {
+                elTarget.innerText = `残り殺陣: ${10 - finalLevelSurviveCount}`;
+                elTarget.style.color = 'var(--accent-red)';
+            } else {
+                elTarget.innerText = "";
+            }
+        } else {
+            elLevel.innerText = "オンライン対戦";
+            elTarget.innerText = "";
+        }
+    }
+
+    function updateHeartsUI() {
+        document.getElementById('player-heart').innerText = '❤️'.repeat(Math.max(0, playerHearts));
+        document.getElementById('enemy-heart').innerText = '❤️'.repeat(Math.max(0, enemyHearts));
+    }
+
+    function resetGuards() {
+        const pGuard = document.getElementById('player-guard');
+        const eGuard = document.getElementById('enemy-guard');
+        pGuard.className = 'guard-circle';
+        eGuard.className = 'guard-circle';
+        document.getElementById('player-shard-container').innerHTML = '';
+        document.getElementById('enemy-shard-container').innerHTML = '';
+    }
+
+    function addLog(text, type = '') {
+        const spanClass = type === 'player' ? 'log-player' : (type === 'cpu' ? 'log-cpu' : '');
+        logs.push(`<span class="${spanClass}">${text}</span>`);
+        if (logs.length > 30) logs.shift();
+        const elLog = document.getElementById('log-container');
+        elLog.innerHTML = logs.join('<br>');
+        elLog.scrollTop = elLog.scrollHeight;
+    }
+
+    function startPlayerTurn() {
+        if (isGameOver) return;
+        document.getElementById('timer-container').classList.add('hidden');
+        document.getElementById('defend-area').classList.add('hidden-grid');
+        document.getElementById('action-area').classList.remove('hidden-grid');
+        const elMessage = document.getElementById('message-area');
+        elMessage.innerText = "仕掛けよ！";
+        elMessage.style.color = 'var(--neon-blue)';
+        normalizeScreenSize();
+    }
+
+    function playerAttack(attackId) {
+        if (isGameOver) return;
+        document.getElementById('action-area').classList.add('hidden-grid');
+        
+        const attackName = attacks[attackId].attackName;
+        const elMessage = document.getElementById('message-area');
+        elMessage.innerText = attackName + "！！";
+        elMessage.style.color = "white";
+        document.body.classList.add('shake');
+        setTimeout(() => document.body.classList.remove('shake'), 200);
+
+        addLog(`あなた: ${attackName}`, 'player');
+
+        playAttackEffect('enemy', true);
+        
+        setTimeout(() => {
+            if (isGameOver) return;
+            if (gameMode === 'training') {
+                addLog(`ちんちら師匠: ${attacks[attackId].defendName}`, 'cpu');
+                setTimeout(startEnemyTurn, 600);
+            } else {
+                socket.emit('player_action', { match_id: onlineMatchId, action: attackId, type: 'attack' });
+            }
+        }, 700);
+    }
+
+    function playAttackEffect(targetType, isSuccess) {
+        const guardEl = document.getElementById(targetType === 'enemy' ? 'enemy-guard' : 'player-guard');
+        const shardContainer = document.getElementById(targetType === 'enemy' ? 'enemy-shard-container' : 'player-shard-container');
+
+        if (!isSuccess) {
+            guardEl.classList.add('guard-shining');
+            document.body.classList.add('shake');
+            setTimeout(() => document.body.classList.remove('shake'), 200);
+
+            setTimeout(() => {
+                guardEl.classList.remove('guard-shining');
+                guardEl.classList.add('guard-broken');
+
+                const centerX = 45;
+                const centerY = 45;
+
+                for (let i = 0; i < 16; i++) {
+                    const shard = document.createElement('div');
+                    shard.className = 'shard';
+                    shard.style.left = `${centerX}px`;
+                    shard.style.top = `${centerY}px`;
+                    const angle = (Math.PI * 2 / 16) * i;
+                    const distance = 45 + Math.random() * 35;
+                    shard.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+                    shard.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
+                    shardContainer.appendChild(shard);
+                    setTimeout(() => shard.remove(), 600);
+                }
+            }, 300);
+        }
+    }
+
+    function startEnemyTurn() {
+        if (isGameOver) return;
+        const keys = Object.keys(attacks);
+        currentEnemyAttack = keys[Math.floor(Math.random() * keys.length)];
+        
+        addLog(`ちんちら師匠: ${attacks[currentEnemyAttack].attackName}`, 'cpu');
+        startPlayerDefend();
+    }
+
+    function startPlayerDefend() {
+        if (isGameOver) return;
+        document.getElementById('action-area').classList.add('hidden-grid');
+        document.getElementById('defend-area').classList.remove('hidden-grid');
+        document.getElementById('timer-container').classList.remove('hidden');
+        
+        const elMessage = document.getElementById('message-area');
+        elMessage.innerText = "応じよ！";
+        elMessage.style.color = 'var(--accent-red)';
+
+        timeLimit = Math.max(1, 11 - level);
+        turnStartTime = performance.now();
+        
+        if (timerInterval) cancelAnimationFrame(timerInterval);
+        timerInterval = requestAnimationFrame(updateTimer);
+        normalizeScreenSize();
+    }
+
+    function updateTimer() {
+        if (isGameOver) return;
+        const now = performance.now();
+        const elapsed = (now - turnStartTime) / 1000;
+        const remaining = Math.max(0, timeLimit - elapsed);
+        const percent = (remaining / timeLimit) * 100;
+        
+        document.getElementById('timer-bar').style.width = `${percent}%`;
+
+        if (remaining <= 0) {
+            handleMiss("反応が遅い！");
+        } else {
+            timerInterval = requestAnimationFrame(updateTimer);
+        }
+    }
+
+    function playerDefend(defendId) {
+        if (isGameOver) return;
+        cancelAnimationFrame(timerInterval);
+        
+        const reactTime = (performance.now() - turnStartTime) / 1000;
+        reactionTimes.push(reactTime);
+
+        const correctDefendId = attacks[currentEnemyAttack].defendId;
+        const chosenDefendName = Object.values(attacks).find(a => a.defendId === defendId)?.defendName || "無言";
+
+        const elMessage = document.getElementById('message-area');
+        elMessage.innerText = chosenDefendName + "！！";
+
+        if (defendId === correctDefendId) {
+            addLog(`あなた: ${chosenDefendName}`, 'player');
+            playAttackEffect('player', true);
+            if (gameMode === 'training') {
+                if (level < 10) level++;
+                else finalLevelSurviveCount++;
+                
+                updateStatus();
+                if (level === 10 && finalLevelSurviveCount >= 10) {
+                    triggerGameClear();
+                } else {
+                    setTimeout(startPlayerTurn, 600);
+                }
+            } else {
+                socket.emit('player_action', { match_id: onlineMatchId, action: defendId, type: 'defend' });
+            }
+        } else {
+            addLog(`あなた: ${chosenDefendName}`, 'player');
+            playAttackEffect('player', false);
+            handleMiss("見切られた！");
+        }
+    }
+
+    function handleMiss(reason) {
+        playerHearts--;
+        updateHeartsUI();
+        if (playerHearts <= 0) {
+            triggerGameOver(reason);
+        } else {
+            addLog(`【痛恨のミス！】 ハート減少残り: ${playerHearts}`);
+            setTimeout(startPlayerTurn, 600);
+        }
+    }
+
+    function triggerGameOver(reason) {
+        isGameOver = true;
+        cancelAnimationFrame(timerInterval);
+        document.getElementById('action-area').classList.add('hidden-grid');
+        document.getElementById('defend-area').classList.add('hidden-grid');
+        document.getElementById('timer-container').classList.add('hidden');
+        
+        document.getElementById('control-wrapper').style.display = 'none';
+
+        addLog(`―― 終焉 ――`);
+        const elMessage = document.getElementById('message-area');
+        elMessage.innerText = "🐭「切腹じゃ...」";
+        elMessage.style.color = "white";
+
+        if (gameMode === 'online') {
+            updateXpOnResult(false);
+        }
+
+        showBattleEndMenu("敗北", reason);
+    }
+
+    function triggerGameClear() {
+        isGameOver = true;
+        document.getElementById('action-area').classList.add('hidden-grid');
+        document.getElementById('defend-area').classList.add('hidden-grid');
+        document.getElementById('timer-container').classList.add('hidden');
+        
+        document.getElementById('control-wrapper').style.display = 'none';
+
+        addLog("⚔️ 決着 ⚔️");
+        const elMessage = document.getElementById('message-area');
+        elMessage.innerText = "🐭「かたじけない...」";
+        elMessage.style.color = 'var(--accent-gold)';
+        
+        playAttackEffect('enemy', false);
+
+        if (gameMode === 'online') {
+            updateXpOnResult(true);
+        }
+
+        setTimeout(() => {
+            showBattleEndMenu("勝利・免許皆伝", "見事に師匠の猛攻をしのぎきった！");
+        }, 1000);
+    }
+
+    function showBattleEndMenu(title, detail) {
+        const resArea = document.getElementById('result-area');
+        document.getElementById('result-title').innerText = `【 ${title} 】`;
+        document.getElementById('result-detail').innerText = detail;
+        resArea.style.display = 'block';
+        document.getElementById('battle-end-buttons').style.display = 'flex';
+        normalizeScreenSize();
+    }
+
+    function restartBattle() {
+        if (gameMode === 'training') {
+            startTraining();
+        } else {
+            goToHome();
+        }
+    }
+
+    function openOnlineLobby() {
+        switchScreen('lobby');
+        initSocketConnection();
+    }
+
+    function initSocketConnection() {
+        if (socket && socket.connected) return;
+        
+        // お絵描きプログラムと同様のスマートなサーバーURL判定と超高速コネクション構築
+        const SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:5000' 
+            : 'https://chinchira-server-2.onrender.com';
+
+        socket = io('https://chinchira-1.onrender.com/');
+
+        socket.on('connect', () => {
+            document.getElementById('connection-status').innerText = "● 接続完了";
+            document.getElementById('connection-status').style.color = "var(--neon-blue)";
+            socket.emit('register_player', { name: playerData.name, xp: playerData.xp });
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('connection-status').innerText = "● 未接続";
+            document.getElementById('connection-status').style.color = "var(--accent-red)";
+        });
+
+        socket.on('player_list_update', (players) => {
+            onlinePlayersList = players.filter(p => p.id !== socket.id);
+            renderPlayerList();
+        });
+
+        socket.on('challenge_received', (data) => {
+            if (confirm(`${data.challenger_name} (XP: ${data.challenger_xp}) が対戦を申し込んでいます。受諾しますか？`)) {
+                socket.emit('accept_challenge', { match_id: data.match_id });
+            } else {
+                socket.emit('reject_challenge', { match_id: data.match_id });
+            }
+        });
+
+        socket.on('challenge_rejected', () => {
+            alert("対戦相手に拒否されました（マッチ不成立）。");
+            isMatching = false;
+        });
+
+        socket.on('start_online_battle', (data) => {
+            onlineMatchId = data.match_id;
+            startOnlineBattle(data);
+        });
+    }
+
+    function renderPlayerList() {
+        const container = document.getElementById('player-list-container');
+        if (onlinePlayersList.length === 0) {
+            container.innerHTML = `<div style="padding:10px; color:#777; text-align:center;">他のプレイヤーはいません</div>`;
+            return;
+        }
+        container.innerHTML = '';
+        onlinePlayersList.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'player-item';
+            if (selectedTargetId === p.id) div.classList.add('selected');
+            div.innerHTML = `<span>${p.name}</span><span>XP: ${p.xp}</span>`;
+            div.onclick = () => {
+                selectedTargetId = p.id;
+                document.querySelectorAll('.player-item').forEach(el => el.classList.remove('selected'));
+                div.classList.add('selected');
+                const btn = document.getElementById('btn-challenge');
+                btn.disabled = false;
+                btn.innerText = `${p.name} と対戦`;
+            };
+            container.appendChild(div);
+        });
+    }
+
+    function sendChallenge() {
+        if (!selectedTargetId) return;
+        socket.emit('send_challenge', { target_id: selectedTargetId, name: playerData.name, xp: playerData.xp });
+        alert("対戦申請を送信しました。相手の返答を待っています...");
+    }
+
+    function startRandomMatch() {
+        isMatching = true;
+        socket.emit('start_random_match', { name: playerData.name, xp: playerData.xp });
+        alert("ランダムマッチング中...（キャンセルするには戻るを押してください）");
+    }
+
+    function startOnlineBattle(data) {
+        gameMode = 'online';
+        onlineMatchId = data.match_id;
+        document.getElementById('battle-title').innerText = "オンライン対戦";
+        document.getElementById('enemy-name-display').innerText = data.opponent_name;
+        document.getElementById('battle-end-buttons').style.display = 'none';
+        document.getElementById('result-area').style.display = 'none';
+        
+        document.getElementById('control-wrapper').style.display = 'block';
+
+        playerHearts = 3;
+        enemyHearts = 3;
+        updateHeartsUI();
+        resetGuards();
+
+        const vsOverlay = document.getElementById('vs-overlay');
+        const vsLeft = document.getElementById('vs-name-left');
+        const vsRight = document.getElementById('vs-name-right');
+        const vsCenter = document.getElementById('vs-center');
+
+        vsLeft.innerText = playerData.name;
+        vsRight.innerText = data.opponent_name;
+        vsOverlay.style.display = 'flex';
+
+        setTimeout(() => {
+            vsLeft.style.transform = 'translateX(0)';
+            vsLeft.style.opacity = '1';
+            vsRight.style.transform = 'translateX(0)';
+            vsRight.style.opacity = '1';
+            setTimeout(() => {
+                vsCenter.style.transform = 'scale(1)';
+                setTimeout(() => {
+                    vsOverlay.style.display = 'none';
+                    vsCenter.style.transform = 'scale(0)';
+                    vsLeft.style.transform = 'translateX(-150px)'; vsLeft.style.opacity = '0';
+                    vsRight.style.transform = 'translateX(150px)'; vsRight.style.opacity = '0';
+                    
+                    switchScreen('battle');
+                    startPlayerTurn();
+                }, 800);
+            }, 500);
+        }, 100);
+
+        document.getElementById('log-container').innerHTML = "";
+        addLog(`⚔️ VS ${data.opponent_name} 対戦開始 ⚔️`);
+    }
+
+    function updateXpOnResult(isWin) {
+        let base = 30;
+        if (isWin) {
+            let gain = Math.max(10, base);
+            playerData.xp += gain;
+            addLog(`獲得XP: +${gain}XP`, 'player');
+        } else {
+            let loss = Math.min(playerData.xp, base);
+            playerData.xp = Math.max(0, playerData.xp - loss);
+            addLog(`喪失XP: -${loss}XP`, 'cpu');
+        }
+        savePlayerData();
+        updateHomeUI();
+    }
+</script>
+
+</body>
+</html>
