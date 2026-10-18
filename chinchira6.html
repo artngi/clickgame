@@ -1039,9 +1039,7 @@
     function initSocketConnection() {
         if (socket && socket.connected) return;
         
-        const SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-            ? 'http://localhost:5000' 
-            : 'https://chinchira-server-2.onrender.com';
+        const SERVER_URL =　'https://chinchira-1.onrender.com'
 
         socket = io(SERVER_URL);
 
