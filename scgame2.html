@@ -1,0 +1,1300 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>BLADE & FLAME</title>
+<style>
+*{box-sizing:border-box;touch-action:manipulation}
+body{margin:0;background:#090f20;color:white;font-family:Arial,sans-serif;overflow:hidden}
+button{background:linear-gradient(135deg,#304b70,#17243c);color:white;border:1px solid #7895bd;border-radius:12px;padding:12px;font-weight:bold}
+button:active{filter:brightness(1.5)}
+.screen{display:none;position:absolute;inset:0;padding:15px;overflow:auto}
+.active{display:flex;flex-direction:column;align-items:center}
+h1{color:#ffd778;letter-spacing:5px;text-shadow:0 0 15px #ff9b35}
+.panel{background:#16233b;border:1px solid #617c9f;border-radius:16px;padding:15px;width:min(850px,100%);margin:8px auto}
+.cards{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+.card{background:#233653;border:1px solid #637e9f;border-radius:12px;padding:13px;flex:1 1 210px;max-width:350px}
+.card.selected{border:2px solid #ffd778}
+#game{padding:0;overflow:hidden}
+canvas{display:block;width:100%;height:100%;background:#172b46}
+#hud{position:absolute;top:8px;left:10px;width:230px;pointer-events:none;font-size:12px;text-shadow:1px 1px black}
+.bar{height:12px;background:#333;border:1px solid #aaa;border-radius:8px;overflow:hidden;margin:4px 0}
+.fill{height:100%;width:100%;background:#ff596d}
+#sp{background:linear-gradient(90deg,#42dfff,#a48cff)}
+#charge{background:#ffb44d}
+#bossHud{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:40%;text-align:center;display:none;pointer-events:none}
+#bossHud .fill{background:#b85aff}
+#controls{position:absolute;inset:0;pointer-events:none}
+#left{position:absolute;bottom:12px;left:12px;width:40%;pointer-events:auto}
+#move{width:100%;accent-color:#5deaff}
+#right{position:absolute;right:10px;bottom:10px;width:52%;height:45%;pointer-events:none}
+.ctrl{position:absolute;width:60px;height:60px;border-radius:50%;padding:0;pointer-events:auto;background:radial-gradient(circle at 30% 25%,#526e94,#18263e);border:2px solid #9bb4d7;font-size:16px}
+#a{right:0;bottom:12px;border-color:#ffd778;color:#ffe6a1}
+#b{right:75px;bottom:75px;border-color:#ff8989;color:#ffb1b1}
+#jump{right:85px;bottom:0;color:#80eaff}
+#dodge{right:155px;bottom:30px;color:#d7b9ff}
+#ult{right:155px;bottom:110px;color:#ffe58a}
+#item{right:0;bottom:105px;width:45px;height:45px;font-size:11px}
+#pause{position:absolute;right:10px;top:10px;pointer-events:auto}
+#toast{position:absolute;top:25%;left:50%;transform:translateX(-50%);font-size:25px;font-weight:bold;color:#ffe8a0;text-shadow:0 0 15px orange;pointer-events:none}
+#modal{position:absolute;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:15px}
+#modal .panel{max-height:90%;overflow:auto}
+@media(orientation:portrait){
+#game:after{content:"スマートフォンを横向きにしてください";position:absolute;inset:0;background:#080d1b;display:grid;place-items:center;font-size:20px;z-index:10}
+}
+</style>
+</head>
+<body>
+
+<section id="home" class="screen active">
+<h1>BLADE & FLAME</h1>
+<p>2D SIDE SCROLL ACTION</p>
+<div class="panel" style="text-align:center">
+<h2 id="charName">BLADE</h2>
+<canvas id="preview" width="400" height="130" style="height:130px;border-radius:12px"></canvas>
+<p id="charDesc"></p>
+<button onclick="characterSelect()">キャラクター選択・操作説明</button>
+<h2 id="stageName">STAGE 1</h2>
+<button onclick="stageSelect()">ステージ選択</button>
+<br><br>
+<button onclick="shop()">強化・アイテムショップ</button>
+<p>所持ポイント：<b id="points">0</b></p>
+<button onclick="start()">▶ GAME START</button>
+</div>
+</section>
+
+<section id="select" class="screen">
+<h1>SELECT</h1>
+<div class="panel cards" id="selectCards"></div>
+<button onclick="home()">戻る</button>
+</section>
+
+<section id="game" class="screen">
+<canvas id="cv"></canvas>
+<div id="hud">
+<div>HP <span id="hpText"></span></div>
+<div class="bar"><div class="fill" id="hp"></div></div>
+<div id="chargeBox" style="display:none">チャージ<div class="bar"><div class="fill" id="charge"></div></div></div>
+<div>必殺技 <span id="spText">0%</span></div>
+<div class="bar"><div class="fill" id="sp"></div></div>
+<div>COMBO <span id="combo">0</span></div>
+</div>
+<div id="bossHud">
+<div>BOSS</div><div class="bar"><div class="fill" id="bossHp"></div></div>
+</div>
+<div id="toast"></div>
+<div id="controls">
+<div id="left"><input id="move" type="range" min="-1" max="1" step=".01" value="0"></div>
+<div id="right">
+<button class="ctrl" id="ult">ULT</button>
+<button class="ctrl" id="dodge">回避</button>
+<button class="ctrl" id="jump">↑</button>
+<button class="ctrl" id="b">B</button>
+<button class="ctrl" id="a">A</button>
+<button class="ctrl" id="item">ITEM</button>
+</div>
+<button id="pause" onclick="pause()">Ⅱ</button>
+</div>
+<div id="modal"><div class="panel" id="modalContent"></div></div>
+</section>
+
+<script>
+const $=id=>document.getElementById(id);
+const cv=$("cv"),ctx=cv.getContext("2d");
+
+let W=960,H=540,now=0,game=null,raf=0;
+let character=0,stage=1,cleared=0,points=0;
+let move=0,keys={},held={},lastTap={a:0,b:0},tapTimer={};
+let upgrades={hp:0,power:0,def:0};
+let items={potion:1,elixir:0};
+
+const chars=[
+{name:"BLADE",desc:"近距離型。超高速移動と広範囲の連続斬撃で敵を一掃する。",hp:140,speed:390,
+info:"A短押し：高速広範囲斬撃\nAダブル：強力な大回転斬り\nB短押し：高速突進斬り＋マーキング\nBダブル：マーキングした敵へ連続斬り\nA+B同時：超広範囲の往復斬り\n必殺技：画面内を連続で斬り続ける"},
+{name:"FLAME",desc:"遠距離型。爆発する炎の矢で大量の敵を一掃する。",hp:120,speed:350,
+info:"A長押し：チャージ爆炎矢\nB短押し：広範囲炎攻撃\nAダブル：弓で近接攻撃\nBダブル：次の矢に炎を付与\nA+B同時：全方位炎爆発\n必殺技：巨大炎の矢＋広範囲爆発"}
+];
+
+const names=["遺跡の入口","忘れられた谷","灼熱の回廊","古代の闘技場","深淵の城"];
+
+function screen(id){
+ document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));
+ $(id).classList.add("active");
+}
+
+function home(){screen("home");refresh()}
+
+function refresh(){
+ $("charName").textContent=chars[character].name;
+ $("charDesc").textContent=chars[character].desc;
+ $("stageName").textContent="STAGE "+stage+" — "+names[stage-1];
+ $("points").textContent=points;
+
+ let c=$("preview").getContext("2d");
+ c.clearRect(0,0,400,130);
+ c.fillStyle="#172b46";
+ c.fillRect(0,0,400,130);
+ c.fillStyle=character?"#ff9b48":"#62dcff";
+ c.fillRect(185,48,30,55);
+ c.beginPath();
+ c.arc(200,35,17,0,7);
+ c.fill();
+ c.strokeStyle=character?"#ffcd73":"#b8f7ff";
+ c.lineWidth=7;
+ c.beginPath();
+ c.moveTo(205,65);
+ c.lineTo(265,20);
+ c.stroke();
+}
+
+function characterSelect(){
+ screen("select");
+ $("selectCards").innerHTML=chars.map((c,i)=>`
+ <div class="card ${i===character?"selected":""}" onclick="character=${i};characterSelect()">
+ <h2>${c.name}</h2>
+ <p>${c.desc}</p>
+ <pre style="white-space:pre-wrap">${c.info}</pre>
+ </div>`).join("");
+}
+
+function stageSelect(){
+ screen("select");
+ $("selectCards").innerHTML=names.map((n,i)=>`
+ <div class="card ${stage===i+1?"selected":""}" style="opacity:${i<=cleared?1:i===cleared+1?1:.35}"
+ onclick="${i<=cleared||i===cleared+1?`stage=${i+1};home()`:""}">
+ <h2>STAGE ${i+1}</h2>${n}
+ <p>${i<cleared?"CLEAR":i===cleared?"NEXT":"LOCKED"}</p>
+ </div>`).join("");
+}
+
+function shop(){
+ screen("select");
+ let list=[["hp","最大HP +20",40],["power","攻撃力 +10%",55],["def","ダメージ軽減",65]];
+ $("selectCards").innerHTML=`
+ <div class="card"><h2>所持ポイント ${points}</h2></div>
+ ${list.map(([k,n,c])=>`
+ <div class="card"><h3>${n}</h3>Lv.${upgrades[k]}<br>
+ <button onclick="buy('${k}',${c})">${c}pt</button></div>`).join("")}
+ <div class="card"><h3>回復薬 ×${items.potion}</h3>
+ <button onclick="buyItem('potion',30)">30pt</button></div>
+ <div class="card"><h3>大回復薬 ×${items.elixir}</h3>
+ <button onclick="buyItem('elixir',65)">65pt</button></div>`;
+}
+
+function buy(k,c){
+ if(points<c)return;
+ points-=c;
+ upgrades[k]++;
+ shop();
+}
+
+function buyItem(k,c){
+ if(points<c)return;
+ points-=c;
+ items[k]++;
+ shop();
+}
+
+function resize(){
+ let r=cv.getBoundingClientRect();
+ W=r.width;H=r.height;
+ let d=Math.min(devicePixelRatio||1,2);
+ cv.width=W*d;cv.height=H*d;
+ ctx.setTransform(d,0,0,d,0,0);
+}
+window.addEventListener("resize",resize);
+
+function start(){
+ screen("game");
+ resize();
+
+ let max=chars[character].hp+upgrades.hp*20;
+
+ game={
+ time:0,camera:0,length:3200+stage*250,
+ paused:false,ended:false,
+ player:{
+ x:100,y:H-140,vx:0,vy:0,w:30,h:58,
+ hp:max,max,face:1,inv:0,stun:0,
+ attack:null,charge:0,charging:false,
+ combo:0,comboTime:0,sp:0,ult:0,
+ marks:[],fireArrow:false,onGround:false
+ },
+ platforms:[],enemies:[],projectiles:[],particles:[],floats:[]
+ };
+
+ build();
+ $("modal").style.display="none";
+ $("bossHud").style.display="none";
+ move=0;
+ $("move").value=0;
+ held={};
+ lastTap={a:0,b:0};
+ Object.values(tapTimer).forEach(clearTimeout);
+ tapTimer={};
+
+ cancelAnimationFrame(raf);
+ now=performance.now();
+ raf=requestAnimationFrame(loop);
+ message("STAGE "+stage);
+}
+
+function build(){
+ let g=game,ground=H-72;
+
+ g.platforms=[
+ {x:0,y:ground,w:550},
+ {x:650,y:ground-75,w:190},
+ {x:920,y:ground,w:450},
+ {x:1450,y:ground-100,w:200},
+ {x:1700,y:ground,w:480},
+ {x:2250,y:ground-80,w:200},
+ {x:2500,y:ground,w:900}
+ ];
+
+ const mult=1+(stage-1)*.22;
+
+ function enemy(x,type="melee",boss=false){
+  let hp=(boss?550:type==="ranged"?85:type==="support"?100:120)*mult;
+  return {
+   x,y:ground-48,w:32,h:48,hp,max:hp,
+   damage:(boss?20:type==="ranged"?9:type==="support"?7:12)*mult,
+   type,boss,face:-1,attack:null,stun:0,inv:0,
+   timer:0,fire:0,fireTick:1,ai:"idle",buff:0
+  };
+ }
+
+ g.enemies=[];
+
+ const formations=[
+  [300,390,470,520],
+  [760,830,900],
+  [1050,1130,1210,1280],
+  [1500,1580,1660],
+  [1850,1930,2010,2080],
+  [2300,2380,2460],
+  [2600,2670,2740]
+ ];
+
+ formations.forEach((group,index)=>{
+  group.forEach((x,i)=>{
+   let type="melee";
+   if(index%3===1&&i===1)type="ranged";
+   if(index%3===2&&i===0)type="support";
+   g.enemies.push(enemy(x,type));
+  });
+ });
+
+ g.enemies.push(enemy(2900,"melee",true));
+ g.boss=g.enemies[g.enemies.length-1];
+}
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const distance=(a,b)=>Math.abs(a-b);
+
+function message(t){
+ $("toast").textContent=t;
+ setTimeout(()=>{
+  if($("toast").textContent===t)$("toast").textContent="";
+ },1000);
+}
+
+function particle(x,y,color,n=8){
+ for(let i=0;i<n;i++){
+  let a=Math.random()*Math.PI*2;
+  let s=50+Math.random()*180;
+  game.particles.push({
+   x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,
+   life:.4+Math.random()*.3,color
+  });
+ }
+}
+
+function floatText(x,y,text,color="#fff"){
+ game.floats.push({x,y,text,color,life:.8});
+}
+
+function gain(v){
+ game.player.sp=clamp(game.player.sp+v,0,100);
+}
+
+function updateHUD(){
+ let p=game.player;
+
+ $("hpText").textContent=Math.ceil(p.hp)+"/"+p.max;
+ $("hp").style.width=100*p.hp/p.max+"%";
+ $("sp").style.width=p.sp+"%";
+ $("spText").textContent=Math.floor(p.sp)+"%";
+ $("combo").textContent=p.combo;
+ $("chargeBox").style.display=character===1&&p.charging?"block":"none";
+ $("charge").style.width=p.charge*100+"%";
+
+ let b=game.boss;
+ $("bossHud").style.display=b.hp>0&&b.x-game.camera<W?"block":"none";
+ $("bossHp").style.width=100*b.hp/b.max+"%";
+}
+
+function playerDamage(d,x){
+ let p=game.player;
+ if(p.inv>0||p.ult>0||game.ended)return;
+
+ let armored=!!p.attack;
+ if(armored)d*=.45;
+
+ d=Math.max(1,Math.round(d*(1-upgrades.def*.07)));
+ p.hp-=d;
+ p.inv=armored?.28:.65;
+
+ if(!armored){
+  p.stun=.23;
+  p.attack=null;
+  p.charging=false;
+  p.vx=(p.x<x?-1:1)*180;
+ }else{
+  p.stun=0;
+ }
+
+ floatText(p.x,p.y-12,"-"+d,"#ff6378");
+ particle(p.x,p.y,"#ff6378",armored?5:12);
+
+ if(p.hp<=0){
+  p.hp=0;
+  finish(false);
+ }
+}
+
+function enemyDamage(e,d,knock=0,fire=false){
+ if(e.hp<=0||e.inv>0)return;
+
+ e.hp-=d;
+ e.inv=.13;
+ e.stun=d>25?.32:.16;
+ e.attack=null;
+
+ if(knock)e.x+=Math.sign(e.x-game.player.x)*knock;
+
+ floatText(e.x,e.y-12,"-"+Math.round(d),fire?"#ff9c46":"#fff0a2");
+ particle(e.x,e.y,fire?"#ff9c46":"#ffe08a");
+
+ let p=game.player;
+ p.combo++;
+ p.comboTime=2.4;
+ gain(2.2);
+
+ if(fire){
+  e.fire=Math.max(e.fire,6);
+  e.fireTick=Math.min(e.fireTick,1);
+ }
+
+ if(p.combo%5===0){
+  gain(8);
+
+  if(character===0){
+   for(let z of game.enemies){
+    if(z!==e&&z.hp>0&&distance(z.x,p.x)<350)
+     enemyDamage(z,12,65);
+   }
+   floatText(p.x,p.y-60,"BONUS SLASH","#ffe3a0");
+  }else{
+   game.projectiles.push({
+    x:p.x,y:p.y-30,vx:p.face*480,
+    damage:12,life:2,enemy:false
+   });
+  }
+ }
+
+ if(e.hp<=0){
+  e.hp=0;
+  particle(e.x,e.y,"#ffd36a",20);
+  points+=e.boss?120:18;
+  if(e.boss)finish(true);
+ }
+}
+
+function beginAttack(type,damage,range,wind,active,knock=0,movement=0){
+ let p=game.player;
+ if(p.attack||p.stun>0||p.ult>0)return;
+
+ p.attack={
+  type,damage,range,wind,active,
+  t:0,hit:[],flash:false,knock,movement
+ };
+
+ if(movement)p.vx=p.face*movement;
+}
+
+function playerAction(which,kind){
+ let p=game.player;
+ if(p.attack||p.stun>0||p.ult>0)return;
+
+ let power=1+upgrades.power*.1;
+
+ if(character===0){
+
+  if(which==="a"&&kind==="single")
+   beginAttack("斬撃",27*power,165,.07,.23,45);
+
+  if(which==="a"&&kind==="double")
+   beginAttack("強斬撃",55*power,210,.13,.3,100);
+
+  if(which==="b"&&kind==="single")
+   beginAttack("突進",35*power,145,.05,.3,65,520);
+
+  if(which==="b"&&kind==="double"){
+   let targets=p.marks.filter(e=>e.hp>0);
+
+   if(!targets.length){
+    message("マークした敵がいない");
+    return;
+   }
+
+   p.attack={
+    type:"連続斬り",damage:45*power,
+    wind:.05,active:.8,t:0,hit:[],
+    targets,flash:false
+   };
+  }
+
+  if(kind==="both")
+   beginAttack("往復斬り",48*power,260,.12,.4,110);
+
+ }else{
+
+  if(which==="b"&&kind==="single")
+   beginAttack("炎",25*power,155,.07,.25,55);
+
+  if(which==="a"&&kind==="double")
+   beginAttack("弓殴打",30*power,120,.1,.25,70);
+
+  if(kind==="both")
+   beginAttack("全方位炎",20*power,240,.15,.3,80);
+
+  if(which==="b"&&kind==="double"){
+   p.fireArrow=true;
+   message("炎の矢を準備！");
+  }
+ }
+}
+
+function resolveAttack(p,a,dt){
+ a.t+=dt;
+
+ if(a.t>=a.wind&&!a.flash){
+  a.flash=true;
+  particle(p.x+p.face*45,p.y+25,"#fff3a0",18);
+ }
+
+ if(a.t>=a.wind&&a.t<=a.wind+a.active){
+
+  if(a.type==="連続斬り"){
+   let e=a.targets.find(z=>z.hp>0&&!a.hit.includes(z));
+
+   if(e){
+    a.hit.push(e);
+    p.x=e.x-p.face*35;
+    enemyDamage(e,a.damage,100);
+    particle(e.x,e.y,"#8df4ff",20);
+   }
+
+  }else{
+
+   for(let e of game.enemies){
+    if(e.hp<=0||a.hit.includes(e))continue;
+
+    let dx=e.x-p.x;
+    let valid=a.type==="全方位炎"
+      ?Math.abs(dx)<a.range
+      :dx*p.face>-25&&Math.abs(dx)<a.range;
+
+    if(!valid)continue;
+
+    a.hit.push(e);
+
+    if(a.type==="突進"&&!p.marks.includes(e))
+     p.marks.push(e);
+
+    enemyDamage(e,a.damage,a.knock,
+     a.type==="炎"||a.type==="全方位炎");
+
+    if(a.type==="弓殴打")
+     e.x+=Math.sign(dx||p.face)*65;
+   }
+  }
+ }
+
+ if(a.t>a.wind+a.active)p.attack=null;
+}
+
+function enemyStart(e,type,wind,active,range,damage,projectile=false){
+ e.attack={
+  type,wind,active,range,damage,
+  t:0,flash:false,hit:false,projectile
+ };
+}
+
+function enemyUpdate(e,dt){
+ if(e.hp<=0)return;
+
+ let p=game.player;
+ let d=p.x-e.x;
+ let ad=Math.abs(d);
+ e.face=d>0?1:-1;
+
+ if(e.inv>0)e.inv-=dt;
+ if(e.stun>0){e.stun-=dt;return}
+
+ // 炎の継続ダメージ。再帰的な炎付与は行わない
+ if(e.fire>0){
+  e.fire-=dt;
+  e.fireTick-=dt;
+
+  if(e.fireTick<=0&&e.hp>0){
+   e.fireTick=1;
+   let damage=4*(1+stage*.1);
+   e.hp-=damage;
+   floatText(e.x,e.y-15,"-"+Math.round(damage),"#ff9c46");
+   particle(e.x,e.y,"#ff9c46",4);
+
+   if(e.hp<=0){
+    e.hp=0;
+    particle(e.x,e.y,"#ffd36a",20);
+    points+=e.boss?120:18;
+    if(e.boss)finish(true);
+    return;
+   }
+  }
+ }
+
+ if(ad>W*.65+80)return;
+
+ if(e.attack){
+  let a=e.attack;
+  a.t+=dt;
+
+  if(a.t>=a.wind&&!a.flash){
+   a.flash=true;
+   particle(e.x,e.y-20,"#fff2a0",12);
+   floatText(e.x,e.y-55,"!","#ffe28b");
+  }
+
+  if(a.t>=a.wind&&a.t<=a.wind+a.active&&!a.hit){
+   if(a.projectile){
+    game.projectiles.push({
+     x:e.x+e.face*25,y:e.y+20,
+     vx:e.face*330,damage:a.damage,
+     enemy:true,life:2
+    });
+    a.hit=true;
+   }else if(ad<a.range+25){
+    playerDamage(a.damage,e.x);
+    a.hit=true;
+   }
+  }
+
+  if(a.t>a.wind+a.active+.2){
+   e.attack=null;
+   e.timer=.5;
+  }
+  return;
+ }
+
+ if(e.timer>0){
+  e.timer-=dt;
+  return;
+ }
+
+ if(e.type==="support"){
+  e.timer=3;
+
+  for(let z of game.enemies){
+   if(z!==e&&z.hp>0&&distance(z.x,e.x)<300){
+    z.hp=Math.min(z.max,z.hp+12);
+    z.damage*=1.1;
+    floatText(z.x,z.y-55,"BUFF","#aaffb0");
+   }
+  }
+
+  if(ad<180)enemyStart(e,"弱体波",.65,.15,180,e.damage,false);
+  return;
+ }
+
+ if(e.type==="ranged"){
+  if(ad<140)e.x-=e.face*100*dt;
+  else if(ad>260)e.x+=e.face*75*dt;
+  else enemyStart(e,"魔弾",.75,.15,400,e.damage,true);
+ }else{
+  if(ad>75)e.x+=e.face*110*dt;
+  else enemyStart(e,"重攻撃",.65,.17,95,e.damage);
+ }
+}
+
+function bossUpdate(e,dt){
+ if(e.hp<=0)return;
+
+ let p=game.player;
+ let ad=distance(e.x,p.x);
+ e.face=p.x<e.x?-1:1;
+
+ if(e.inv>0)e.inv-=dt;
+ if(e.stun>0){e.stun-=dt;return}
+
+ if(e.fire>0){
+  e.fire-=dt;
+  e.fireTick-=dt;
+
+  if(e.fireTick<=0&&e.hp>0){
+   e.fireTick=1;
+   let damage=4*(1+stage*.1);
+   e.hp-=damage;
+   floatText(e.x,e.y-15,"-"+Math.round(damage),"#ff9c46");
+
+   if(e.hp<=0){
+    e.hp=0;
+    particle(e.x,e.y,"#ffd36a",25);
+    points+=120;
+    finish(true);
+    return;
+   }
+  }
+ }
+
+ if(e.attack){
+  enemyUpdate(e,dt);
+  return;
+ }
+
+ if(ad>145){
+  e.x+=e.face*80*dt;
+  return;
+ }
+
+ e.timer-=dt;
+ if(e.timer>0)return;
+
+ e.timer=1.8;
+ let r=Math.random();
+
+ if(r<.34)enemyStart(e,"大剣",.9,.2,130,e.damage*1.3);
+ else if(r<.68)enemyStart(e,"衝撃波",.8,.17,450,e.damage,true);
+ else enemyStart(e,"爆炎",1.15,.2,260,e.damage*1.5);
+}
+
+function jump(){
+ if(!game||game.paused)return;
+ let p=game.player;
+
+ if(p.onGround&&p.stun<=0){
+  p.vy=-450;
+  p.onGround=false;
+  particle(p.x,p.y+55,"#8deaff",5);
+ }
+}
+
+function parry(){
+ if(!game||game.paused)return;
+
+ let p=game.player;
+
+ let targets=game.enemies.filter(e=>
+  e.hp>0&&e.attack&&
+  e.attack.t>=e.attack.wind-.17&&
+  e.attack.t<=e.attack.wind+e.attack.active+.05&&
+  distance(e.x,p.x)<e.attack.range+65
+ );
+
+ if(targets.length){
+  for(let e of targets){
+   e.attack=null;
+   e.stun=.8;
+   gain(18);
+   floatText(p.x,p.y-65,"PARRY!","#8df4ff");
+   particle(p.x,p.y,"#8df4ff",22);
+  }
+  p.inv=.25;
+ }else{
+  p.inv=.15;
+  p.vx=-p.face*260;
+ }
+}
+
+function ultimate(){
+ if(!game||game.paused)return;
+
+ let p=game.player;
+ if(p.sp<100){
+  message("ゲージ不足");
+  return;
+ }
+
+ p.sp=0;
+
+ if(character===0){
+  p.ult=3;
+  p.inv=3;
+  message("BLADE STORM!");
+ }else{
+  game.projectiles.push({
+   x:p.x,y:p.y+20,vx:p.face*570,
+   damage:110+upgrades.power*10,
+   enemy:false,fire:true,life:3
+  });
+
+  for(let e of game.enemies){
+   if(e.hp>0&&distance(e.x,p.x)<W*.7){
+    e.fire=6;
+    e.fireTick=1;
+   }
+  }
+
+  particle(p.x,p.y,"#ff9b42",30);
+  message("INFERNO!");
+ }
+}
+
+function update(dt){
+ let g=game,p=g.player;
+ g.time+=dt;
+
+ if(p.inv>0)p.inv-=dt;
+ if(p.stun>0)p.stun-=dt;
+
+ if(p.comboTime>0)p.comboTime-=dt;
+ else p.combo=0;
+
+ p.sp=clamp(p.sp+.35*dt,0,100);
+
+ if(p.ult>0){
+  p.ult-=dt;
+
+  for(let e of g.enemies){
+   if(e.hp>0&&distance(e.x,p.x)<W*.75)
+    enemyDamage(e,12*dt*10,0);
+  }
+ }
+
+ let input=move+(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0);
+ input=clamp(input,-1,1);
+
+ if(input&&p.stun<=0){
+  p.vx=input*chars[character].speed*(p.attack?.55:1);
+  p.face=Math.sign(input);
+ }else if(!p.attack){
+  p.vx*=Math.pow(.002,dt);
+ }
+
+ if(p.attack){
+  resolveAttack(p,p.attack,dt);
+
+  if(p.attack&&p.attack.movement)
+   p.x+=p.face*p.attack.movement*dt;
+ }
+
+ if(p.charging)p.charge=clamp(p.charge+dt/1.8,0,1);
+
+ p.vy+=1100*dt;
+ let oldY=p.y;
+
+ p.x+=p.vx*dt;
+ p.y+=p.vy*dt;
+ p.x=clamp(p.x,10,g.length-20);
+
+ p.onGround=false;
+
+ if(p.vy>=0){
+  for(let pl of g.platforms){
+   if(p.x+14>pl.x&&p.x-14<pl.x+pl.w&&
+      oldY+p.h<=pl.y+5&&p.y+p.h>=pl.y){
+    p.y=pl.y-p.h;
+    p.vy=0;
+    p.onGround=true;
+   }
+  }
+ }
+
+ if(p.y>H+100)playerDamage(999,p.x);
+
+ for(let e of g.enemies){
+  if(e.boss)bossUpdate(e,dt);
+  else enemyUpdate(e,dt);
+
+  e.x=clamp(e.x,10,g.length-20);
+ }
+
+ // 飛び道具
+ for(let q of g.projectiles){
+  q.x+=q.vx*dt;
+  q.life-=dt;
+
+  if(q.enemy){
+   if(distance(q.x,p.x)<25&&Math.abs(q.y-(p.y+25))<40){
+    playerDamage(q.damage,q.x);
+    q.life=0;
+   }
+  }else{
+   for(let e of g.enemies){
+    if(e.hp<=0||distance(q.x,e.x)>30)continue;
+
+    if(q.fire){
+     // 炎の矢の爆発
+     let radius=150;
+
+     for(let target of g.enemies){
+      if(target.hp<=0||distance(target.x,q.x)>radius)continue;
+
+      let power=target===e?1:.65;
+      enemyDamage(target,q.damage*power,90,true);
+     }
+
+     particle(q.x,q.y,"#ff9b42",35);
+     particle(q.x,q.y,"#ffe18a",20);
+
+    }else{
+     enemyDamage(e,q.damage,70);
+     particle(q.x,q.y,"#ffbd64",15);
+    }
+
+    q.life=0;
+    break;
+   }
+  }
+ }
+
+ g.projectiles=g.projectiles.filter(q=>q.life>0);
+
+ for(let z of g.particles){
+  z.x+=z.vx*dt;
+  z.y+=z.vy*dt;
+  z.vx*=.94;
+  z.vy*=.94;
+  z.life-=dt;
+ }
+
+ g.particles=g.particles.filter(z=>z.life>0);
+
+ for(let z of g.floats){
+  z.y-=35*dt;
+  z.life-=dt;
+ }
+
+ g.floats=g.floats.filter(z=>z.life>0);
+
+ g.camera=clamp(p.x-W*.32,0,g.length-W*.8);
+
+ updateHUD();
+}
+
+function draw(){
+ if(!game)return;
+
+ let g=game,p=g.player;
+ ctx.clearRect(0,0,W,H);
+
+ let bg=ctx.createLinearGradient(0,0,0,H);
+ bg.addColorStop(0,"#172b4c");
+ bg.addColorStop(1,"#26354c");
+ ctx.fillStyle=bg;
+ ctx.fillRect(0,0,W,H);
+
+ // 背景
+ ctx.save();
+ ctx.translate(-g.camera*.22,0);
+
+ for(let i=0;i<25;i++){
+  ctx.fillStyle=i%2?"#304563":"#263c5b";
+  ctx.fillRect(i*180,H-180-(i%3)*30,110,180);
+ }
+
+ ctx.restore();
+ ctx.save();
+ ctx.translate(-g.camera,0);
+
+ // 足場
+ for(let pl of g.platforms){
+  ctx.fillStyle="#293f51";
+  ctx.fillRect(pl.x,pl.y,pl.w,H-pl.y+100);
+
+  ctx.fillStyle="#86a9a7";
+  ctx.fillRect(pl.x,pl.y,pl.w,5);
+
+  ctx.fillStyle="#172c3b";
+  for(let x=pl.x+20;x<pl.x+pl.w;x+=45)
+   ctx.fillRect(x,pl.y+12,3,30);
+ }
+
+ for(let e of g.enemies)
+  if(e.hp>0)drawFighter(e,false);
+
+ drawFighter(p,true);
+
+ for(let q of g.projectiles){
+  ctx.fillStyle=q.enemy?"#ff657a":"#ffad45";
+  ctx.shadowBlur=15;
+  ctx.shadowColor=ctx.fillStyle;
+  ctx.beginPath();
+  ctx.ellipse(q.x,q.y,12,6,0,0,7);
+  ctx.fill();
+  ctx.shadowBlur=0;
+ }
+
+ for(let z of g.particles){
+  ctx.globalAlpha=Math.max(0,z.life*2);
+  ctx.fillStyle=z.color;
+  ctx.fillRect(z.x,z.y,4,4);
+ }
+
+ ctx.globalAlpha=1;
+
+ for(let z of g.floats){
+  ctx.globalAlpha=Math.max(0,z.life*2);
+  ctx.fillStyle=z.color;
+  ctx.font="bold 17px Arial";
+  ctx.textAlign="center";
+  ctx.fillText(z.text,z.x,z.y);
+ }
+
+ ctx.globalAlpha=1;
+ ctx.restore();
+
+ if(p.hp<p.max*.25){
+  ctx.fillStyle="#ff000020";
+  ctx.fillRect(0,0,W,H);
+ }
+}
+
+function drawFighter(o,player){
+ let x=o.x,y=o.y;
+ ctx.save();
+
+ if(o.inv>0&&Math.floor(o.inv*20)%2===0)
+  ctx.globalAlpha=.35;
+
+ let color=player?
+  (character?"#ff9849":"#62ddff"):
+  o.boss?"#bd6aff":
+  o.type==="ranged"?"#e6a4ff":
+  o.type==="support"?"#8ee5a0":"#ff6878";
+
+ // 影
+ ctx.fillStyle="#0007";
+ ctx.beginPath();
+ ctx.ellipse(x,y+o.h,20,5,0,0,7);
+ ctx.fill();
+
+ // 本体
+ ctx.fillStyle=color;
+ ctx.shadowColor=color;
+ ctx.shadowBlur=9;
+ ctx.fillRect(x-13,y+15,26,30);
+ ctx.beginPath();
+ ctx.arc(x,y+8,13,0,7);
+ ctx.fill();
+ ctx.shadowBlur=0;
+
+ ctx.fillStyle="#10182b";
+ ctx.fillRect(x+(o.face||1)*3,y+5,4,4);
+
+ ctx.strokeStyle=color;
+ ctx.lineWidth=7;
+ ctx.beginPath();
+ ctx.moveTo(x-7,y+42);
+ ctx.lineTo(x-11,y+o.h);
+ ctx.moveTo(x+7,y+42);
+ ctx.lineTo(x+11,y+o.h);
+ ctx.stroke();
+
+ // 攻撃予備動作
+ if(o.attack){
+  let ratio=clamp(o.attack.t/o.attack.wind,0,1);
+  ctx.strokeStyle=ratio>.8?"#fff4a0":"#ffffffaa";
+  ctx.lineWidth=o.boss?9:5;
+  ctx.beginPath();
+  ctx.moveTo(x,y+25);
+  ctx.lineTo(x+(o.face||1)*55*(ratio+.3),y+20);
+  ctx.stroke();
+
+  if(ratio>.8){
+   ctx.fillStyle="#fff3a055";
+   ctx.beginPath();
+   ctx.arc(x+(o.face||1)*45,y+25,35,0,7);
+   ctx.fill();
+  }
+ }
+
+ // HP
+ ctx.fillStyle="#111";
+ ctx.fillRect(x-23,y-17,46,5);
+ ctx.fillStyle="#ff6578";
+ ctx.fillRect(x-23,y-17,46*clamp(o.hp/o.max,0,1),5);
+
+ ctx.restore();
+}
+
+function finish(win){
+ if(!game||game.ended)return;
+
+ game.ended=true;
+
+ let reward=win?80+stage*25:0;
+
+ if(win){
+  points+=reward;
+  cleared=Math.max(cleared,stage);
+  if(stage<names.length)stage++;
+ }
+
+ $("modal").style.display="flex";
+
+ $("modalContent").innerHTML=win?
+ `<h1 style="text-align:center">STAGE CLEAR!</h1>
+ <p style="text-align:center">報酬 +${reward} pt</p>
+ <button onclick="result(true)">次のステージへ</button>
+ <button onclick="result(false)">ホーム</button>`:
+ `<h1 style="text-align:center;color:#ff6979">DEFEAT</h1>
+ <p>HPが0になりました。ステージは未クリアです。</p>
+ <button onclick="retry()">リトライ</button>
+ <button onclick="result(false)">ホーム</button>`;
+}
+
+function result(next){
+ $("modal").style.display="none";
+
+ if(next&&stage<=names.length)start();
+ else home();
+}
+
+function retry(){
+ $("modal").style.display="none";
+ start();
+}
+
+function pause(){
+ if(!game||game.ended)return;
+
+ game.paused=true;
+ openModal("PAUSE",`
+ <button onclick="resume()">再開</button>
+ <button onclick="battleItems()">アイテム</button>
+ <button onclick="result(false)">ホームへ</button>`);
+}
+
+function openModal(title,html){
+ $("modalContent").innerHTML=
+ `<h2 style="text-align:center">${title}</h2>${html}`;
+ $("modal").style.display="flex";
+}
+
+function resume(){
+ game.paused=false;
+ $("modal").style.display="none";
+}
+
+function battleItems(){
+ openModal("ITEM",`
+ <p>アイテム使用中はゲームが一時停止します。</p>
+ <button onclick="useItem('potion')">回復薬 ×${items.potion}</button>
+ <button onclick="useItem('elixir')">大回復薬 ×${items.elixir}</button>
+ <button onclick="resume()">閉じる</button>`);
+}
+
+function useItem(k){
+ let p=game.player;
+
+ if(!items[k]){
+  message("アイテムがありません");
+  return;
+ }
+
+ items[k]--;
+ p.hp=Math.min(p.max,p.hp+(k==="potion"?p.max*.35:p.max));
+
+ updateHUD();
+ battleItems();
+}
+
+function loop(t){
+ if(!game)return;
+
+ let dt=Math.min((t-now)/1000,.033);
+ now=t;
+
+ if(!game.paused&&!game.ended)update(dt);
+
+ draw();
+
+ if(!game.ended)raf=requestAnimationFrame(loop);
+}
+
+// 移動スライダー
+$("move").addEventListener("input",e=>{
+ move=Number(e.target.value);
+});
+
+function resetMove(){
+ move=0;
+ $("move").value=0;
+}
+
+$("move").addEventListener("pointerup",resetMove);
+$("move").addEventListener("pointercancel",resetMove);
+$("move").addEventListener("change",resetMove);
+
+// ジャンプ・パリィ・必殺技
+$("jump").addEventListener("pointerdown",e=>{
+ e.preventDefault();
+ jump();
+});
+
+$("dodge").addEventListener("pointerdown",e=>{
+ e.preventDefault();
+ parry();
+});
+
+$("ult").addEventListener("pointerdown",e=>{
+ e.preventDefault();
+ ultimate();
+});
+
+$("item").addEventListener("click",()=>{
+ if(game&&!game.paused){
+  game.paused=true;
+  battleItems();
+ }
+});
+
+// A/B入力
+function buttonDown(which){
+ if(!game||game.paused||game.ended)return;
+
+ held[which]=true;
+ let other=which==="a"?"b":"a";
+
+ if(held[other]&&!held.combo){
+  held.combo=true;
+  clearTimeout(tapTimer.a);
+  clearTimeout(tapTimer.b);
+
+  held.aUsed=true;
+  held.bUsed=true;
+
+  if(character===1&&game.player.charging)
+   game.player.charging=false;
+
+  playerAction("ab","both");
+  return;
+ }
+
+ if(which==="a"&&character===1){
+  game.player.charging=true;
+  game.player.charge=0;
+ }
+}
+
+function buttonUp(which){
+ if(!game||!game.player)return;
+
+ if(character===1&&which==="a"){
+  let p=game.player;
+
+  if(p.charging){
+   p.charging=false;
+
+   let d=(8+p.charge*32)*(1+upgrades.power*.1);
+
+   game.projectiles.push({
+    x:p.x+p.face*20,
+    y:p.y+20,
+    vx:p.face*530,
+    damage:d,
+    fire:p.fireArrow,
+    life:2.5,
+    enemy:false
+   });
+
+   p.fireArrow=false;
+   gain(3);
+   particle(p.x,p.y,"#ffbd64",10);
+  }
+ }
+
+ if(held.combo){
+  held[which]=false;
+
+  if(!held.a&&!held.b){
+   held.combo=false;
+   held.aUsed=false;
+   held.bUsed=false;
+  }
+  return;
+ }
+
+ if(which==="a"&&character===1){
+  held[which]=false;
+  return;
+ }
+
+ held[which]=false;
+
+ if(held[which+"Used"])return;
+
+ let t=performance.now();
+ let gap=t-lastTap[which];
+ lastTap[which]=t;
+
+ if(gap<260){
+  clearTimeout(tapTimer[which]);
+  playerAction(which,"double");
+ }else{
+  clearTimeout(tapTimer[which]);
+  tapTimer[which]=setTimeout(()=>{
+   playerAction(which,"single");
+  },260);
+ }
+}
+
+["a","b"].forEach(k=>{
+ $(k).addEventListener("pointerdown",e=>{
+  e.preventDefault();
+  buttonDown(k);
+ });
+
+ $(k).addEventListener("pointerup",e=>{
+  e.preventDefault();
+  buttonUp(k);
+ });
+
+ $(k).addEventListener("pointercancel",()=>{
+  buttonUp(k);
+ });
+});
+
+// キーボード操作
+window.addEventListener("keydown",e=>{
+ keys[e.key]=true;
+
+ if(e.repeat)return;
+
+ if(e.key===" "||e.key==="ArrowUp")jump();
+ if(e.key==="Shift")parry();
+ if(e.key==="j"||e.key==="J")buttonDown("a");
+ if(e.key==="k"||e.key==="K")buttonDown("b");
+ if(e.key==="u"||e.key==="U")ultimate();
+ if(e.key==="Escape")pause();
+});
+
+window.addEventListener("keyup",e=>{
+ keys[e.key]=false;
+
+ if(e.key==="j"||e.key==="J")buttonUp("a");
+ if(e.key==="k"||e.key==="K")buttonUp("b");
+});
+
+window.addEventListener("blur",()=>{
+ if(game&&!game.ended&&!game.paused)pause();
+});
+
+refresh();
+</script>
+</body>
+</html>
