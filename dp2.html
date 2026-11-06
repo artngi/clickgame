@@ -1,0 +1,514 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>BURST THEORY</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#080b16;color:white;
+ font-family:Arial,sans-serif;overflow:hidden;
+ touch-action:manipulation;user-select:none
+}
+#game{width:100vw;height:100dvh;display:flex;flex-direction:column}
+header{
+ height:76px;padding:10px 15px;display:flex;
+ justify-content:space-between;align-items:center;
+ background:#101629;border-bottom:1px solid #28334b;
+}
+.logo{font-size:20px;font-weight:900;letter-spacing:2px}
+.logo span{color:#6de6ff}
+.stat{text-align:right;font-size:11px;color:#9eacc8}
+#score{font-size:25px;color:white;font-weight:900}
+#arena{flex:1;position:relative;overflow:hidden;background:
+ radial-gradient(ellipse at 50% 30%,#182643 0%,#0a1020 65%,#070b15 100%)}
+canvas{width:100%;height:100%;display:block}
+#bottom{
+ background:#101629;padding:10px 12px 15px;
+ border-top:1px solid #29334a;
+}
+#bar{height:5px;background:#29334a;border-radius:5px;overflow:hidden;margin-bottom:9px}
+#energy{height:100%;width:0%;background:linear-gradient(90deg,#36bfff,#c46aff)}
+.skills{display:flex;gap:10px}
+.skill{
+ flex:1;background:#1b2740;border:1px solid #3c5275;
+ color:white;border-radius:12px;padding:10px 5px;
+ font-weight:bold;font-size:13px;
+}
+.skill small{display:block;color:#9baeca;font-size:10px;margin-top:4px}
+.skill:disabled{opacity:.35}
+#message{
+ position:absolute;top:30%;left:0;width:100%;
+ text-align:center;pointer-events:none;
+ font-size:13px;color:#9baeca;letter-spacing:2px;
+}
+#overlay{
+ position:absolute;inset:0;z-index:5;
+ background:#070b15ed;display:flex;align-items:center;
+ justify-content:center;text-align:center;padding:25px;
+}
+.panel{max-width:360px;width:100%}
+.panel h1{font-size:38px;letter-spacing:3px;margin:0 0 5px}
+.panel h1 span{color:#63dfff}
+.panel p{font-size:13px;color:#a6b5d1;line-height:1.9}
+.mainbtn{
+ border:0;background:linear-gradient(100deg,#23b9ed,#9364ff);
+ color:white;font-size:17px;font-weight:bold;
+ border-radius:12px;padding:15px 30px;width:100%;margin-top:15px
+}
+#result{font-size:36px;font-weight:900;margin:15px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="game">
+<header>
+ <div>
+  <div class="logo">BURST <span>THEORY</span></div>
+  <div class="stat">SURVIVAL / SCORE ATTACK</div>
+ </div>
+ <div class="stat">
+  SCORE
+  <div id="score">0</div>
+ </div>
+ <div class="stat">
+  TIME
+  <div id="time" style="font-size:21px;color:white">60</div>
+  LIFE
+  <div id="life" style="font-size:18px;color:#ff687c">♥♥♥</div>
+ </div>
+</header>
+
+<div id="arena">
+ <canvas id="c"></canvas>
+ <div id="message">POP THE BUBBLES</div>
+ <div id="overlay">
+  <div class="panel" id="startPanel">
+   <h1>BURST <span>THEORY</span></h1>
+   <p>
+    バブルを破壊し、連鎖を作れ。<br>
+    スキルを使うタイミングが勝敗を決める。<br><br>
+    同色バブルを連続で破壊すると<br>
+    コンボとスコア倍率が上昇する。<br>
+    大連鎖を狙え。
+   </p>
+   <button class="mainbtn" onclick="startGame()">START GAME</button>
+   <p style="font-size:10px">60 SECONDS / 3 LIVES</p>
+  </div>
+  <div class="panel hidden" id="endPanel">
+   <h1>SESSION <span>END</span></h1>
+   <div id="result">0</div>
+   <p id="resultInfo"></p>
+   <button class="mainbtn" onclick="startGame()">RETRY</button>
+  </div>
+ </div>
+</div>
+
+<div id="bottom">
+ <div style="display:flex;justify-content:space-between;font-size:11px;color:#a6b5d1;margin-bottom:6px">
+  <span>ENERGY</span><span id="energyText">0 / 100</span>
+ </div>
+ <div id="bar"><div id="energy"></div></div>
+ <div class="skills">
+  <button class="skill" id="resonance" onclick="useSkill('res')">
+   RESONANCE
+   <small>同色連鎖範囲拡大 / 5秒</small>
+  </button>
+  <button class="skill" id="overdrive" onclick="useSkill('over')">
+   OVERDRIVE
+   <small>次の攻撃を強化</small>
+  </button>
+ </div>
+</div>
+</div>
+
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const arena=document.getElementById('arena');
+
+let W,H,balls=[],particles=[],texts=[];
+let running=false,score=0,time=60,life=3;
+let energy=0,combo=0,lastPop=0;
+let resonance=0,overdrive=false;
+let spawnTimer=0,shake=0,freeze=0;
+let lastFrame=0,raf=0;
+let best=Number(localStorage.getItem('btBest')||0);
+
+const colors={
+ cyan:'#45dfff',
+ pink:'#ff5da9',
+ purple:'#a77aff',
+ yellow:'#ffe16b',
+ green:'#6dffb0'
+};
+const colorList=Object.keys(colors);
+
+function resize(){
+ const r=arena.getBoundingClientRect();
+ W=r.width;H=r.height;
+ const d=Math.min(devicePixelRatio||1,2);
+ canvas.width=W*d;canvas.height=H*d;
+ ctx.setTransform(d,0,0,d,0,0);
+}
+window.addEventListener('resize',resize);
+resize();
+
+function rand(a,b){return Math.random()*(b-a)+a}
+
+function createBall(){
+ const color=colorList[Math.floor(Math.random()*colorList.length)];
+ const special=Math.random()<.10;
+ const r=special?21:rand(16,23);
+ balls.push({
+  x:rand(r+8,W-r-8),y:-r,
+  r,color,hp:special?2:1,
+  special,vy:rand(65,105)*(1+(60-time)*.007),
+  phase:rand(0,6)
+ });
+}
+
+function startGame(){
+ cancelAnimationFrame(raf);
+ balls=[];particles=[];texts=[];
+ score=0;time=60;life=3;energy=0;
+ combo=0;lastPop=0;resonance=0;
+ overdrive=false;spawnTimer=0;
+ shake=0;freeze=0;
+ running=true;
+ document.getElementById('overlay').classList.add('hidden');
+ document.getElementById('message').innerText='POP THE BUBBLES';
+ lastFrame=performance.now();
+ updateUI();
+ raf=requestAnimationFrame(loop);
+}
+
+function endGame(){
+ running=false;
+ const high=score>best;
+ if(high){
+  best=score;
+  localStorage.setItem('btBest',best);
+ }
+ document.getElementById('overlay').classList.remove('hidden');
+ document.getElementById('startPanel').classList.add('hidden');
+ document.getElementById('endPanel').classList.remove('hidden');
+ document.getElementById('result').innerText=score.toLocaleString();
+ document.getElementById('resultInfo').innerText=
+  (high?'NEW RECORD! / ':'')+
+  'BEST: '+best.toLocaleString()+'  /  COMBO: '+combo;
+}
+
+function updateUI(){
+ document.getElementById('score').innerText=score.toLocaleString();
+ document.getElementById('time').innerText=Math.ceil(time);
+ document.getElementById('life').innerText='♥'.repeat(life)+'♡'.repeat(3-life);
+ document.getElementById('energy').style.width=energy+'%';
+ document.getElementById('energyText').innerText=Math.floor(energy)+' / 100';
+
+ document.getElementById('resonance').disabled=
+  energy<100||resonance>0;
+ document.getElementById('overdrive').disabled=
+  energy<60||overdrive;
+}
+
+function useSkill(type){
+ if(!running)return;
+ if(type==='res'&&energy>=100&&resonance<=0){
+  energy-=100;
+  resonance=5;
+  floating(W/2,H*.35,'RESONANCE ACTIVATED','#65e5ff',25);
+  shake=3;
+  updateUI();
+ }
+ if(type==='over'&&energy>=60&&!overdrive){
+  energy-=60;
+  overdrive=true;
+  floating(W/2,H*.35,'OVERDRIVE READY','#ffe16b',24);
+  updateUI();
+ }
+}
+
+function floating(x,y,text,color,size){
+ texts.push({x,y,text,color,size,life:1,max:1});
+}
+
+function burst(x,y,color,n,power=1){
+ for(let i=0;i<n;i++){
+  const a=rand(0,Math.PI*2);
+  const v=rand(40,220)*power;
+  particles.push({
+   x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,
+   life:rand(.3,.75),max:.75,
+   color,size:rand(2,5)*power
+  });
+ }
+}
+
+function popBall(b,chain=false){
+ const now=performance.now();
+ if(now-lastPop<1300)combo++;
+ else combo=1;
+ lastPop=now;
+
+ const multiplier=Math.min(1+Math.floor(combo/3)*.25,4);
+ let points=Math.round((b.special?180:100)*multiplier);
+ if(chain)points=Math.round(points*1.5);
+ if(overdrive)points*=3;
+
+ score+=points;
+ energy=Math.min(100,energy+(b.special?17:10));
+
+ burst(b.x,b.y,colors[b.color],chain?17:9,chain?1.5:1);
+ floating(b.x,b.y,
+  '+'+points+(multiplier>=2?' x'+multiplier.toFixed(1):''),
+  colors[b.color],chain?19:14);
+
+ if(combo>=5&&combo%3===2){
+  floating(W/2,H*.22,combo+' COMBO!','#ffffff',22);
+ }
+
+ // 連鎖演出は成功したときだけ段階的に強くする
+ if(combo>=8){
+  shake=7;
+  freeze=.07;
+  burst(b.x,b.y,'#ffffff',24,2);
+ }
+ if(combo>=15){
+  shake=13;
+  freeze=.13;
+  floating(W/2,H*.32,'ABSOLUTE BURST','#ffffff',32);
+ }
+}
+
+function hit(x,y){
+ if(!running)return;
+
+ // 最も近いバブルを選択
+ let target=null,bestDist=Infinity;
+ for(const b of balls){
+  const d=Math.hypot(x-b.x,y-b.y);
+  if(d<b.r+12&&d<bestDist){
+   target=b;bestDist=d;
+  }
+ }
+ if(!target)return;
+
+ let radius=resonance>0?135:55;
+ if(overdrive)radius=165;
+
+ const color=target.color;
+ const queue=[target];
+ const selected=new Set([target]);
+ const maxChain=overdrive?20:resonance>0?14:5;
+
+ // 同色の近接バブルを連鎖候補にする
+ while(queue.length&&selected.size<maxChain){
+  const current=queue.shift();
+  for(const b of balls){
+   if(selected.has(b)||b.color!==color)continue;
+   const d=Math.hypot(b.x-current.x,b.y-current.y);
+   if(d<radius){
+    selected.add(b);
+    queue.push(b);
+   }
+  }
+ }
+
+ const list=[...selected];
+ balls=balls.filter(b=>!selected.has(b));
+
+ if(overdrive){
+  overdrive=false;
+  resonance=0;
+ }
+
+ for(let i=0;i<list.length;i++){
+  popBall(list[i],i>0);
+ }
+
+ if(list.length>=5){
+  shake=Math.max(shake,4+list.length);
+ }
+
+ if(list.length>=8){
+  freeze=.12;
+  floating(W/2,H*.43,'CHAIN x'+list.length,'#ffe16b',28);
+ }
+
+ updateUI();
+}
+
+canvas.addEventListener('pointerdown',e=>{
+ const r=canvas.getBoundingClientRect();
+ hit(e.clientX-r.left,e.clientY-r.top);
+});
+
+function update(dt){
+ if(!running)return;
+
+ time-=dt;
+ if(time<=0){time=0;endGame();return;}
+
+ if(freeze>0){
+  freeze-=dt;
+  dt*=.12;
+ }
+
+ // 時間経過で少しずつ難しくする
+ const difficulty=1+(60-time)*.014;
+ spawnTimer-=dt;
+ if(spawnTimer<=0){
+  createBall();
+  if(Math.random()<.18)createBall();
+  spawnTimer=rand(.65,1.05)/difficulty;
+ }
+
+ if(resonance>0)resonance-=dt;
+
+ for(let i=balls.length-1;i>=0;i--){
+  const b=balls[i];
+  b.y+=b.vy*dt;
+  b.phase+=dt*2;
+
+  if(b.y-b.r>H){
+   balls.splice(i,1);
+   life--;
+   combo=0;
+   floating(W/2,H*.65,'LIFE -1','#ff637f',25);
+   shake=9;
+   if(life<=0){endGame();return;}
+  }
+ }
+
+ for(let i=particles.length-1;i>=0;i--){
+  const p=particles[i];
+  p.x+=p.vx*dt;
+  p.y+=p.vy*dt;
+  p.vx*=Math.pow(.08,dt);
+  p.vy*=Math.pow(.08,dt);
+  p.life-=dt;
+  if(p.life<=0)particles.splice(i,1);
+ }
+
+ for(let i=texts.length-1;i>=0;i--){
+  const t=texts[i];
+  t.y-=35*dt;
+  t.life-=dt;
+  if(t.life<=0)texts.splice(i,1);
+ }
+
+ shake=Math.max(0,shake-35*dt);
+ updateUI();
+}
+
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ ctx.save();
+
+ if(shake>0){
+  ctx.translate(rand(-shake,shake),rand(-shake,shake));
+ }
+
+ // 背景の薄いグリッド
+ ctx.strokeStyle='#ffffff08';
+ ctx.lineWidth=1;
+ for(let y=0;y<H;y+=50){
+  ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+ }
+ for(let x=0;x<W;x+=50){
+  ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
+ }
+
+ // 危険ライン
+ ctx.strokeStyle='#ff627744';
+ ctx.setLineDash([5,9]);
+ ctx.beginPath();ctx.moveTo(0,H-28);ctx.lineTo(W,H-28);ctx.stroke();
+ ctx.setLineDash([]);
+
+ for(const b of balls){
+  const color=colors[b.color];
+  const glow=ctx.createRadialGradient(
+   b.x-b.r*.3,b.y-b.r*.4,1,b.x,b.y,b.r*1.5);
+  glow.addColorStop(0,'#ffffff');
+  glow.addColorStop(.16,color);
+  glow.addColorStop(1,color+'22');
+
+  ctx.shadowBlur=b.special?23:12;
+  ctx.shadowColor=color;
+  ctx.fillStyle=glow;
+  ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+
+  ctx.strokeStyle=color;
+  ctx.globalAlpha=.7;
+  ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=1;
+
+  // ハイライト
+  ctx.fillStyle='#ffffff99';
+  ctx.beginPath();
+  ctx.ellipse(b.x-b.r*.3,b.y-b.r*.35,b.r*.22,b.r*.11,-.5,0,Math.PI*2);
+  ctx.fill();
+
+  if(b.special){
+   ctx.fillStyle='#fff';
+   ctx.font='bold 12px Arial';
+   ctx.textAlign='center';
+   ctx.fillText('✦',b.x,b.y+4);
+  }
+  if(b.hp>1){
+   ctx.fillStyle='white';
+   ctx.font='bold 10px Arial';
+   ctx.textAlign='center';
+   ctx.fillText('2',b.x,b.y+4);
+  }
+ }
+
+ for(const p of particles){
+  ctx.globalAlpha=Math.max(0,p.life/p.max);
+  ctx.fillStyle=p.color;
+  ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+ }
+ ctx.globalAlpha=1;
+
+ for(const t of texts){
+  ctx.globalAlpha=Math.min(1,t.life*2);
+  ctx.fillStyle=t.color;
+  ctx.font='900 '+t.size+'px Arial';
+  ctx.textAlign='center';
+  ctx.shadowBlur=12;
+  ctx.shadowColor=t.color;
+  ctx.fillText(t.text,t.x,t.y);
+  ctx.shadowBlur=0;
+ }
+ ctx.globalAlpha=1;
+
+ // 共鳴発動中の画面枠
+ if(resonance>0){
+  ctx.strokeStyle='#64eaff';
+  ctx.lineWidth=3;
+  ctx.globalAlpha=.3+.2*Math.sin(performance.now()*.01);
+  ctx.strokeRect(4,4,W-8,H-8);
+  ctx.globalAlpha=1;
+ }
+ ctx.restore();
+}
+
+function loop(now){
+ if(!running)return;
+ let dt=Math.min((now-lastFrame)/1000,.04);
+ lastFrame=now;
+ update(dt);
+ draw();
+ if(running)raf=requestAnimationFrame(loop);
+}
+
+// 初期表示
+draw();
+</script>
+</body>
+</html>
