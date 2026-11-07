@@ -1,0 +1,1034 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>タレットフルーツディフェンス</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
+    
+    body {
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      overflow: hidden;
+      background-color: #0f172a;
+    }
+    
+    canvas {
+      display: block;
+    }
+    
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .card-hover {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .card-hover:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+
+    /* カスタムアニメーション */
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+
+    .glow-effect {
+      animation: pulse-glow 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="w-screen h-screen flex justify-center items-center relative text-white">
+
+  <!-- ゲームキャンバス -->
+  <canvas id="gameCanvas" class="absolute inset-0 w-full h-full"></canvas>
+
+  <!-- UIオーバーレイ (スコア/HP/レベル) -->
+  <div id="uiLayer" class="absolute top-0 left-0 w-full p-4 flex justify-between items-start pointer-events-none z-10 hidden">
+    <!-- ステータス表示 -->
+    <div class="glass-panel p-3 sm:p-4 rounded-2xl flex flex-col gap-2 min-w-[160px] sm:min-w-[200px]">
+      <div class="flex items-center justify-between">
+        <span class="text-xs sm:text-sm font-bold text-slate-400">HP</span>
+        <div id="hpContainer" class="flex gap-1 text-red-500 text-lg sm:text-xl">
+          <!-- ライフハートアイコン -->
+        </div>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-xs sm:text-sm font-bold text-slate-400">SCORE</span>
+        <span id="scoreText" class="text-lg sm:text-2xl font-black text-amber-400">0</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-xs sm:text-sm font-bold text-slate-400">STAGE TIME</span>
+        <span id="timeText" class="text-sm sm:text-base font-bold text-slate-200">00:00</span>
+      </div>
+    </div>
+
+    <!-- 経験値バー -->
+    <div class="glass-panel p-3 sm:p-4 rounded-2xl flex flex-col items-center min-w-[180px] sm:min-w-[280px]">
+      <div class="flex justify-between w-full mb-1 items-baseline">
+        <span class="text-xs sm:text-sm font-bold text-indigo-400">LEVEL <span id="levelText" class="text-lg sm:text-xl font-black text-white">1</span></span>
+        <span id="xpText" class="text-xs text-slate-400">0 / 100 XP</span>
+      </div>
+      <div class="w-full bg-slate-700/60 rounded-full h-3 sm:h-4 overflow-hidden p-0.5 border border-slate-600/50">
+        <div id="xpBar" class="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- スタート画面 modal -->
+  <div id="startScreen" class="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+    <div class="glass-panel max-w-md w-full p-6 sm:p-8 rounded-3xl text-center shadow-2xl border border-slate-700 flex flex-col items-center">
+      <div class="w-20 h-20 bg-gradient-to-tr from-amber-500 to-rose-500 rounded-3xl flex items-center justify-center text-4xl mb-4 shadow-lg shadow-rose-500/30 glow-effect">
+        <i class="fa-solid font-black text-white">🎯</i>
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-black bg-gradient-to-r from-amber-300 via-rose-300 to-purple-300 bg-clip-text text-transparent mb-2">
+        タレットフルーツディフェンス
+      </h1>
+      <p class="text-slate-300 text-sm mb-6 leading-relaxed">
+        空から降ってくる果物を自動タレットで撃退しよう！<br>
+        果物を壊してXPを稼ぎ、ユニークな強化を選んで最強の防衛ラインを構築せよ！
+      </p>
+
+      <div class="bg-slate-900/60 p-4 rounded-2xl w-full text-left text-xs text-slate-300 mb-6 space-y-1.5 border border-slate-800">
+        <p>🎯 <span class="font-bold text-white">オート射撃:</span> 近くの果物を自動ターゲット</p>
+        <p>❤️ <span class="font-bold text-white">ライフ:</span> 果物が下に届くと1減（全5個）</p>
+        <p>⚡ <span class="font-bold text-white">レベルアップ:</span> ランダムな3つの強化から1つ選択</p>
+        <p>⏱️ <span class="font-bold text-white">難易度:</span> 時間が経過するほど猛攻が増加</p>
+      </div>
+
+      <button id="startButton" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-lg sm:text-xl rounded-2xl shadow-lg shadow-emerald-900/40 transform active:scale-95 transition-all">
+        ゲームスタート <i class="fa-solid fa-play ml-2"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- レベルアップモーダル (強化3択) -->
+  <div id="upgradeScreen" class="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/85 backdrop-blur-lg p-4 hidden">
+    <div class="max-w-4xl w-full flex flex-col items-center">
+      <div class="text-center mb-6">
+        <span class="text-amber-400 font-bold tracking-widest text-xs sm:text-sm uppercase">Level Up!</span>
+        <h2 class="text-2xl sm:text-4xl font-black text-white">強化カードを選んでください</h2>
+      </div>
+
+      <div id="upgradeCardsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+        <!-- JSで動的に3つのカードが追加されます -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ゲームオーバー画面 -->
+  <div id="gameOverScreen" class="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4 hidden">
+    <div class="glass-panel max-w-md w-full p-8 rounded-3xl text-center shadow-2xl border border-red-500/30 flex flex-col items-center">
+      <div class="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 text-4xl mb-4 border border-red-500/30">
+        <i class="fa-solid fa-skull"></i>
+      </div>
+      <h2 class="text-3xl font-black text-red-400 mb-1">GAME OVER</h2>
+      <p class="text-slate-400 text-sm mb-6">防衛ラインが突破されました！</p>
+
+      <div class="bg-slate-900/60 p-4 rounded-2xl w-full text-center mb-6 border border-slate-800 space-y-2">
+        <div>
+          <span class="text-xs text-slate-400 block">最終到達レベル</span>
+          <span id="finalLevel" class="text-xl font-black text-indigo-400">1</span>
+        </div>
+        <div>
+          <span class="text-xs text-slate-400 block">最終スコア</span>
+          <span id="finalScore" class="text-2xl font-black text-amber-400">0</span>
+        </div>
+      </div>
+
+      <button id="restartButton" class="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-black text-lg rounded-2xl shadow-lg shadow-indigo-900/40 transform active:scale-95 transition-all">
+        もう一度挑戦する <i class="fa-solid fa-rotate-right ml-2"></i>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // --- 20種類の強化データ定義 ---
+    const UPGRADES_DATABASE = [
+      { id: 'fireRate', title: '高速連射', desc: 'タレットの攻撃速度が +20% 上昇', icon: '⚡', color: 'from-amber-500 to-yellow-600', apply: (t) => t.fireRateCooldown = Math.max(8, t.fireRateCooldown * 0.8) },
+      { id: 'damage', title: '威力強化', desc: '弾丸の与えるダメージが +30% 上昇', icon: '💥', color: 'from-red-500 to-orange-600', apply: (t) => t.damage *= 1.3 },
+      { id: 'bulletSpeed', title: '超音速弾', desc: '弾丸の飛行速度が +40% 上昇', icon: '🚀', color: 'from-blue-500 to-cyan-600', apply: (t) => t.bulletSpeed *= 1.4 },
+      { id: 'multishot', title: 'マルチショット', desc: '一度に発射される弾の数が +1 増加', icon: '🔱', color: 'from-purple-500 to-indigo-600', apply: (t) => t.multishot += 1 },
+      { id: 'pierce', title: '貫通弾', desc: '弾丸が果物を通り抜ける（貫通数 +1）', icon: '🎯', color: 'from-emerald-500 to-teal-600', apply: (t) => t.pierce += 1 },
+      { id: 'critChance', title: 'クリティカル', desc: '急所率 +15%（ダメージ2.5倍）', icon: '✨', color: 'from-pink-500 to-rose-600', apply: (t) => t.critChance = Math.min(1, t.critChance + 0.15) },
+      { id: 'homing', title: '誘導ミサイル', desc: '弾丸が最寄りの果物を自動で追撃', icon: '🧲', color: 'from-violet-500 to-purple-800', apply: (t) => t.homing = true },
+      { id: 'explosive', title: '爆発弾頭', desc: '命中時に周囲を巻き込む小爆発が発生', icon: '💣', color: 'from-orange-600 to-red-700', apply: (t) => t.explosiveRadius += 40 },
+      { id: 'freeze', title: '氷結ショット', desc: '命中した果物の移動速度を 2.5秒間 40% 減速', icon: '❄️', color: 'from-sky-400 to-blue-600', apply: (t) => t.freezeEffect = true },
+      { id: 'poison', title: '毒スプレー', desc: '命中した果物に3秒間の継続ダメージ', icon: '🧪', color: 'from-lime-500 to-emerald-700', apply: (t) => t.poisonEffect = true },
+      { id: 'giantBullet', title: '巨弾化', desc: '弾の大きさが2倍、ダメージ +25%', icon: '⚽', color: 'from-stone-500 to-slate-700', apply: (t) => { t.bulletSize *= 1.8; t.damage *= 1.25; } },
+      { id: 'xpGain', title: '知恵の果実', desc: '獲得できるXPの量が +30% 上昇', icon: '🎓', color: 'from-teal-400 to-cyan-600', apply: (t, g) => g.xpMultiplier *= 1.3 },
+      { id: 'healHP', title: '応急修理', desc: '防衛HPを 1 回復（上限5）', icon: '❤️', color: 'from-red-400 to-pink-600', apply: (t, g) => g.hp = Math.min(g.maxHp, g.hp + 1) },
+      { id: 'magnetXP', title: 'XPセクター', desc: '撃破時のXPが自動的に回収される', icon: '🧲', color: 'from-amber-400 to-amber-600', apply: (t, g) => g.autoCollectXp = true },
+      { id: 'doubleTurret', title: 'ツインタレット', desc: '左右にもサブタレットを配置して援護射撃', icon: '🤖', color: 'from-slate-600 to-slate-900', apply: (t) => t.subTurrets = true },
+      { id: 'bouncingBullet', title: '跳ね返り弾', desc: '画面端で弾が1回反射する', icon: '🏓', color: 'from-yellow-400 to-amber-600', apply: (t) => t.bounce += 1 },
+      { id: 'laserBeam', title: '高出力レーザー', desc: '5秒ごとに極太貫通レーザーを自動照射', icon: '⚡', color: 'from-cyan-400 to-blue-700', apply: (t) => t.hasLaser = true },
+      { id: 'goldFruit', title: 'ラッキーチャンス', desc: '高ポイントの黄金果物の出現率アップ', icon: '🌟', color: 'from-amber-300 to-yellow-500', apply: (t, g) => g.goldChance += 0.1 },
+      { id: 'knockback', title: '衝撃波', desc: '弾頭命中時に果物を少し上に押し戻す', icon: '💨', color: 'from-indigo-400 to-blue-600', apply: (t) => t.knockback += 2 },
+      { id: 'overdrive', title: 'オーバードライブ', desc: 'ピンチ時（HP2以下）で射撃速度が2倍', icon: '🔥', color: 'from-rose-600 to-red-900', apply: (t) => t.overdrive = true }
+    ];
+
+    // --- 果物データ定義 ---
+    const FRUIT_TYPES = [
+      { name: 'チェリー', emoji: '🍒', radius: 22, hp: 12, xp: 15, speed: 1.4 },
+      { name: 'イチゴ', emoji: '🍓', radius: 26, hp: 20, xp: 25, speed: 1.2 },
+      { name: 'バナナ', emoji: '🍌', radius: 28, hp: 35, xp: 40, speed: 1.1 },
+      { name: 'リンゴ', emoji: '🍎', radius: 32, hp: 55, xp: 60, speed: 1.0 },
+      { name: 'ブドウ', emoji: '🍇', radius: 30, hp: 80, xp: 85, speed: 0.9 },
+      { name: 'メロン', emoji: '🍈', radius: 40, hp: 140, xp: 140, speed: 0.75 },
+      { name: 'スイカ', emoji: '🍉', radius: 48, hp: 220, xp: 220, speed: 0.6 }
+    ];
+
+    // --- ゲーム全体管理オブジェクト ---
+    class Game {
+      constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.resizeCanvas();
+        window.addEventListener('resize', () => this.resizeCanvas());
+
+        // ゲーム状態
+        this.state = 'START'; // START, PLAYING, UPGRADE, GAMEOVER
+        this.hp = 5;
+        this.maxHp = 5;
+        this.score = 0;
+        this.level = 1;
+        this.xp = 0;
+        this.xpToNextLevel = 100;
+        this.gameTime = 0;
+        this.lastFrameTime = 0;
+
+        // グローバルバフ/システム
+        this.xpMultiplier = 1.0;
+        this.goldChance = 0.05;
+        this.autoCollectXp = false;
+        this.spawnTimer = 0;
+
+        // ゲームオブジェクト
+        this.turret = null;
+        this.fruits = [];
+        this.bullets = [];
+        this.particles = [];
+        this.xpOrbs = [];
+        this.lasers = [];
+
+        this.initUI();
+      }
+
+      resizeCanvas() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        if (this.turret) {
+          this.turret.x = this.canvas.width / 2;
+          this.turret.y = this.canvas.height - 70;
+        }
+      }
+
+      initUI() {
+        document.getElementById('startButton').addEventListener('click', () => this.startGame());
+        document.getElementById('restartButton').addEventListener('click', () => this.startGame());
+      }
+
+      startGame() {
+        this.hp = 5;
+        this.score = 0;
+        this.level = 1;
+        this.xp = 0;
+        this.xpToNextLevel = 100;
+        this.gameTime = 0;
+        this.xpMultiplier = 1.0;
+        this.goldChance = 0.05;
+        this.autoCollectXp = false;
+
+        this.fruits = [];
+        this.bullets = [];
+        this.particles = [];
+        this.xpOrbs = [];
+        this.lasers = [];
+
+        this.turret = new Turret(this.canvas.width / 2, this.canvas.height - 70);
+
+        document.getElementById('startScreen').classList.add('hidden');
+        document.getElementById('gameOverScreen').classList.add('hidden');
+        document.getElementById('upgradeScreen').classList.add('hidden');
+        document.getElementById('uiLayer').classList.remove('hidden');
+
+        this.updateUI();
+        this.state = 'PLAYING';
+        this.lastFrameTime = performance.now();
+        requestAnimationFrame((timestamp) => this.loop(timestamp));
+      }
+
+      updateUI() {
+        // HP表示
+        const hpContainer = document.getElementById('hpContainer');
+        hpContainer.innerHTML = '';
+        for (let i = 0; i < this.maxHp; i++) {
+          const heart = document.createElement('i');
+          if (i < this.hp) {
+            heart.className = 'fa-solid fa-heart';
+          } else {
+            heart.className = 'fa-regular fa-heart text-slate-600';
+          }
+          hpContainer.appendChild(heart);
+        }
+
+        // スコア＆レベル
+        document.getElementById('scoreText').innerText = Math.floor(this.score).toLocaleString();
+        document.getElementById('levelText').innerText = this.level;
+        document.getElementById('xpText').innerText = `${Math.floor(this.xp)} / ${Math.floor(this.xpToNextLevel)} XP`;
+        
+        const xpPercent = Math.min(100, (this.xp / this.xpToNextLevel) * 100);
+        document.getElementById('xpBar').style.width = `${xpPercent}%`;
+
+        // タイム
+        const mins = Math.floor(this.gameTime / 60).toString().padStart(2, '0');
+        const secs = Math.floor(this.gameTime % 60).toString().padStart(2, '0');
+        document.getElementById('timeText').innerText = `${mins}:${secs}`;
+      }
+
+      addXP(amount) {
+        this.xp += amount * this.xpMultiplier;
+        if (this.xp >= this.xpToNextLevel) {
+          this.xp -= this.xpToNextLevel;
+          this.level++;
+          this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.35 + 50);
+          this.triggerUpgrade();
+        }
+        this.updateUI();
+      }
+
+      triggerUpgrade() {
+        this.state = 'UPGRADE';
+        const container = document.getElementById('upgradeCardsContainer');
+        container.innerHTML = '';
+
+        // 20種類からランダムに3つ選出
+        const shuffled = [...UPGRADES_DATABASE].sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, 3);
+
+        selected.forEach(upgrade => {
+          const card = document.createElement('div');
+          card.className = `glass-panel card-hover p-6 rounded-3xl cursor-pointer flex flex-col justify-between items-center text-center border border-slate-700/80 bg-gradient-to-b ${upgrade.color}/10 hover:border-amber-400/50`;
+          card.innerHTML = `
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr ${upgrade.color} flex items-center justify-center text-3xl shadow-lg mb-4">
+              ${upgrade.icon}
+            </div>
+            <h3 class="text-xl font-bold text-white mb-2">${upgrade.title}</h3>
+            <p class="text-xs text-slate-300 leading-relaxed mb-6">${upgrade.desc}</p>
+            <button class="w-full py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-sm rounded-xl transition-all border border-white/10">
+              選択する
+            </button>
+          `;
+          card.addEventListener('click', () => {
+            upgrade.apply(this.turret, this);
+            document.getElementById('upgradeScreen').classList.add('hidden');
+            this.state = 'PLAYING';
+            this.lastFrameTime = performance.now();
+            requestAnimationFrame((timestamp) => this.loop(timestamp));
+          });
+          container.appendChild(card);
+        });
+
+        document.getElementById('upgradeScreen').classList.remove('hidden');
+      }
+
+      takeDamage() {
+        this.hp--;
+        this.updateUI();
+        
+        // 画面フラッシュ効果
+        const flash = document.createElement('div');
+        flash.className = 'absolute inset-0 bg-red-600/30 pointer-events-none transition-opacity duration-300 z-40';
+        document.body.appendChild(flash);
+        setTimeout(() => {
+          flash.style.opacity = '0';
+          setTimeout(() => flash.remove(), 300);
+        }, 50);
+
+        if (this.hp <= 0) {
+          this.gameOver();
+        }
+      }
+
+      gameOver() {
+        this.state = 'GAMEOVER';
+        document.getElementById('finalLevel').innerText = this.level;
+        document.getElementById('finalScore').innerText = Math.floor(this.score).toLocaleString();
+        document.getElementById('gameOverScreen').classList.remove('hidden');
+      }
+
+      spawnFruit() {
+        // 経過時間に応じて果物のスポーンレートと強度増加
+        const timeFactor = 1 + this.gameTime / 60; // 1分ごとに増加
+        const spawnX = Math.random() * (this.canvas.width - 80) + 40;
+        
+        // 出現可能な果物インデックス範囲
+        const maxIdx = Math.min(FRUIT_TYPES.length - 1, Math.floor(this.gameTime / 25));
+        const fruitIdx = Math.floor(Math.random() * (maxIdx + 1));
+        const baseFruit = FRUIT_TYPES[fruitIdx];
+
+        // 黄金果物の判定
+        const isGold = Math.random() < this.goldChance;
+
+        this.fruits.push(new Fruit(
+          spawnX,
+          -40,
+          baseFruit,
+          timeFactor,
+          isGold
+        ));
+      }
+
+      loop(timestamp) {
+        if (this.state !== 'PLAYING') return;
+
+        const dt = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
+        this.lastFrameTime = timestamp;
+        this.gameTime += dt;
+
+        this.update(dt);
+        this.render();
+
+        this.updateUI();
+        requestAnimationFrame((ts) => this.loop(ts));
+      }
+
+      update(dt) {
+        // スポーンタイマー処理（時間が経つにつれて出現頻度アップ）
+        this.spawnTimer += dt;
+        const spawnInterval = Math.max(0.4, 2.2 - (this.gameTime * 0.015));
+        if (this.spawnTimer >= spawnInterval) {
+          this.spawnTimer = 0;
+          this.spawnFruit();
+        }
+
+        // タレット更新
+        this.turret.update(dt, this.fruits, this.bullets, this.lasers, this.hp);
+
+        // レーザー更新
+        for (let i = this.lasers.length - 1; i >= 0; i--) {
+          this.lasers[i].update(dt, this.fruits, this);
+          if (this.lasers[i].life <= 0) this.lasers.splice(i, 1);
+        }
+
+        // 弾丸更新
+        for (let i = this.bullets.length - 1; i >= 0; i--) {
+          const b = this.bullets[i];
+          b.update(dt, this.fruits, this);
+          if (b.dead) this.bullets.splice(i, 1);
+        }
+
+        // 果物更新
+        for (let i = this.fruits.length - 1; i >= 0; i--) {
+          const f = this.fruits[i];
+          f.update(dt);
+
+          // 画面下に到達
+          if (f.y >= this.canvas.height - 40) {
+            this.takeDamage();
+            this.createExplosion(f.x, f.y, '#ef4444', 15);
+            this.fruits.splice(i, 1);
+            continue;
+          }
+
+          // HPがゼロで破壊
+          if (f.hp <= 0) {
+            this.score += f.isGold ? f.maxHp * 2.5 : f.maxHp;
+            
+            // XPオーブのドロップ
+            const orbCount = f.isGold ? 5 : 2;
+            for (let k = 0; k < orbCount; k++) {
+              this.xpOrbs.push(new XPOrb(
+                f.x + (Math.random() - 0.5) * 20,
+                f.y + (Math.random() - 0.5) * 20,
+                (f.xp / orbCount)
+              ));
+            }
+
+            this.createExplosion(f.x, f.y, f.isGold ? '#fbbf24' : '#38bdf8', 20);
+            this.fruits.splice(i, 1);
+          }
+        }
+
+        // XPオーブ更新
+        for (let i = this.xpOrbs.length - 1; i >= 0; i--) {
+          const orb = this.xpOrbs[i];
+          orb.update(dt, this.turret, this.autoCollectXp);
+          if (orb.collected) {
+            this.addXP(orb.value);
+            this.xpOrbs.splice(i, 1);
+          }
+        }
+
+        // パーティクル更新
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const p = this.particles[i];
+          p.update(dt);
+          if (p.alpha <= 0) this.particles.splice(i, 1);
+        }
+      }
+
+      render() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // 背景グリッド描画
+        this.drawBackground();
+
+        // オブジェクト描画
+        this.xpOrbs.forEach(orb => orb.draw(this.ctx));
+        this.bullets.forEach(b => b.draw(this.ctx));
+        this.lasers.forEach(l => l.draw(this.ctx));
+        this.fruits.forEach(f => f.draw(this.ctx));
+        this.particles.forEach(p => p.draw(this.ctx));
+        if (this.turret) this.turret.draw(this.ctx);
+
+        // デンジャーライン（画面最下部近く）
+        this.ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+        this.ctx.lineWidth = 2;
+        this.ctx.setLineDash([8, 8]);
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, this.canvas.height - 40);
+        this.ctx.lineTo(this.canvas.width, this.canvas.height - 40);
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
+      }
+
+      drawBackground() {
+        // グラデーション背景
+        const grad = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+        grad.addColorStop(0, '#090d16');
+        grad.addColorStop(1, '#0f172a');
+        this.ctx.fillStyle = grad;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // 控えめなグリッド線
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        this.ctx.lineWidth = 1;
+        const gridSize = 60;
+        for (let x = 0; x < this.canvas.width; x += gridSize) {
+          this.ctx.beginPath();
+          this.ctx.moveTo(x, 0);
+          this.ctx.lineTo(x, this.canvas.height);
+          this.ctx.stroke();
+        }
+        for (let y = 0; y < this.canvas.height; y += gridSize) {
+          this.ctx.beginPath();
+          this.ctx.moveTo(0, y);
+          this.ctx.lineTo(this.canvas.width, y);
+          this.ctx.stroke();
+        }
+      }
+
+      createExplosion(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+          this.particles.push(new Particle(x, y, color));
+        }
+      }
+    }
+
+    // --- タレットクラス ---
+    class Turret {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.angle = -Math.PI / 2;
+        
+        // ステータス（強化可能パラメーター）
+        this.fireRateCooldown = 24; // フレーム間隔 (小さいほど速い)
+        this.cooldownTimer = 0;
+        this.damage = 10;
+        this.bulletSpeed = 650;
+        this.multishot = 1;
+        this.pierce = 1;
+        this.critChance = 0.05;
+        this.homing = false;
+        this.explosiveRadius = 0;
+        this.freezeEffect = false;
+        this.poisonEffect = false;
+        this.bulletSize = 6;
+        this.bounce = 0;
+        this.subTurrets = false;
+        this.knockback = 0;
+        this.overdrive = false;
+
+        // 特殊武器
+        this.hasLaser = false;
+        this.laserTimer = 0;
+      }
+
+      update(dt, fruits, bullets, lasers, currentHp) {
+        // オーバードライブ判定 (HP2以下で速度倍増)
+        let effectiveCooldown = this.fireRateCooldown;
+        if (this.overdrive && currentHp <= 2) {
+          effectiveCooldown *= 0.5;
+        }
+
+        // レーザータイマー処理
+        if (this.hasLaser) {
+          this.laserTimer += dt;
+          if (this.laserTimer >= 5) {
+            this.laserTimer = 0;
+            lasers.push(new LaserBeam(this.x, this.y, this.angle));
+          }
+        }
+
+        // 最も下にある果物をターゲット（ピンチを防ぐ賢いAI）
+        let target = null;
+        let maxY = -1;
+
+        for (const f of fruits) {
+          if (f.y > maxY) {
+            maxY = f.y;
+            target = f;
+          }
+        }
+
+        if (target) {
+          // 狙う角度の計算
+          const dx = target.x - this.x;
+          const dy = target.y - this.y;
+          this.angle = Math.atan2(dy, dx);
+
+          // 射撃処理
+          this.cooldownTimer += dt * 60;
+          if (this.cooldownTimer >= effectiveCooldown) {
+            this.cooldownTimer = 0;
+            this.shoot(bullets);
+          }
+        }
+      }
+
+      shoot(bullets) {
+        const spreadAngle = 0.15; // 拡散角度
+        const startOffset = -(this.multishot - 1) * spreadAngle / 2;
+
+        for (let i = 0; i < this.multishot; i++) {
+          const finalAngle = this.angle + startOffset + i * spreadAngle;
+          bullets.push(new Bullet(
+            this.x,
+            this.y,
+            finalAngle,
+            this
+          ));
+        }
+
+        // サブタレットが解放されていれば左右から射撃
+        if (this.subTurrets) {
+          bullets.push(new Bullet(this.x - 35, this.y + 10, this.angle, this));
+          bullets.push(new Bullet(this.x + 35, this.y + 10, this.angle, this));
+        }
+      }
+
+      draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // サブタレットの描画
+        if (this.subTurrets) {
+          [-35, 35].forEach(offsetX => {
+            ctx.save();
+            ctx.translate(offsetX, 10);
+            ctx.rotate(this.angle);
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(0, -4, 20, 8);
+            ctx.beginPath();
+            ctx.arc(0, 0, 10, 0, Math.PI * 2);
+            ctx.fillStyle = '#334155';
+            ctx.fill();
+            ctx.restore();
+          });
+        }
+
+        // メインタレット砲身
+        ctx.rotate(this.angle);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(0, -8, 36, 16);
+        ctx.fillStyle = '#0284c7';
+        ctx.fillRect(10, -6, 26, 12);
+
+        // 砲口グラデーション効果
+        ctx.fillStyle = '#60a5fa';
+        ctx.fillRect(32, -8, 6, 16);
+
+        ctx.restore();
+
+        // メインタレット台座
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 24, 0, Math.PI * 2);
+        ctx.fillStyle = '#1e293b';
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#38bdf8';
+        ctx.stroke();
+
+        // コア輝き
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fill();
+      }
+    }
+
+    // --- 弾丸クラス ---
+    class Bullet {
+      constructor(x, y, angle, turretProps) {
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        this.speed = turretProps.bulletSpeed;
+        this.damage = turretProps.damage;
+        this.pierce = turretProps.pierce;
+        this.size = turretProps.bulletSize;
+        this.homing = turretProps.homing;
+        this.explosiveRadius = turretProps.explosiveRadius;
+        this.freezeEffect = turretProps.freezeEffect;
+        this.poisonEffect = turretProps.poisonEffect;
+        this.bounce = turretProps.bounce;
+        this.knockback = turretProps.knockback;
+
+        // クリティカル判定
+        this.isCrit = Math.random() < turretProps.critChance;
+        if (this.isCrit) {
+          this.damage *= 2.5;
+          this.size *= 1.3;
+        }
+
+        this.dead = false;
+        this.hitFruits = new Set(); // 重複ヒット防止
+      }
+
+      update(dt, fruits, game) {
+        // ホーミング誘導計算
+        if (this.homing && fruits.length > 0) {
+          let closest = null;
+          let minDist = Infinity;
+          for (const f of fruits) {
+            const dist = Math.hypot(f.x - this.x, f.y - this.y);
+            if (dist < minDist) {
+              minDist = dist;
+              closest = f;
+            }
+          }
+          if (closest) {
+            const targetAngle = Math.atan2(closest.y - this.y, closest.x - this.x);
+            // なめらかに角度変更
+            let diff = targetAngle - this.angle;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            this.angle += diff * 5 * dt;
+          }
+        }
+
+        // 移動
+        this.x += Math.cos(this.angle) * this.speed * dt;
+        this.y += Math.sin(this.angle) * this.speed * dt;
+
+        // 壁反射（bounce）
+        if (this.bounce > 0) {
+          if (this.x < 0 || this.x > game.canvas.width) {
+            this.angle = Math.PI - this.angle;
+            this.bounce--;
+          }
+        }
+
+        // 画面外消滅
+        if (this.x < -20 || this.x > game.canvas.width + 20 || this.y < -20 || this.y > game.canvas.height + 20) {
+          this.dead = true;
+        }
+
+        // 当たり判定
+        for (const f of fruits) {
+          if (this.hitFruits.has(f)) continue;
+
+          const dist = Math.hypot(f.x - this.x, f.y - this.y);
+          if (dist < f.radius + this.size) {
+            // ダメージ適用
+            f.takeDamage(this.damage);
+            this.hitFruits.add(f);
+
+            // ノックバック
+            if (this.knockback > 0) {
+              f.y -= this.knockback * 8;
+            }
+
+            // 特殊効果
+            if (this.freezeEffect) f.applyFreeze();
+            if (this.poisonEffect) f.applyPoison();
+
+            // 爆発ダメージ
+            if (this.explosiveRadius > 0) {
+              game.createExplosion(this.x, this.y, '#f97316', 15);
+              for (const other of fruits) {
+                if (other !== f && Math.hypot(other.x - this.x, other.y - this.y) <= this.explosiveRadius) {
+                  other.takeDamage(this.damage * 0.6);
+                }
+              }
+            }
+
+            // 貫通カウント減少
+            this.pierce--;
+            if (this.pierce <= 0) {
+              this.dead = true;
+              break;
+            }
+          }
+        }
+      }
+
+      draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        ctx.beginPath();
+        ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = this.isCrit ? '#f43f5e' : (this.explosiveRadius > 0 ? '#fb923c' : '#38bdf8');
+        ctx.fill();
+
+        // 発光軌跡
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillRect(-this.size * 2, -this.size / 2, this.size * 2, this.size);
+
+        ctx.restore();
+      }
+    }
+
+    // --- 果物クラス ---
+    class Fruit {
+      constructor(x, y, typeConfig, timeFactor, isGold) {
+        this.x = x;
+        this.y = y;
+        this.type = typeConfig;
+        this.radius = typeConfig.radius;
+        this.isGold = isGold;
+
+        // 難易度・黄金果物補正
+        const goldMult = isGold ? 2.5 : 1.0;
+        this.maxHp = Math.floor(typeConfig.hp * timeFactor * goldMult);
+        this.hp = this.maxHp;
+        this.xp = typeConfig.xp * goldMult;
+        this.speed = typeConfig.speed * (0.9 + Math.random() * 0.2);
+
+        // 状態異常
+        this.freezeTimer = 0;
+        this.poisonTimer = 0;
+        this.poisonTickTimer = 0;
+      }
+
+      takeDamage(amount) {
+        this.hp -= amount;
+      }
+
+      applyFreeze() {
+        this.freezeTimer = 2.5; // 2.5秒減速
+      }
+
+      applyPoison() {
+        this.poisonTimer = 3.0; // 3秒間毒
+      }
+
+      update(dt) {
+        // 状態異常更新
+        let currentSpeed = this.speed * 60;
+        if (this.freezeTimer > 0) {
+          this.freezeTimer -= dt;
+          currentSpeed *= 0.55; // 45% 減速
+        }
+
+        if (this.poisonTimer > 0) {
+          this.poisonTimer -= dt;
+          this.poisonTickTimer += dt;
+          if (this.poisonTickTimer >= 0.5) {
+            this.poisonTickTimer = 0;
+            this.takeDamage(6);
+          }
+        }
+
+        this.y += currentSpeed * dt;
+      }
+
+      draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // 黄金果物の後光
+        if (this.isGold) {
+          ctx.beginPath();
+          ctx.arc(0, 0, this.radius + 6, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.35)';
+          ctx.fill();
+        }
+
+        // フリーズ状態の青いオーラ
+        if (this.freezeTimer > 0) {
+          ctx.beginPath();
+          ctx.arc(0, 0, this.radius + 4, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+          ctx.fill();
+        }
+
+        // 絵文字を描画
+        ctx.font = `${this.radius * 1.6}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.isGold ? '🌟' : this.type.emoji, 0, 0);
+
+        // HPバー
+        const barWidth = this.radius * 2;
+        const barHeight = 5;
+        const barY = -this.radius - 12;
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+        ctx.fillRect(-barWidth / 2, barY, barWidth, barHeight);
+
+        const hpPercent = Math.max(0, this.hp / this.maxHp);
+        ctx.fillStyle = this.isGold ? '#fbbf24' : (hpPercent > 0.5 ? '#10b981' : hpPercent > 0.25 ? '#f59e0b' : '#ef4444');
+        ctx.fillRect(-barWidth / 2, barY, barWidth * hpPercent, barHeight);
+
+        ctx.restore();
+      }
+    }
+
+    // --- 特殊レーザー攻撃 ---
+    class LaserBeam {
+      constructor(x, y, angle) {
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        this.life = 0.5; // 0.5秒照射
+        this.maxLife = 0.5;
+      }
+
+      update(dt, fruits, game) {
+        this.life -= dt;
+        
+        // レーザー判定線と果物の当たり判定
+        const rayLength = 1500;
+        const endX = this.x + Math.cos(this.angle) * rayLength;
+        const endY = this.y + Math.sin(this.angle) * rayLength;
+
+        fruits.forEach(f => {
+          // 線分と点の距離
+          const dist = this.distToSegment({x: f.x, y: f.y}, {x: this.x, y: this.y}, {x: endX, y: endY});
+          if (dist < f.radius + 25) {
+            f.takeDamage(120 * dt); // フレームごとの大ダメージ
+          }
+        });
+      }
+
+      distToSegment(p, v, w) {
+        const l2 = (w.x - v.x) ** 2 + (w.y - v.y) ** 2;
+        if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+      }
+
+      draw(ctx) {
+        ctx.save();
+        const alpha = this.life / this.maxLife;
+        ctx.strokeStyle = `rgba(6, 182, 212, ${alpha})`;
+        ctx.lineWidth = 30 * alpha;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.x + Math.cos(this.angle) * 1500, this.y + Math.sin(this.angle) * 1500);
+        ctx.stroke();
+
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.lineWidth = 10 * alpha;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // --- XPオーブクラス ---
+    class XPOrb {
+      constructor(x, y, value) {
+        this.x = x;
+        this.y = y;
+        this.value = value;
+        this.collected = false;
+        this.speed = 0;
+      }
+
+      update(dt, turret, autoCollect) {
+        const dist = Math.hypot(turret.x - this.x, turret.y - this.y);
+
+        // 磁石効果または接近
+        if (autoCollect || dist < 180) {
+          this.speed += 800 * dt;
+          const angle = Math.atan2(turret.y - this.y, turret.x - this.x);
+          this.x += Math.cos(angle) * this.speed * dt;
+          this.y += Math.sin(angle) * this.speed * dt;
+
+          if (dist < 25) {
+            this.collected = true;
+          }
+        } else {
+          // ゆっくり落下
+          this.y += 30 * dt;
+        }
+      }
+
+      draw(ctx) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#818cf8';
+        ctx.shadowColor = '#c084fc';
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // --- 演出用粒子クラス ---
+    class Particle {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 180 + 40;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.alpha = 1;
+        this.size = Math.random() * 4 + 2;
+      }
+
+      update(dt) {
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.alpha -= 1.8 * dt;
+      }
+
+      draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.alpha);
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // ゲームの初期化
+    window.onload = () => {
+      window.game = new Game();
+    };
+  </script>
+</body>
+</html>
