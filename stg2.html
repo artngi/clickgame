@@ -1,0 +1,1178 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>DOPAMINE RUSH: Bullet Hell</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #09090b;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        /* Custom Glowing and animations */
+        .glow-text {
+            text-shadow: 0 0 10px rgba(236, 72, 153, 0.8), 0 0 20px rgba(168, 85, 247, 0.6);
+        }
+        .glow-box {
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+        }
+        .btn-action {
+            background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+            transition: all 0.15s ease;
+        }
+        .btn-action:active {
+            transform: scale(0.92);
+        }
+        .joy-base {
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(4px);
+        }
+        .joy-stick {
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.8);
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <!-- CANVAS GAME LAYER -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI OVERLAY LAYER -->
+    <div id="uiOverlay" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-4">
+        
+        <!-- TOP HUD -->
+        <div class="flex justify-between items-start w-full">
+            <!-- HP & Ultimate Gauge -->
+            <div class="flex flex-col gap-2">
+                <!-- HP Hearts -->
+                <div id="hpContainer" class="flex gap-1.5 text-red-500 text-xl filter drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
+                    <i class="fa-solid fa-heart"></i>
+                    <i class="fa-solid fa-heart"></i>
+                    <i class="fa-solid fa-heart"></i>
+                    <i class="fa-solid fa-heart"></i>
+                    <i class="fa-solid fa-heart"></i>
+                </div>
+                
+                <!-- Ultimate (能力過解放) Gauge -->
+                <div class="w-48 bg-gray-900/80 border border-purple-500/50 rounded-full h-5 p-0.5 relative overflow-hidden backdrop-blur-sm">
+                    <div id="ultBar" class="h-full bg-gradient-to-r from-purple-600 via-pink-500 to-amber-300 rounded-full w-0 transition-all duration-100"></div>
+                    <span class="absolute inset-0 flex items-center justify-center text-[10px] font-black tracking-widest text-white drop-shadow">
+                        能力過解放 [READY]
+                    </span>
+                </div>
+            </div>
+
+            <!-- SCORE BOARD -->
+            <div class="text-right">
+                <div class="text-xs text-gray-400 font-mono tracking-wider">SCORE</div>
+                <div id="scoreDisplay" class="text-2xl font-black font-mono text-cyan-400 tracking-wider glow-text">0000000</div>
+                <div id="comboDisplay" class="text-xs text-yellow-400 font-bold opacity-0 transition-opacity">COMBO x<span id="comboCount">0</span></div>
+            </div>
+        </div>
+
+        <!-- NOTIFICATION POPUP (Dopamine Trigger Texts) -->
+        <div id="notifyContainer" class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none"></div>
+
+        <!-- BOTTOM CONTROLS (Only visible during gameplay) -->
+        <div id="gameplayControls" class="flex justify-between items-end w-full pb-2 hidden pointer-events-auto">
+            <!-- Left: Virtual Joystick area -->
+            <div id="joystickZone" class="w-36 h-36 relative flex items-center justify-center">
+                <div id="joyBase" class="joy-base w-32 h-32 rounded-full absolute"></div>
+                <div id="joyStick" class="joy-stick w-14 h-14 rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+            </div>
+
+            <!-- Right: Action Buttons (Evasion, Active Skills, Ult) -->
+            <div class="flex flex-col gap-3 items-end">
+                <!-- Ultimate Button -->
+                <button id="btnUlt" class="w-16 h-16 rounded-full bg-gradient-to-r from-amber-500 to-purple-600 font-black text-xs flex flex-col items-center justify-center shadow-lg border-2 border-amber-300 active:scale-95 disabled:opacity-40 disabled:scale-100 transition-all">
+                    <i class="fa-solid fa-bolt text-lg mb-0.5"></i>
+                    <span>過解放</span>
+                </button>
+
+                <!-- Active Skills Row -->
+                <div class="flex gap-3">
+                    <button id="btnActive1" class="w-14 h-14 rounded-full bg-slate-800/80 border border-cyan-400/50 flex flex-col items-center justify-center relative active:scale-95 disabled:opacity-40">
+                        <i id="active1Icon" class="fa-solid fa-hand-sparkles text-cyan-400"></i>
+                        <span class="text-[9px] mt-0.5 text-gray-300">Act 1</span>
+                        <div id="active1Cd" class="absolute inset-0 bg-black/70 rounded-full flex items-center justify-center text-xs font-bold text-white hidden">0.0</div>
+                    </button>
+                    <button id="btnActive2" class="w-14 h-14 rounded-full bg-slate-800/80 border border-pink-400/50 flex flex-col items-center justify-center relative active:scale-95 disabled:opacity-40">
+                        <i id="active2Icon" class="fa-solid fa-burst text-pink-400"></i>
+                        <span class="text-[9px] mt-0.5 text-gray-300">Act 2</span>
+                        <div id="active2Cd" class="absolute inset-0 bg-black/70 rounded-full flex items-center justify-center text-xs font-bold text-white hidden">0.0</div>
+                    </button>
+                </div>
+
+                <!-- 極限回避 (Extreme Dodge) Button -->
+                <button id="btnDodge" class="w-20 h-20 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 font-bold text-sm flex flex-col items-center justify-center shadow-lg border-2 border-cyan-300 active:scale-95 relative overflow-hidden">
+                    <i class="fa-solid fa-wind text-xl mb-0.5"></i>
+                    <span>極限回避</span>
+                    <div id="dodgeCd" class="absolute inset-0 bg-black/75 rounded-full flex items-center justify-center text-sm font-bold text-cyan-400 hidden">0.0</div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- START / BUILD MENU SCREEN -->
+    <div id="menuScreen" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col p-6 z-50 overflow-y-auto">
+        <div class="text-center my-4">
+            <h1 class="text-4xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-400 to-cyan-400 glow-text mb-1">
+                極限回避弾幕
+            </h1>
+            <p class="text-xs text-gray-400">DOPAMINE RUSH: BUILD & DODGE</p>
+        </div>
+
+        <!-- CHARACTER SELECT -->
+        <div class="mb-6">
+            <h2 class="text-xs font-bold text-cyan-400 tracking-wider mb-2 uppercase"><i class="fa-solid fa-user-astronaut mr-1"></i> キャラクター選択</h2>
+            <div class="grid grid-cols-2 gap-3" id="charSelectContainer">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+
+        <!-- SKILL BUILD SETTING -->
+        <div class="mb-6 flex-1">
+            <h2 class="text-xs font-bold text-purple-400 tracking-wider mb-2 uppercase"><i class="fa-solid fa-sliders mr-1"></i> カスタムスキルビルド (受動2 / 能動2)</h2>
+            
+            <!-- Passive Slots -->
+            <div class="mb-4">
+                <div class="text-xs text-gray-300 mb-1">パッシブスキル (自動発動)</div>
+                <div class="grid grid-cols-2 gap-2" id="passiveSlots">
+                    <!-- Slot 1 & 2 -->
+                </div>
+            </div>
+
+            <!-- Active Slots -->
+            <div>
+                <div class="text-xs text-gray-300 mb-1">アクティブスキル (発動ボタン)</div>
+                <div class="grid grid-cols-2 gap-2" id="activeSlots">
+                    <!-- Slot 1 & 2 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- START BUTTON -->
+        <button id="btnStartGame" class="w-full py-4 rounded-xl btn-action text-white font-black text-lg tracking-widest shadow-lg flex items-center justify-center gap-2">
+            <i class="fa-solid fa-play"></i> ゲーム開始 (MISSION START)
+        </button>
+    </div>
+
+    <!-- SKILL SELECTION MODAL -->
+    <div id="skillModal" class="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col p-6 z-50 hidden">
+        <h3 id="modalTitle" class="text-lg font-bold text-cyan-300 mb-4">スキルを選択</h3>
+        <div id="modalList" class="flex-1 overflow-y-auto flex flex-col gap-3">
+            <!-- Dynamic skills list -->
+        </div>
+        <button id="btnCloseModal" class="mt-4 py-3 bg-gray-800 rounded-lg text-sm font-bold text-gray-300">キャンセル</button>
+    </div>
+
+    <!-- GAME OVER / CLEAR SCREEN -->
+    <div id="resultScreen" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 z-50 hidden">
+        <h2 id="resultTitle" class="text-4xl font-black text-red-500 glow-text mb-2">GAME OVER</h2>
+        <p id="resultSub" class="text-gray-400 text-sm mb-6">弾幕の渦に呑み込まれた...</p>
+
+        <div class="bg-gray-900/80 border border-gray-800 rounded-xl p-4 w-full max-w-xs flex flex-col gap-3 mb-6">
+            <div class="flex justify-between items-center text-sm">
+                <span class="text-gray-400">最終スコア:</span>
+                <span id="finalScore" class="text-xl font-bold text-cyan-400">0</span>
+            </div>
+            <div class="flex justify-between items-center text-sm">
+                <span class="text-gray-400">極限回避成功数:</span>
+                <span id="finalDodges" class="text-lg font-bold text-yellow-400">0</span>
+            </div>
+            <div class="flex justify-between items-center text-sm">
+                <span class="text-gray-400">最大コンボ:</span>
+                <span id="finalCombo" class="text-lg font-bold text-pink-400">0</span>
+            </div>
+        </div>
+
+        <button id="btnRetry" class="w-full max-w-xs py-4 rounded-xl btn-action text-white font-black text-lg tracking-widest shadow-lg">
+            タイトルへ戻る
+        </button>
+    </div>
+
+<script>
+/* ==========================================================================
+   GAME ENGINE & CONFIGURATION
+   ========================================================================== */
+
+// Audio Synthesizer (Web Audio API)
+class SoundFX {
+    constructor() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    playHit() {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.2);
+    }
+
+    playDodge() {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.25);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.25);
+    }
+
+    playUlt() {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.5);
+        gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.5);
+    }
+
+    playShoot() {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(200, this.ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.05);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.05);
+    }
+}
+const sfx = new SoundFX();
+
+// Characters Data Definition
+const CHARACTERS = [
+    {
+        id: 'valkyrie',
+        name: 'ヴァルキリー',
+        desc: '直線貫通型の高火力レーザーバレットを放つ。標準的で扱いやすいバランス型。',
+        color: '#38bdf8',
+        icon: 'fa-jet-fighter',
+        shootStyle: 'laser'
+    },
+    {
+        id: 'astral',
+        name: 'アストラル',
+        desc: '広範囲に広がる扇状の拡散スター弾を発射。雑魚や弾幕への対応力が高い。',
+        color: '#ec4899',
+        icon: 'fa-shuttle-space',
+        shootStyle: 'spread'
+    }
+];
+
+// Skills List (5 Passives, 5 Actives)
+const SKILLS = {
+    passives: [
+        { id: 'p_vampire', name: '吸血衝動', desc: '極限回避時、HPが5%の確率で1回復する', icon: 'fa-vial' },
+        { id: 'p_overcharge', name: 'オーバーチャージ', desc: '極限回避時の必殺技ゲージ増加量が1.8倍になる', icon: 'fa-charging-station' },
+        { id: 'p_bullet_slayer', name: '弾幕解体', desc: '敵弾を消滅させた時、スコアが+500追加加算', icon: 'fa-dumpster-fire' },
+        { id: 'p_phantom', name: 'ファントムステップ', desc: '極限回避の無敵時間が0.5秒延長される', icon: 'fa-ghost' },
+        { id: 'p_counter', name: 'カウンターノヴァ', desc: '極限回避発動時、周りの全敵弾を自動的に消滅させる', icon: 'fa-circle-radiation' }
+    ],
+    actives: [
+        { id: 'a_time_stop', name: 'クロノシス', desc: '3秒間、敵と全ての弾の動きを80%スローにする', cd: 12, icon: 'fa-clock' },
+        { id: 'a_shield', name: 'イージスバリア', desc: '1.5秒間、あらゆる攻撃を1度だけ防ぐバリアを展開', cd: 15, icon: 'fa-shield-halved' },
+        { id: 'a_clear_ring', name: 'パルスブラスト', desc: '自機周辺の弾幕を打ち消す衝撃波を放つ', cd: 8, icon: 'fa-compact-disc' },
+        { id: 'a_teleport', name: 'フラッシュ', desc: '画面中央上部に一瞬でテレポートし、弾幕から離脱', cd: 10, icon: 'fa-bolt-lightning' },
+        { id: 'a_frenzy', name: 'オーバードライブ', desc: '5秒間、通常攻撃の連射速度と威力が3倍になる', cd: 14, icon: 'fa-fire' }
+    ]
+};
+
+/* ==========================================================================
+   GAME STATE & SYSTEM VARIABLES
+   ========================================================================== */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let screenWidth = window.innerWidth;
+let screenHeight = window.innerHeight;
+
+function resizeCanvas() {
+    screenWidth = window.innerWidth;
+    screenHeight = window.innerHeight;
+    canvas.width = screenWidth;
+    canvas.height = screenHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// Game Logic Variables
+let isPlaying = false;
+let score = 0;
+let combo = 0;
+let maxCombo = 0;
+let dodgeCount = 0;
+let lastTime = performance.now();
+
+// Player State (Speed halved to 1.375)
+let player = {
+    x: screenWidth / 2,
+    y: screenHeight * 0.8,
+    radius: 6,
+    hitboxRadius: 3,
+    hp: 5,
+    maxHp: 5,
+    speed: 1.375, // 1/2 of 2.75
+    invincibleTimer: 0,
+    dodgeTimer: 0,
+    dodgeCooldown: 0,
+    maxDodgeCooldown: 6.0,
+    ultGauge: 0,
+    char: CHARACTERS[0],
+    passives: [SKILLS.passives[0].id, SKILLS.passives[1].id],
+    actives: [
+        { id: SKILLS.actives[0].id, cdTimer: 0 },
+        { id: SKILLS.actives[1].id, cdTimer: 0 }
+    ],
+    frenzyTimer: 0,
+    shieldActive: false
+};
+
+// Boss State
+let boss = {
+    x: screenWidth / 2,
+    y: screenHeight * 0.25,
+    radius: 28,
+    hp: 1500,
+    maxHp: 1500,
+    phase: 1,
+    timer: 0,
+    angle: 0
+};
+
+// Object Collections
+let playerBullets = [];
+let enemyBullets = [];
+let particles = [];
+let floatingTexts = [];
+
+// Joystick Movement vector
+let joyDir = { x: 0, y: 0 };
+let isJoyActive = false;
+let slowFactor = 1.0;
+
+/* ==========================================================================
+   UI & BUILD SELECTION SYSTEM
+   ========================================================================== */
+
+let selectedCharIndex = 0;
+let activeModalSlotType = null; // 'passive' or 'active'
+let activeModalSlotIndex = 0;
+
+function renderMenuUI() {
+    // Character selection render
+    const charContainer = document.getElementById('charSelectContainer');
+    charContainer.innerHTML = CHARACTERS.map((c, idx) => `
+        <div onclick="selectCharacter(${idx})" class="p-3 rounded-xl border-2 transition-all cursor-pointer ${idx === selectedCharIndex ? 'border-cyan-400 bg-cyan-950/40 glow-box' : 'border-gray-800 bg-gray-900/50'}">
+            <div class="flex items-center gap-2 mb-1">
+                <i class="fa-solid ${c.icon} text-lg" style="color:${c.color}"></i>
+                <span class="font-bold text-sm text-white">${c.name}</span>
+            </div>
+            <div class="text-[11px] text-gray-400 leading-tight">${c.desc}</div>
+        </div>
+    `).join('');
+
+    // Passive slots render
+    const passiveContainer = document.getElementById('passiveSlots');
+    passiveContainer.innerHTML = player.passives.map((pid, idx) => {
+        const sk = SKILLS.passives.find(s => s.id === pid);
+        return `
+            <div onclick="openSkillModal('passive', ${idx})" class="p-2.5 rounded-lg border border-purple-500/40 bg-purple-950/20 flex items-center gap-2.5 cursor-pointer">
+                <i class="fa-solid ${sk.icon} text-purple-400 text-sm"></i>
+                <div class="overflow-hidden">
+                    <div class="text-xs font-bold text-gray-200 truncate">${sk.name}</div>
+                    <div class="text-[10px] text-gray-400 truncate">${sk.desc}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Active slots render
+    const activeContainer = document.getElementById('activeSlots');
+    activeContainer.innerHTML = player.actives.map((act, idx) => {
+        const sk = SKILLS.actives.find(s => s.id === act.id);
+        return `
+            <div onclick="openSkillModal('active', ${idx})" class="p-2.5 rounded-lg border border-cyan-500/40 bg-cyan-950/20 flex items-center gap-2.5 cursor-pointer">
+                <i class="fa-solid ${sk.icon} text-cyan-400 text-sm"></i>
+                <div class="overflow-hidden">
+                    <div class="text-xs font-bold text-gray-200 truncate">${sk.name}</div>
+                    <div class="text-[10px] text-gray-400 truncate">CT: ${sk.cd}s - ${sk.desc}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function selectCharacter(idx) {
+    selectedCharIndex = idx;
+    player.char = CHARACTERS[idx];
+    renderMenuUI();
+}
+
+function openSkillModal(type, slotIdx) {
+    activeModalSlotType = type;
+    activeModalSlotIndex = slotIdx;
+    
+    const modal = document.getElementById('skillModal');
+    const title = document.getElementById('modalTitle');
+    const list = document.getElementById('modalList');
+
+    title.innerText = type === 'passive' ? '受動スキル (パッシブ) を選択' : '能動スキル (アクティブ) を選択';
+
+    const items = type === 'passive' ? SKILLS.passives : SKILLS.actives;
+
+    list.innerHTML = items.map(sk => `
+        <div onclick="equipSkill('${sk.id}')" class="p-3 bg-gray-900 border border-gray-800 rounded-xl flex items-center gap-3 active:bg-gray-800">
+            <i class="fa-solid ${sk.icon} text-xl ${type==='passive' ? 'text-purple-400' : 'text-cyan-400'}"></i>
+            <div>
+                <div class="font-bold text-sm text-gray-100">${sk.name}</div>
+                <div class="text-xs text-gray-400">${sk.desc}</div>
+            </div>
+        </div>
+    `).join('');
+
+    modal.classList.remove('hidden');
+}
+
+document.getElementById('btnCloseModal').addEventListener('click', () => {
+    document.getElementById('skillModal').classList.add('hidden');
+});
+
+function equipSkill(skillId) {
+    if (activeModalSlotType === 'passive') {
+        player.passives[activeModalSlotIndex] = skillId;
+    } else {
+        player.actives[activeModalSlotIndex].id = skillId;
+    }
+    document.getElementById('skillModal').classList.add('hidden');
+    renderMenuUI();
+}
+
+renderMenuUI();
+
+/* ==========================================================================
+   VIRTUAL JOYSTICK INPUT CONTROLLER
+   ========================================================================== */
+
+const joyBase = document.getElementById('joyBase');
+const joyStick = document.getElementById('joyStick');
+const joystickZone = document.getElementById('joystickZone');
+
+let joyCenterX = 0;
+let joyCenterY = 0;
+
+function updateJoystickPosition(clientX, clientY) {
+    const rect = joyBase.getBoundingClientRect();
+    joyCenterX = rect.left + rect.width / 2;
+    joyCenterY = rect.top + rect.height / 2;
+
+    let dx = clientX - joyCenterX;
+    let dy = clientY - joyCenterY;
+    let distance = Math.hypot(dx, dy);
+    const maxRadius = rect.width / 2;
+
+    if (distance > maxRadius) {
+        dx = (dx / distance) * maxRadius;
+        dy = (dy / distance) * maxRadius;
+    }
+
+    joyStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    joyDir.x = dx / maxRadius;
+    joyDir.y = dy / maxRadius;
+}
+
+function resetJoystick() {
+    joyStick.style.transform = 'translate(-50%, -50%)';
+    joyDir.x = 0;
+    joyDir.y = 0;
+    isJoyActive = false;
+}
+
+joystickZone.addEventListener('touchstart', (e) => {
+    isJoyActive = true;
+    updateJoystickPosition(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
+
+joystickZone.addEventListener('touchmove', (e) => {
+    if (!isJoyActive) return;
+    updateJoystickPosition(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
+
+joystickZone.addEventListener('touchend', resetJoystick);
+joystickZone.addEventListener('touchcancel', resetJoystick);
+
+// Mouse support for desktop testing
+let isMouseDown = false;
+joystickZone.addEventListener('mousedown', (e) => {
+    isMouseDown = true;
+    isJoyActive = true;
+    updateJoystickPosition(e.clientX, e.clientY);
+});
+
+window.addEventListener('mousemove', (e) => {
+    if (isMouseDown) updateJoystickPosition(e.clientX, e.clientY);
+});
+
+window.addEventListener('mouseup', () => {
+    isMouseDown = false;
+    resetJoystick();
+});
+
+/* ==========================================================================
+   GAMEPLAY LOGIC & BULLET HELL SPAWNER
+   ========================================================================== */
+
+function addScore(amount) {
+    score += amount;
+    document.getElementById('scoreDisplay').innerText = score.toString().padStart(7, '0');
+}
+
+function addDopamineText(text, color = '#ec4899') {
+    floatingTexts.push({
+        text: text,
+        x: player.x + (Math.random() * 40 - 20),
+        y: player.y - 30,
+        color: color,
+        life: 1.0,
+        vy: -1.2
+    });
+}
+
+// Spawner logic for Touhou / Undertale pattern bullets (Speeds halved)
+function spawnBossBulletPattern(dt) {
+    boss.timer += dt;
+    boss.angle += 0.8 * dt; // Half rotation speed
+
+    // Phase 1: Touhou Spiral Stars + Undertale Straight Aim
+    if (boss.phase === 1) {
+        if (Math.floor(boss.timer * 12) !== Math.floor((boss.timer - dt) * 12)) {
+            const count = 10;
+            for (let i = 0; i < count; i++) {
+                const angle = boss.angle + (i * Math.PI * 2 / count);
+                enemyBullets.push({
+                    x: boss.x,
+                    y: boss.y,
+                    vx: Math.cos(angle) * 1.35, // 1/2 speed (2.7 -> 1.35)
+                    vy: Math.sin(angle) * 1.35,
+                    radius: 5,
+                    color: '#ec4899',
+                    type: 'spiral'
+                });
+            }
+        }
+        
+        // Aimed Fast Bullet (Undertale style)
+        if (Math.floor(boss.timer * 1.5) !== Math.floor((boss.timer - dt) * 1.5)) {
+            const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
+            enemyBullets.push({
+                x: boss.x,
+                y: boss.y,
+                vx: Math.cos(angle) * 2.25, // 1/2 speed (4.5 -> 2.25)
+                vy: Math.sin(angle) * 2.25,
+                radius: 7,
+                color: '#38bdf8',
+                type: 'aimed'
+            });
+        }
+    } 
+    // Phase 2: Chaos Ring & Accelerating Spears
+    else if (boss.phase === 2) {
+        if (Math.floor(boss.timer * 8) !== Math.floor((boss.timer - dt) * 8)) {
+            const count = 16;
+            for (let i = 0; i < count; i++) {
+                const angle = (i * Math.PI * 2 / count) + Math.sin(boss.timer);
+                enemyBullets.push({
+                    x: boss.x,
+                    y: boss.y,
+                    vx: Math.cos(angle) * 1.0, // 1/2 speed (2.0 -> 1.0)
+                    vy: Math.sin(angle) * 1.0,
+                    radius: 4,
+                    color: '#a855f7',
+                    type: 'ring'
+                });
+            }
+        }
+
+        if (Math.floor(boss.timer * 2) !== Math.floor((boss.timer - dt) * 2)) {
+            for (let i = -2; i <= 2; i++) {
+                const angle = Math.atan2(player.y - boss.y, player.x - boss.x) + (i * 0.15);
+                enemyBullets.push({
+                    x: boss.x + i * 15,
+                    y: boss.y,
+                    vx: Math.cos(angle) * 0.75, // 1/2 speed (1.5 -> 0.75)
+                    vy: Math.sin(angle) * 0.75,
+                    accel: 1.015,
+                    radius: 6,
+                    color: '#f59e0b',
+                    type: 'accel'
+                });
+            }
+        }
+    }
+}
+
+// Player Action Controls
+document.getElementById('btnDodge').addEventListener('click', () => {
+    if (player.dodgeCooldown <= 0 && isPlaying) {
+        let duration = 0.8;
+        if (player.passives.includes('p_phantom')) duration += 0.5;
+
+        player.dodgeTimer = duration;
+        player.invincibleTimer = duration;
+        player.dodgeCooldown = player.maxDodgeCooldown;
+
+        sfx.playDodge();
+        dodgeCount++;
+
+        // Passive check: Counter Nova
+        if (player.passives.includes('p_counter')) {
+            enemyBullets = enemyBullets.filter(b => {
+                const dist = Math.hypot(b.x - player.x, b.y - player.y);
+                if (dist < 150) {
+                    if (player.passives.includes('p_bullet_slayer')) addScore(500);
+                    return false;
+                }
+                return true;
+            });
+        }
+
+        // Ult charge booster
+        const gain = player.passives.includes('p_overcharge') ? 35 : 20;
+        player.ultGauge = Math.min(100, player.ultGauge + gain);
+        updateUltBar();
+
+        // Vampire passive
+        if (player.passives.includes('p_vampire') && Math.random() < 0.05) {
+            player.hp = Math.min(player.maxHp, player.hp + 1);
+            updateHpUI();
+            addDopamineText('HP RECOVERY!', '#10b981');
+        }
+
+        addScore(2000);
+        addDopamineText('EXTREME DODGE!!', '#38bdf8');
+    }
+});
+
+document.getElementById('btnUlt').addEventListener('click', () => {
+    if (player.ultGauge >= 100 && isPlaying) {
+        player.ultGauge = 0;
+        updateUltBar();
+
+        sfx.playUlt();
+        
+        // Destroys all enemy bullets
+        if (player.passives.includes('p_bullet_slayer')) {
+            addScore(enemyBullets.length * 500);
+        }
+        enemyBullets = [];
+
+        // Damage Boss
+        boss.hp -= 350;
+        addScore(10000);
+        addDopamineText('能力過解放: MAX BURST!!', '#f59e0b');
+
+        // Screen Shake Effect
+        ctx.translate((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20);
+    }
+});
+
+// Setup Active Skill Buttons
+function useActiveSkill(slotIdx) {
+    const act = player.actives[slotIdx];
+    if (act.cdTimer > 0 || !isPlaying) return;
+
+    const skDef = SKILLS.actives.find(s => s.id === act.id);
+    act.cdTimer = skDef.cd;
+
+    if (act.id === 'a_time_stop') {
+        slowFactor = 0.2;
+        setTimeout(() => { slowFactor = 1.0; }, 3000);
+        addDopamineText('クロノシス: SLOW TIME', '#38bdf8');
+    } else if (act.id === 'a_shield') {
+        player.shieldActive = true;
+        setTimeout(() => { player.shieldActive = false; }, 1500);
+        addDopamineText('イージスバリア ACTIVE', '#10b981');
+    } else if (act.id === 'a_clear_ring') {
+        enemyBullets = enemyBullets.filter(b => Math.hypot(b.x - player.x, b.y - player.y) > 120);
+        addDopamineText('パルスブラスト!', '#ec4899');
+    } else if (act.id === 'a_teleport') {
+        player.x = screenWidth / 2;
+        player.y = 100;
+        addDopamineText('FLASH TELEPORT', '#a855f7');
+    } else if (act.id === 'a_frenzy') {
+        player.frenzyTimer = 5.0;
+        addDopamineText('OVERDRIVE 3X Dmg', '#ef4444');
+    }
+}
+
+document.getElementById('btnActive1').addEventListener('click', () => useActiveSkill(0));
+document.getElementById('btnActive2').addEventListener('click', () => useActiveSkill(1));
+
+function updateUltBar() {
+    const bar = document.getElementById('ultBar');
+    const btn = document.getElementById('btnUlt');
+    bar.style.width = `${player.ultGauge}%`;
+    btn.disabled = player.ultGauge < 100;
+}
+
+function updateHpUI() {
+    const container = document.getElementById('hpContainer');
+    container.innerHTML = '';
+    for (let i = 0; i < player.maxHp; i++) {
+        if (i < player.hp) {
+            container.innerHTML += '<i class="fa-solid fa-heart"></i>';
+        } else {
+            container.innerHTML += '<i class="fa-regular fa-heart text-gray-700"></i>';
+        }
+    }
+}
+
+/* ==========================================================================
+   MAIN GAME LOOP
+   ========================================================================== */
+
+function gameLoop(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+
+    if (isPlaying) {
+        update(dt);
+        render();
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+function update(dt) {
+    // Cooldown updates
+    if (player.dodgeCooldown > 0) {
+        player.dodgeCooldown -= dt;
+        const cdElem = document.getElementById('dodgeCd');
+        if (player.dodgeCooldown > 0) {
+            cdElem.classList.remove('hidden');
+            cdElem.innerText = player.dodgeCooldown.toFixed(1);
+        } else {
+            cdElem.classList.add('hidden');
+        }
+    }
+
+    if (player.dodgeTimer > 0) player.dodgeTimer -= dt;
+    if (player.invincibleTimer > 0) player.invincibleTimer -= dt;
+    if (player.frenzyTimer > 0) player.frenzyTimer -= dt;
+
+    // Active skills CD update UI
+    player.actives.forEach((act, idx) => {
+        if (act.cdTimer > 0) {
+            act.cdTimer -= dt;
+            const elem = document.getElementById(`active${idx + 1}Cd`);
+            elem.classList.remove('hidden');
+            elem.innerText = act.cdTimer.toFixed(1);
+        } else {
+            document.getElementById(`active${idx + 1}Cd`).classList.add('hidden');
+        }
+    });
+
+    // Player Movement
+    player.x += joyDir.x * player.speed * 120 * dt;
+    player.y += joyDir.y * player.speed * 120 * dt;
+
+    // Bounds checking
+    player.x = Math.max(10, Math.min(screenWidth - 10, player.x));
+    player.y = Math.max(10, Math.min(screenHeight - 10, player.y));
+
+    // Player Automatic Shooting (Bullets speeds halved)
+    const fireInterval = player.frenzyTimer > 0 ? 0.05 : 0.12;
+    if (!player.lastShoot || nowTime() - player.lastShoot > fireInterval) {
+        player.lastShoot = nowTime();
+        sfx.playShoot();
+
+        if (player.char.shootStyle === 'laser') {
+            playerBullets.push({
+                x: player.x,
+                y: player.y - 10,
+                vx: 0,
+                vy: -8, // 1/2 speed (-16 -> -8)
+                damage: player.frenzyTimer > 0 ? 30 : 10,
+                width: 4,
+                height: 18,
+                color: '#38bdf8'
+            });
+        } else { // spread
+            for (let angle of [-0.2, 0, 0.2]) {
+                playerBullets.push({
+                    x: player.x,
+                    y: player.y - 10,
+                    vx: Math.sin(angle) * 6, // 1/2 speed (12 -> 6)
+                    vy: -Math.cos(angle) * 6, // 1/2 speed (-12 -> -6)
+                    damage: player.frenzyTimer > 0 ? 20 : 7,
+                    width: 6,
+                    height: 6,
+                    color: '#ec4899'
+                });
+            }
+        }
+    }
+
+    // Update Player Bullets
+    for (let i = playerBullets.length - 1; i >= 0; i--) {
+        let b = playerBullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+
+        // Hit test with boss
+        const dist = Math.hypot(b.x - boss.x, b.y - boss.y);
+        if (dist < boss.radius + 8) {
+            boss.hp -= b.damage;
+            player.ultGauge = Math.min(100, player.ultGauge + 0.4);
+            updateUltBar();
+            addScore(50);
+            
+            // Hit Particle
+            particles.push({
+                x: b.x, y: b.y,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4,
+                life: 0.3,
+                color: b.color
+            });
+
+            playerBullets.splice(i, 1);
+            continue;
+        }
+
+        if (b.y < -20 || b.x < -20 || b.x > screenWidth + 20) {
+            playerBullets.splice(i, 1);
+        }
+    }
+
+    // Boss State & Phase Change
+    if (boss.hp <= 750 && boss.phase === 1) {
+        boss.phase = 2;
+        addDopamineText('PHASE 2: ANGER!', '#ef4444');
+    }
+
+    if (boss.hp <= 0) {
+        // Victory
+        endGame(true);
+        return;
+    }
+
+    // Spawn Enemy Bullets
+    spawnBossBulletPattern(dt * slowFactor);
+
+    // Update Enemy Bullets
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        let eb = enemyBullets[i];
+        
+        if (eb.accel) {
+            eb.vx *= eb.accel;
+            eb.vy *= eb.accel;
+        }
+
+        eb.x += eb.vx * slowFactor;
+        eb.y += eb.vy * slowFactor;
+
+        const dist = Math.hypot(eb.x - player.x, eb.y - player.y);
+
+        // Graze / Near Miss Check (Dopamine Trigger)
+        if (dist < player.hitboxRadius + 18 && dist > player.hitboxRadius + eb.radius && !eb.grazed) {
+            eb.grazed = true;
+            combo++;
+            maxCombo = Math.max(maxCombo, combo);
+            addScore(300 * combo);
+            player.ultGauge = Math.min(100, player.ultGauge + 1.5);
+            updateUltBar();
+            addDopamineText(`GRAZE! x${combo}`, '#facc15');
+
+            document.getElementById('comboDisplay').classList.remove('opacity-0');
+            document.getElementById('comboCount').innerText = combo;
+        }
+
+        // Collision Check with Player
+        if (dist < player.hitboxRadius + eb.radius) {
+            if (player.invincibleTimer <= 0) {
+                if (player.shieldActive) {
+                    player.shieldActive = false;
+                    player.invincibleTimer = 0.5;
+                    addDopamineText('SHIELD BLOCKED!', '#10b981');
+                } else {
+                    player.hp--;
+                    updateHpUI();
+                    sfx.playHit();
+                    combo = 0;
+                    document.getElementById('comboDisplay').classList.add('opacity-0');
+                    player.invincibleTimer = 2.0; // Invincibility frames on hit
+                    addDopamineText('DAMAGE!', '#ef4444');
+
+                    if (player.hp <= 0) {
+                        endGame(false);
+                        return;
+                    }
+                }
+                enemyBullets.splice(i, 1);
+                continue;
+            }
+        }
+
+        // Out of bounds remove
+        if (eb.x < -30 || eb.x > screenWidth + 30 || eb.y < -30 || eb.y > screenHeight + 30) {
+            enemyBullets.splice(i, 1);
+        }
+    }
+
+    // Particles Update
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= dt;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    // Floating Dopamine Texts Update
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        let ft = floatingTexts[i];
+        ft.y += ft.vy;
+        ft.life -= dt * 1.2;
+        if (ft.life <= 0) floatingTexts.splice(i, 1);
+    }
+}
+
+function nowTime() { return performance.now() / 1000; }
+
+/* ==========================================================================
+   RENDER / GRAPHICS ENGINE
+   ========================================================================== */
+
+function render() {
+    // Clear canvas
+    ctx.fillStyle = '#09090b';
+    ctx.fillRect(0, 0, screenWidth, screenHeight);
+
+    // Draw Background Grid / Stars
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    const gridSize = 40;
+    for (let x = 0; x < screenWidth; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, screenHeight);
+        ctx.stroke();
+    }
+    for (let y = 0; y < screenHeight; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(screenWidth, y);
+        ctx.stroke();
+    }
+
+    // Draw Boss
+    ctx.save();
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#ec4899';
+    ctx.fillStyle = '#f43f5e';
+    ctx.beginPath();
+    ctx.arc(boss.x, boss.y, boss.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Boss HP Bar
+    const hpPercent = boss.hp / boss.maxHp;
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(screenWidth * 0.15, 20, screenWidth * 0.7, 6);
+    ctx.fillStyle = boss.phase === 1 ? '#ec4899' : '#ef4444';
+    ctx.fillRect(screenWidth * 0.15, 20, (screenWidth * 0.7) * hpPercent, 6);
+    ctx.restore();
+
+    // Draw Player Bullets
+    playerBullets.forEach(b => {
+        ctx.fillStyle = b.color;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = b.color;
+        ctx.fillRect(b.x - b.width / 2, b.y, b.width, b.height);
+    });
+
+    // Draw Enemy Bullets
+    enemyBullets.forEach(eb => {
+        ctx.save();
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = eb.color;
+        ctx.fillStyle = eb.color;
+        ctx.beginPath();
+        ctx.arc(eb.x, eb.y, eb.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // Draw Particles
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.fillRect(p.x, p.y, 3, 3);
+    });
+    ctx.globalAlpha = 1.0;
+
+    // Draw Player
+    ctx.save();
+    if (player.dodgeTimer > 0) {
+        // Dodging Rainbow Glow Aura
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#38bdf8';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.radius + 12, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    if (player.invincibleTimer > 0 && Math.floor(performance.now() / 100) % 2 === 0) {
+        ctx.globalAlpha = 0.4;
+    }
+
+    // Body
+    ctx.fillStyle = player.char.color;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.radius + 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Precision Hitbox Center Point
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.hitboxRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Floating Dopamine Texts
+    floatingTexts.forEach(ft => {
+        ctx.save();
+        ctx.font = '900 16px sans-serif';
+        ctx.fillStyle = ft.color;
+        ctx.globalAlpha = Math.max(0, ft.life);
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = ft.color;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+    });
+}
+
+/* ==========================================================================
+   GAME FLOW CONTROL
+   ========================================================================== */
+
+function startGame() {
+    isPlaying = true;
+    score = 0;
+    combo = 0;
+    maxCombo = 0;
+    dodgeCount = 0;
+    
+    player.hp = player.maxHp;
+    player.x = screenWidth / 2;
+    player.y = screenHeight * 0.8;
+    player.ultGauge = 0;
+    player.dodgeCooldown = 0;
+    player.dodgeTimer = 0;
+    player.invincibleTimer = 0;
+
+    // Update Skill Icons on Action Buttons
+    const sk1 = SKILLS.actives.find(s => s.id === player.actives[0].id);
+    const sk2 = SKILLS.actives.find(s => s.id === player.actives[1].id);
+    document.getElementById('active1Icon').className = `fa-solid ${sk1.icon} text-cyan-400`;
+    document.getElementById('active2Icon').className = `fa-solid ${sk2.icon} text-pink-400`;
+
+    boss.hp = boss.maxHp;
+    boss.phase = 1;
+    boss.timer = 0;
+
+    enemyBullets = [];
+    playerBullets = [];
+    particles = [];
+    floatingTexts = [];
+
+    updateHpUI();
+    updateUltBar();
+
+    document.getElementById('menuScreen').classList.add('hidden');
+    document.getElementById('resultScreen').classList.add('hidden');
+    document.getElementById('gameplayControls').classList.remove('hidden');
+
+    lastTime = performance.now();
+}
+
+function endGame(isClear) {
+    isPlaying = false;
+
+    document.getElementById('gameplayControls').classList.add('hidden');
+    const resScreen = document.getElementById('resultScreen');
+    const resTitle = document.getElementById('resultTitle');
+    const resSub = document.getElementById('resultSub');
+
+    if (isClear) {
+        resTitle.innerText = "MISSION CLEAR!";
+        resTitle.className = "text-4xl font-black text-cyan-400 glow-text mb-2";
+        resSub.innerText = "圧倒的弾幕を極限回避で撃破！";
+    } else {
+        resTitle.innerText = "GAME OVER";
+        resTitle.className = "text-4xl font-black text-red-500 glow-text mb-2";
+        resSub.innerText = "弾幕の渦に呑み込まれた...";
+    }
+
+    document.getElementById('finalScore').innerText = score;
+    document.getElementById('finalDodges').innerText = dodgeCount;
+    document.getElementById('finalCombo').innerText = maxCombo;
+
+    resScreen.classList.remove('hidden');
+}
+
+document.getElementById('btnStartGame').addEventListener('click', startGame);
+document.getElementById('btnRetry').addEventListener('click', () => {
+    document.getElementById('resultScreen').classList.add('hidden');
+    document.getElementById('menuScreen').classList.remove('hidden');
+});
+
+// Start loop
+requestAnimationFrame(gameLoop);
+
+</script>
+</body>
+</html>
