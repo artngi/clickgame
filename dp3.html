@@ -1,0 +1,742 @@
+
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dopamine Clicker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            500: '#ec4899',
+                            600: '#db2777',
+                            700: '#be185d',
+                        }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 0.6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-short': 'bounce 0.5s ease-in-out 1',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=Noto+Sans+JP:wght@500;700;900&display=swap');
+        
+        body {
+            font-family: 'Outfit', 'Noto Sans JP', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            overflow-x: hidden;
+        }
+
+        /* Floating Numbers Animation */
+        @keyframes floatUpAndFade {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(0.8) translateY(0);
+            }
+            50% {
+                transform: translate(-50%, -50%) scale(1.3) translateY(-30px);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1) translateY(-60px);
+            }
+        }
+        .float-text {
+            position: absolute;
+            pointer-events: none;
+            animation: floatUpAndFade 0.8s ease-out forwards;
+            font-weight: 900;
+            text-shadow: 0 0 10px rgba(236, 72, 153, 0.6);
+            z-index: 50;
+        }
+
+        /* Particle effect */
+        @keyframes particleFly {
+            0% {
+                opacity: 1;
+                transform: translate(0, 0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(var(--tw-translate-x), var(--tw-translate-y)) scale(0.2);
+            }
+        }
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            border-radius: 50%;
+            animation: particleFly 0.6s ease-out forwards;
+            z-index: 45;
+        }
+
+        /* Screen Shake */
+        .shake {
+            animation: shakeAnim 0.15s ease-in-out infinite;
+        }
+        @keyframes shakeAnim {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(-3px, 3px) rotate(-1deg); }
+            50% { transform: translate(3px, -2px) rotate(1deg); }
+            75% { transform: translate(-2px, -3px) rotate(0.5deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+
+        /* Fever Glow Effect */
+        .fever-active {
+            box-shadow: 0 0 50px rgba(236, 72, 153, 0.8), inset 0 0 30px rgba(245, 158, 11, 0.6);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(236, 72, 153, 0.4);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(236, 72, 153, 0.7);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between select-none overflow-x-hidden">
+
+    <!-- TOP BAR / DASHBOARD -->
+    <header class="w-full bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4 sticky top-0 z-40">
+        <div class="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 to-amber-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-pink-500/20">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div>
+                    <h1 class="text-xs uppercase tracking-widest text-slate-400 font-bold">Dopamine Clicker</h1>
+                    <div class="flex items-baseline gap-2">
+                        <span id="score" class="text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-amber-300 to-pink-500">0</span>
+                        <span class="text-xs font-bold text-pink-400">DP</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="flex items-center gap-4 text-xs font-semibold bg-slate-950/60 py-2 px-4 rounded-xl border border-slate-800/80">
+                <div class="text-center">
+                    <div class="text-slate-400">Per Click</div>
+                    <div id="dpc" class="text-amber-400 font-bold">+1</div>
+                </div>
+                <div class="w-px h-6 bg-slate-800"></div>
+                <div class="text-center">
+                    <div class="text-slate-400">Per Second</div>
+                    <div id="dps" class="text-emerald-400 font-bold">0 /s</div>
+                </div>
+                <div class="w-px h-6 bg-slate-800"></div>
+                <div class="text-center">
+                    <div class="text-slate-400">Multiplier</div>
+                    <div id="multiplier-stat" class="text-purple-400 font-bold">x1.0</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="max-w-4xl w-full mx-auto p-4 flex-1 grid grid-cols-1 md:grid-cols-12 gap-6 items-start my-auto">
+        
+        <!-- LEFT COLUMN: CLICK ZONE & FEVER BAR -->
+        <section class="md:col-span-6 flex flex-col items-center justify-center gap-6 py-4">
+            
+            <!-- Fever Progress Bar -->
+            <div class="w-full max-w-sm">
+                <div class="flex justify-between items-center text-xs font-bold mb-1.5 px-1">
+                    <span id="fever-label" class="text-amber-400 flex items-center gap-1">
+                        <i class="fa-solid fa-fire"></i> FEVER GAUGE
+                    </span>
+                    <span id="fever-percent" class="text-amber-400">0%</span>
+                </div>
+                <div class="w-full h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                    <div id="fever-bar" class="h-full bg-gradient-to-r from-amber-500 via-pink-500 to-purple-500 rounded-full transition-all duration-200 w-0"></div>
+                </div>
+            </div>
+
+            <!-- Main Orb / Click Target -->
+            <div id="click-area" class="relative my-4 flex items-center justify-center cursor-pointer group">
+                <!-- Outer Pulse Rings -->
+                <div class="absolute w-72 h-72 rounded-full bg-pink-500/10 group-hover:bg-pink-500/20 transition-all duration-300 blur-xl"></div>
+                <div class="absolute w-60 h-60 rounded-full bg-amber-400/10 group-hover:bg-amber-400/20 transition-all duration-300 blur-lg"></div>
+
+                <!-- Core Button -->
+                <button id="core-button" class="relative w-52 h-52 rounded-full bg-gradient-to-tr from-pink-600 via-rose-500 to-amber-400 p-1 shadow-2xl shadow-pink-500/30 active:scale-95 transition-transform duration-100 flex items-center justify-center outline-none focus:outline-none">
+                    <div class="w-full h-full rounded-full bg-slate-950 flex flex-col items-center justify-center gap-2 relative overflow-hidden group-hover:bg-slate-900/90 transition-colors">
+                        <!-- Internal Glow -->
+                        <div class="absolute inset-0 bg-gradient-to-t from-pink-500/20 to-transparent opacity-50"></div>
+                        
+                        <!-- Icon -->
+                        <i id="core-icon" class="fa-solid fa-brain text-6xl text-transparent bg-clip-text bg-gradient-to-tr from-pink-400 to-amber-300 group-hover:scale-110 transition-transform duration-300"></i>
+                        <span class="text-xs font-black tracking-widest text-pink-300/80 uppercase">Tap for Dopamine</span>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Auto-Clicker Status / Notice -->
+            <div class="text-center">
+                <p id="sub-message" class="text-xs text-slate-400 font-medium">
+                    作業をしながらでもポイントが貯まります ☕
+                </p>
+            </div>
+        </section>
+
+        <!-- RIGHT COLUMN: UPGRADES & SHOP -->
+        <section class="md:col-span-6 bg-slate-900/50 border border-slate-800 rounded-2xl p-4 backdrop-blur-sm flex flex-col max-h-[550px]">
+            
+            <!-- Tab Headers -->
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                    <i class="fa-solid fa-shop text-pink-500"></i> Shop & Upgrades
+                </h2>
+                <!-- Buy Quantity Toggle -->
+                <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs font-bold">
+                    <button id="buy-1" class="px-2.5 py-1 rounded-md bg-pink-600 text-white transition-colors">x1</button>
+                    <button id="buy-10" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-white transition-colors">x10</button>
+                    <button id="buy-max" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-white transition-colors">MAX</button>
+                </div>
+            </div>
+
+            <!-- Upgrades List -->
+            <div id="upgrade-list" class="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                <!-- Dynamic Items will be injected here -->
+            </div>
+
+            <!-- Prestige / Ascension Banner -->
+            <div class="mt-3 pt-3 border-t border-slate-800">
+                <button id="prestige-btn" class="w-full bg-gradient-to-r from-purple-900/40 via-indigo-900/40 to-slate-900 border border-purple-500/30 hover:border-purple-500/60 p-3 rounded-xl flex items-center justify-between transition-all opacity-60 cursor-not-allowed" disabled>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-300 font-bold">
+                            <i class="fa-solid fa-dna"></i>
+                        </div>
+                        <div class="text-left">
+                            <div class="text-xs font-bold text-purple-300">Neural Reset (Prestige)</div>
+                            <div id="prestige-desc" class="text-[10px] text-slate-400">Req: 1,000,000 DP</div>
+                        </div>
+                    </div>
+                    <span id="prestige-reward" class="text-xs font-black text-purple-400">+0% Permanent Boost</span>
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER & QUICK ACTIONS -->
+    <footer class="w-full bg-slate-950 border-t border-slate-900 py-3 px-4 text-xs text-slate-500">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <div>
+                <span>Dopamine Level: </span>
+                <span id="dopamine-title" class="text-slate-300 font-bold">Beginner</span>
+            </div>
+            <div class="flex gap-4">
+                <button id="save-btn" class="hover:text-slate-300 transition-colors"><i class="fa-solid fa-floppy-disk mr-1"></i> Save</button>
+                <button id="reset-btn" class="hover:text-rose-400 transition-colors"><i class="fa-solid fa-trash-can mr-1"></i> Reset</button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- AUDIO EFFECTS (Synthesized via Web Audio API) -->
+    <script>
+        // --- Web Audio API Synth (No external audio files needed) ---
+        class AudioSynth {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playClickSound(freq = 440, type = 'sine', duration = 0.08) {
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, this.ctx.currentTime + duration);
+                    
+                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch (e) {}
+            }
+            playFeverSound() {
+                if (!this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.linearRampToValueAtTime(800, now + 0.3);
+                    
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(now + 0.3);
+                } catch(e) {}
+            }
+        }
+
+        const audio = new AudioSynth();
+
+        // --- GAME STATE ---
+        let gameState = {
+            dp: 0,
+            totalDpEarned: 0,
+            dpc: 1, // DP per click
+            dps: 0, // DP per second
+            multiplier: 1.0,
+            prestigeMultiplier: 1.0,
+            feverGauge: 0, // 0 to 100
+            isFever: false,
+            feverTimer: 0,
+            buyMultiplierMode: 1, // 1, 10, 'max'
+            upgrades: [
+                { id: 'tap_boost', name: 'スナック菓子 (Quick Snack)', type: 'click', baseCost: 15, cost: 15, count: 0, power: 1, icon: 'fa-cookie-bite', desc: 'タップ時の基本DP +1' },
+                { id: 'coffee', name: 'カフェイン摂取 (Caffeine Shot)', type: 'click', baseCost: 100, cost: 100, count: 0, power: 5, icon: 'fa-mug-hot', desc: 'タップ時の基本DP +5' },
+                { id: 'auto_clicker', name: '自動ニューロン (Auto Neuron)', type: 'auto', baseCost: 50, cost: 50, count: 0, power: 2, icon: 'fa-robot', desc: '1秒ごとに自動で +2 DP' },
+                { id: 'dopamine_drip', name: 'ドーパミン点滴 (Dopamine Drip)', type: 'auto', baseCost: 300, cost: 300, count: 0, power: 15, icon: 'fa-syringe', desc: '1秒ごとに自動で +15 DP' },
+                { id: 'asmr_loop', name: 'ASMR音源 (ASMR Loop)', type: 'auto', baseCost: 1200, cost: 1200, count: 0, power: 60, icon: 'fa-headphones', desc: '1秒ごとに自動で +60 DP' },
+                { id: 'reward_center', name: '脳内報酬系回路 (Reward System)', type: 'auto', baseCost: 5000, cost: 5000, count: 0, power: 250, icon: 'fa-brain', desc: '1秒ごとに自動で +250 DP' },
+                { id: 'infinite_scroll', name: '無限スクロール (Infinite Scroll)', type: 'auto', baseCost: 20000, cost: 20000, count: 0, power: 1100, icon: 'fa-mobile-screen-button', desc: '1秒ごとに自動で +1,100 DP' },
+            ]
+        };
+
+        // --- DOM ELEMENTS ---
+        const scoreEl = document.getElementById('score');
+        const dpcEl = document.getElementById('dpc');
+        const dpsEl = document.getElementById('dps');
+        const multiplierStatEl = document.getElementById('multiplier-stat');
+        const clickArea = document.getElementById('click-area');
+        const coreButton = document.getElementById('core-button');
+        const coreIcon = document.getElementById('core-icon');
+        const upgradeListEl = document.getElementById('upgrade-list');
+        const feverBar = document.getElementById('fever-bar');
+        const feverPercent = document.getElementById('fever-percent');
+        const feverLabel = document.getElementById('fever-label');
+        const prestigeBtn = document.getElementById('prestige-btn');
+        const prestigeDesc = document.getElementById('prestige-desc');
+        const prestigeReward = document.getElementById('prestige-reward');
+        const dopamineTitleEl = document.getElementById('dopamine-title');
+        const buy1Btn = document.getElementById('buy-1');
+        const buy10Btn = document.getElementById('buy-10');
+        const buyMaxBtn = document.getElementById('buy-max');
+
+        // --- NUMBER FORMATTER ---
+        function formatNumber(num) {
+            if (num < 1000) return Math.floor(num).toLocaleString();
+            const suffixes = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi'];
+            const i = Math.floor(Math.log10(num) / 3);
+            if (i >= suffixes.length) return num.toExponential(2);
+            const formatted = (num / Math.pow(10, i * 3)).toFixed(2);
+            return `${formatted} ${suffixes[i]}`;
+        }
+
+        // --- GAME LOGIC ---
+
+        // Calculate Stats
+        function recalculateStats() {
+            let baseClick = 1;
+            let baseAuto = 0;
+
+            gameState.upgrades.forEach(u => {
+                if (u.type === 'click') {
+                    baseClick += u.count * u.power;
+                } else if (u.type === 'auto') {
+                    baseAuto += u.count * u.power;
+                }
+            });
+
+            const feverMult = gameState.isFever ? 10 : 1;
+            const currentTotalMult = gameState.multiplier * gameState.prestigeMultiplier * feverMult;
+
+            gameState.dpc = baseClick * currentTotalMult;
+            gameState.dps = baseAuto * currentTotalMult;
+
+            // Update UI
+            scoreEl.textContent = formatNumber(gameState.dp);
+            dpcEl.textContent = `+${formatNumber(gameState.dpc)}`;
+            dpsEl.textContent = `${formatNumber(gameState.dps)} /s`;
+            multiplierStatEl.textContent = `x${currentTotalMult.toFixed(1)}`;
+
+            updateDopamineTitle();
+            updatePrestigeStatus();
+        }
+
+        // Title rank update
+        function updateDopamineTitle() {
+            const total = gameState.totalDpEarned;
+            if (total < 1000) dopamineTitleEl.textContent = 'ビギナー (Beginner)';
+            else if (total < 50000) dopamineTitleEl.textContent = 'プチプチマニア (Bubble Popper)';
+            else if (total < 1000000) dopamineTitleEl.textContent = '快感ハンター (Thrill Seeker)';
+            else if (total < 50000000) dopamineTitleEl.textContent = 'ドーパミン依存 (Dopamine Junkie)';
+            else dopamineTitleEl.textContent = '全知全能の脳内神 (Brain Deity)';
+        }
+
+        // Handle Click
+        function handleClick(e) {
+            audio.init();
+
+            // Critical hit calculation (10% chance)
+            const isCrit = Math.random() < 0.1;
+            const critMult = isCrit ? 3 : 1;
+            const earned = gameState.dpc * critMult;
+
+            gameState.dp += earned;
+            gameState.totalDpEarned += earned;
+
+            // Sound
+            const soundFreq = isCrit ? 880 : 350 + Math.random() * 200;
+            audio.playClickSound(soundFreq, isCrit ? 'square' : 'sine');
+
+            // Floating Text & Particles
+            createFloatingText(e, `+${formatNumber(earned)}`, isCrit);
+            createParticles(e, isCrit ? 12 : 6);
+
+            // Screen Shake on Critical
+            if (isCrit) {
+                document.body.classList.add('shake');
+                setTimeout(() => document.body.classList.remove('shake'), 150);
+            }
+
+            // Fever Gauge Charge
+            if (!gameState.isFever) {
+                gameState.feverGauge = Math.min(100, gameState.feverGauge + 2);
+                if (gameState.feverGauge >= 100) {
+                    triggerFever();
+                }
+            }
+
+            recalculateStats();
+        }
+
+        // Floating Number Animation
+        function createFloatingText(e, text, isCrit) {
+            const rect = clickArea.getBoundingClientRect();
+            let x = e ? e.clientX : rect.left + rect.width / 2;
+            let y = e ? e.clientY : rect.top + rect.height / 2;
+
+            // Random slight offset
+            x += (Math.random() - 0.5) * 40;
+            y += (Math.random() - 0.5) * 40;
+
+            const el = document.createElement('div');
+            el.className = `float-text ${isCrit ? 'text-amber-300 text-2xl font-black' : 'text-pink-400 text-lg'}`;
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            el.textContent = isCrit ? `CRITICAL! ${text}` : text;
+
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 800);
+        }
+
+        // Particles
+        function createParticles(e, count) {
+            const rect = clickArea.getBoundingClientRect();
+            const originX = e ? e.clientX : rect.left + rect.width / 2;
+            const originY = e ? e.clientY : rect.top + rect.height / 2;
+
+            for (let i = 0; i < count; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                
+                const size = Math.random() * 8 + 4;
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                
+                const colors = ['#ec4899', '#f59e0b', '#a855f7', '#3b82f6'];
+                particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                particle.style.left = `${originX}px`;
+                particle.style.top = `${originY}px`;
+
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 80 + 30;
+                const tx = Math.cos(angle) * distance;
+                const ty = Math.sin(angle) * distance;
+
+                particle.style.setProperty('--tw-translate-x', `${tx}px`);
+                particle.style.setProperty('--tw-translate-y', `${ty}px`);
+
+                document.body.appendChild(particle);
+                setTimeout(() => particle.remove(), 600);
+            }
+        }
+
+        // Trigger Fever
+        function triggerFever() {
+            gameState.isFever = true;
+            gameState.feverGauge = 100;
+            audio.playFeverSound();
+
+            document.body.classList.add('fever-active');
+            feverLabel.innerHTML = '<i class="fa-solid fa-fire text-pink-400 animate-bounce"></i> FEVER TIME (10x)!';
+            feverLabel.className = 'text-pink-400 font-black animate-pulse';
+
+            let duration = 10; // seconds
+            const interval = setInterval(() => {
+                duration -= 0.1;
+                gameState.feverGauge = (duration / 10) * 100;
+                feverBar.style.width = `${gameState.feverGauge}%`;
+                feverPercent.textContent = `${Math.ceil(gameState.feverGauge)}%`;
+
+                if (duration <= 0) {
+                    clearInterval(interval);
+                    gameState.isFever = false;
+                    gameState.feverGauge = 0;
+                    feverBar.style.width = '0%';
+                    feverPercent.textContent = '0%';
+                    feverLabel.innerHTML = '<i class="fa-solid fa-fire"></i> FEVER GAUGE';
+                    feverLabel.className = 'text-amber-400 font-bold';
+                    document.body.classList.remove('fever-active');
+                    recalculateStats();
+                }
+            }, 100);
+
+            recalculateStats();
+        }
+
+        // --- SHOP & UPGRADES RENDER ---
+        function calculateUpgradeCost(upgrade, amount) {
+            let cost = 0;
+            let currentCost = upgrade.cost;
+            for (let i = 0; i < amount; i++) {
+                cost += currentCost;
+                currentCost = Math.floor(currentCost * 1.15);
+            }
+            return cost;
+        }
+
+        function calculateMaxAfford(upgrade) {
+            let count = 0;
+            let tempDp = gameState.dp;
+            let currentCost = upgrade.cost;
+            while (tempDp >= currentCost) {
+                tempDp -= currentCost;
+                count++;
+                currentCost = Math.floor(currentCost * 1.15);
+            }
+            return count;
+        }
+
+        function renderUpgrades() {
+            upgradeListEl.innerHTML = '';
+
+            gameState.upgrades.forEach(u => {
+                let qtyToBuy = 1;
+                if (gameState.buyMultiplierMode === 10) qtyToBuy = 10;
+                else if (gameState.buyMultiplierMode === 'max') {
+                    qtyToBuy = Math.max(1, calculateMaxAfford(u));
+                }
+
+                const totalCost = calculateUpgradeCost(u, qtyToBuy);
+                const canAfford = gameState.dp >= totalCost;
+
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border flex items-center justify-between transition-all ${
+                    canAfford 
+                    ? 'bg-slate-800/80 border-slate-700 hover:border-pink-500/50 cursor-pointer' 
+                    : 'bg-slate-900/40 border-slate-800/60 opacity-60'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-pink-400 font-bold text-lg">
+                            <i class="fa-solid ${u.icon}"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-slate-200">${u.name}</span>
+                                <span class="text-[10px] bg-slate-950 text-pink-400 font-extrabold px-1.5 py-0.5 rounded-md border border-slate-800">x${u.count}</span>
+                            </div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">${u.desc}</div>
+                        </div>
+                    </div>
+                    <button class="buy-btn px-3 py-1.5 rounded-lg font-bold text-xs flex flex-col items-end ${
+                        canAfford 
+                        ? 'bg-pink-600 hover:bg-pink-500 text-white shadow-md shadow-pink-600/20' 
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }" ${!canAfford ? 'disabled' : ''}>
+                        <span>+${qtyToBuy}</span>
+                        <span class="text-[10px] opacity-90">${formatNumber(totalCost)} DP</span>
+                    </button>
+                `;
+
+                card.addEventListener('click', (e) => {
+                    if (canAfford) {
+                        buyUpgrade(u.id, qtyToBuy, totalCost);
+                    }
+                });
+
+                upgradeListEl.appendChild(card);
+            });
+        }
+
+        function buyUpgrade(id, amount, cost) {
+            const upgrade = gameState.upgrades.find(u => u.id === id);
+            if (upgrade && gameState.dp >= cost) {
+                gameState.dp -= cost;
+                for (let i = 0; i < amount; i++) {
+                    upgrade.count++;
+                    upgrade.cost = Math.floor(upgrade.cost * 1.15);
+                }
+                audio.playClickSound(600, 'triangle');
+                recalculateStats();
+                renderUpgrades();
+            }
+        }
+
+        // Set Buy Multiplier Mode
+        function setBuyMode(mode) {
+            gameState.buyMultiplierMode = mode;
+            [buy1Btn, buy10Btn, buyMaxBtn].forEach(btn => {
+                btn.className = 'px-2.5 py-1 rounded-md text-slate-400 hover:text-white transition-colors';
+            });
+
+            if (mode === 1) buy1Btn.className = 'px-2.5 py-1 rounded-md bg-pink-600 text-white font-bold';
+            if (mode === 10) buy10Btn.className = 'px-2.5 py-1 rounded-md bg-pink-600 text-white font-bold';
+            if (mode === 'max') buyMaxBtn.className = 'px-2.5 py-1 rounded-md bg-pink-600 text-white font-bold';
+
+            renderUpgrades();
+        }
+
+        // --- PRESTAGE LOGIC ---
+        function updatePrestigeStatus() {
+            const req = 1000000; // 1M DP
+            const canPrestige = gameState.totalDpEarned >= req;
+
+            if (canPrestige) {
+                prestigeBtn.disabled = false;
+                prestigeBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                prestigeBtn.classList.add('hover:bg-purple-950/60', 'cursor-pointer');
+                
+                const rewardPct = Math.floor((gameState.totalDpEarned / req) * 50);
+                prestigeReward.textContent = `+${rewardPct}% Permanent Boost`;
+            } else {
+                prestigeBtn.disabled = true;
+                prestigeBtn.classList.add('opacity-60', 'cursor-not-allowed');
+            }
+        }
+
+        prestigeBtn.addEventListener('click', () => {
+            const req = 1000000;
+            if (gameState.totalDpEarned < req) return;
+
+            const boost = 1 + Math.floor((gameState.totalDpEarned / req) * 0.5);
+            if (confirm(`Neural Resetを実行して転生しますか？\n全てのDPとアップグレードがリセットされますが、永久倍率が x${boost.toFixed(1)} に向上します！`)) {
+                gameState.prestigeMultiplier *= boost;
+                gameState.dp = 0;
+                gameState.upgrades.forEach(u => {
+                    u.count = 0;
+                    u.cost = u.baseCost;
+                });
+                recalculateStats();
+                renderUpgrades();
+            }
+        });
+
+        // --- GAME LOOP (Auto Generation) ---
+        let lastTime = Date.now();
+        function gameLoop() {
+            const now = Date.now();
+            const delta = (now - lastTime) / 1000;
+            lastTime = now;
+
+            if (gameState.dps > 0) {
+                const autoDp = gameState.dps * delta;
+                gameState.dp += autoDp;
+                gameState.totalDpEarned += autoDp;
+                scoreEl.textContent = formatNumber(gameState.dp);
+                updateDopamineTitle();
+                updatePrestigeStatus();
+            }
+
+            // Periodically refresh UI affordances
+            renderUpgrades();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- EVENT LISTENERS ---
+        clickArea.addEventListener('click', handleClick);
+
+        buy1Btn.addEventListener('click', () => setBuyMode(1));
+        buy10Btn.addEventListener('click', () => setBuyMode(10));
+        buyMaxBtn.addEventListener('click', () => setBuyMode('max'));
+
+        // Save & Reset
+        document.getElementById('save-btn').addEventListener('click', () => {
+            localStorage.setItem('dopamine_clicker_save', JSON.stringify(gameState));
+            alert('ゲームデータを保存しました！');
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            if (confirm('本当に最初からやり直しますか？')) {
+                localStorage.removeItem('dopamine_clicker_save');
+                location.reload();
+            }
+        });
+
+        // Load Game
+        function loadGame() {
+            const saved = localStorage.getItem('dopamine_clicker_save');
+            if (saved) {
+                try {
+                    const loadedState = JSON.parse(saved);
+                    gameState.dp = loadedState.dp || 0;
+                    gameState.totalDpEarned = loadedState.totalDpEarned || 0;
+                    gameState.prestigeMultiplier = loadedState.prestigeMultiplier || 1.0;
+                    
+                    if (loadedState.upgrades) {
+                        loadedState.upgrades.forEach(savedU => {
+                            const u = gameState.upgrades.find(item => item.id === savedU.id);
+                            if (u) {
+                                u.count = savedU.count || 0;
+                                u.cost = savedU.cost || u.baseCost;
+                            }
+                        });
+                    }
+                } catch(e) {
+                    console.error('Failed to load save', e);
+                }
+            }
+            recalculateStats();
+            renderUpgrades();
+        }
+
+        // Init on Window Load
+        window.onload = function () {
+            loadGame();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
