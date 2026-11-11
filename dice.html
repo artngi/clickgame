@@ -1,0 +1,698 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dopamine Dice Game</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js (3Dレンダリング) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Cannon.js (3D物理演算) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <!-- Canvas Confetti (紙吹雪演出) -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+            background-color: #0b0f19;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        /* ネオン文字アニメーション */
+        .glow-text-jackpot {
+            text-shadow: 0 0 10px #ffe600, 0 0 20px #ffe600, 0 0 40px #ffaa00, 0 0 80px #ff0055;
+            animation: pulse-glow 0.8s infinite alternate;
+        }
+        @keyframes pulse-glow {
+            0% { transform: scale(1); filter: brightness(1); }
+            100% { transform: scale(1.08); filter: brightness(1.4); }
+        }
+    </style>
+</head>
+<body class="w-full h-full relative">
+
+    <!-- 3D Canvas 容器 -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlays -->
+    <div class="absolute top-0 left-0 w-full p-4 pointer-events-none flex justify-between items-start z-10">
+        <div>
+            <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-600 drop-shadow">
+                DOPAMINE DICE
+            </h1>
+            <p class="text-gray-400 text-xs md:text-sm">画面をタップして6個のダイスを投げよう！</p>
+        </div>
+        <div class="bg-gray-900/80 backdrop-blur border border-yellow-500/30 rounded-xl px-4 py-2 text-right">
+            <span class="text-gray-400 text-xs block">ハイスコア (6の最大個数)</span>
+            <span id="max-six-count" class="text-2xl font-bold text-yellow-400">0</span>
+        </div>
+    </div>
+
+    <!-- 中央告知/結果メッセージ (演出用) -->
+    <div id="result-banner" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300 z-20">
+        <div id="result-text" class="text-5xl md:text-7xl font-black italic text-yellow-300 tracking-wider"></div>
+        <div id="result-sub" class="text-xl md:text-2xl font-bold text-white mt-2 drop-shadow-md"></div>
+    </div>
+
+    <!-- タップ促進オーバーレイ / コントロール -->
+    <div id="touch-hint" class="absolute bottom-10 left-1/2 -translate-x-1/2 pointer-events-none z-10 text-center">
+        <div class="inline-flex items-center gap-2 bg-yellow-400/20 backdrop-blur border border-yellow-400/50 text-yellow-300 px-6 py-3 rounded-full font-bold animate-bounce shadow-lg shadow-yellow-500/20">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+            <span>TAP TO ROLL</span>
+        </div>
+    </div>
+
+    <script>
+        // Web Audio API によるサウンド生成 (効果音)
+        class SoundEffects {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            // ダイス衝突音
+            playHit(intensity = 1) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                const freq = 120 + Math.random() * 80;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.08);
+                
+                const vol = Math.min(Math.max(intensity * 0.15, 0.02), 0.3);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+            // 6獲得時のピカッ（チャイム/ファンファーレ風）音
+            playJackpot(sixCount) {
+                if (!this.ctx) return;
+                const baseFreqs = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98]; // C5, E5, G5, C6, E6, G6
+                const count = Math.min(sixCount, 6);
+
+                for (let i = 0; i < count; i++) {
+                    setTimeout(() => {
+                        if (!this.ctx) return;
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(baseFreqs[i % baseFreqs.length], this.ctx.currentTime);
+                        
+                        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.8);
+
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start();
+                        osc.stop(this.ctx.currentTime + 0.8);
+                    }, i * 100);
+                }
+            }
+        }
+
+        const sounds = new SoundEffects();
+
+        // ---- ゲーム＆物理設定 ----
+        let scene, camera, renderer, world;
+        let diceList = []; // 6個のダイスオブジェクト (Three Mesh + Cannon Body)
+        let isRolling = false;
+        let isSettled = false;
+        let maxSixCountVal = 0;
+
+        const DICE_COUNT = 6;
+        const DICE_SIZE = 1.6;
+
+        // ダイス面のUV配置/法線ベクトルマップ
+        // Standard Dice: 1-6 (対面和=7: 1-6, 2-5, 3-4)
+        const faceDirections = [
+            { number: 1, dir: new THREE.Vector3(1, 0, 0) },   // +X
+            { number: 6, dir: new THREE.Vector3(-1, 0, 0) },  // -X
+            { number: 2, dir: new THREE.Vector3(0, 1, 0) },   // +Y
+            { number: 5, dir: new THREE.Vector3(0, -1, 0) },  // -Y
+            { number: 3, dir: new THREE.Vector3(0, 0, 1) },   // +Z
+            { number: 4, dir: new THREE.Vector3(0, 0, -1) }   // -Z
+        ];
+
+        // テクスチャ生成用のキャンバス生成
+        function createDiceTextures() {
+            // 通常時マテリアル配列 & 発光時マテリアル配列を作成
+            const normalMaterials = [];
+            const glowMaterials = [];
+
+            faceDirections.forEach(face => {
+                // 通常用キャンバス (黒点)
+                const canvasN = document.createElement('canvas');
+                canvasN.width = 256; canvasN.height = 256;
+                const ctxN = canvasN.getContext('2d');
+                drawFaceContent(ctxN, face.number, false);
+
+                const texN = new THREE.CanvasTexture(canvasN);
+                normalMaterials.push(new THREE.MeshStandardMaterial({
+                    map: texN,
+                    roughness: 0.2,
+                    metalness: 0.1,
+                    color: 0xffffff
+                }));
+
+                // 発光用キャンバス (目が黄色く眩しく光る)
+                const canvasG = document.createElement('canvas');
+                canvasG.width = 256; canvasG.height = 256;
+                const ctxG = canvasG.getContext('2d');
+                drawFaceContent(ctxG, face.number, true);
+
+                const texG = new THREE.CanvasTexture(canvasG);
+                glowMaterials.push(new THREE.MeshStandardMaterial({
+                    map: texG,
+                    roughness: 0.1,
+                    metalness: 0.1,
+                    emissive: face.number === 6 ? 0xffcc00 : 0x000000,
+                    emissiveIntensity: face.number === 6 ? 2.5 : 0,
+                    color: 0xffffff
+                }));
+            });
+
+            return { normalMaterials, glowMaterials };
+        }
+
+        // ダイスの目（1〜6）の描画
+        function drawFaceContent(ctx, number, isGlow) {
+            // 角丸背景（白ダイス）
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(0, 0, 256, 256);
+
+            // 枠線効果
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 12;
+            ctx.strokeRect(6, 6, 244, 244);
+
+            // 点の色設定
+            let dotColor = '#1e293b'; // 通常点 (ダークグレー/黒)
+            if (number === 1) dotColor = '#dc2626'; // 1の目は赤
+
+            if (isGlow && number === 6) {
+                // 6の目がピカッと黄色に光る設定
+                dotColor = '#ffe600';
+            }
+
+            ctx.fillStyle = dotColor;
+
+            // 発光表現のグローエフェクト
+            if (isGlow && number === 6) {
+                ctx.shadowColor = '#ffaa00';
+                ctx.shadowBlur = 30;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+
+            const r = 22; // 点の半径
+            const pos = {
+                tl: [64, 64],   tc: [128, 64],   tr: [192, 64],
+                ml: [64, 128],  mc: [128, 128],  mr: [192, 128],
+                bl: [64, 192],  bc: [128, 192],  br: [192, 192]
+            };
+
+            const dotsMap = {
+                1: [pos.mc],
+                2: [pos.tl, pos.br],
+                3: [pos.tl, pos.mc, pos.br],
+                4: [pos.tl, pos.tr, pos.bl, pos.br],
+                5: [pos.tl, pos.tr, pos.mc, pos.bl, pos.br],
+                6: [pos.tl, pos.tr, pos.ml, pos.mr, pos.bl, pos.br]
+            };
+
+            const points = dotsMap[number] || [];
+            points.forEach(([x, y]) => {
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        let diceMaterialsNormal, diceMaterialsGlow;
+
+        // 初期化処理
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // 1. Three.js シーン
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0b0f19);
+            scene.fog = new THREE.FogExp2(0x0b0f19, 0.03);
+
+            // カメラ
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 22, 15);
+            camera.lookAt(0, 0, 0);
+
+            // レンダラー
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // 2. Cannon.js 物理ワールド
+            world = new CANNON.World();
+            world.gravity.set(0, -28, 0); // 重力
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.solver.iterations = 15;
+
+            // 摩擦・反発マテリアル設定
+            const diceMaterial = new CANNON.Material('dice');
+            const floorMaterial = new CANNON.Material('floor');
+            const diceFloorContact = new CANNON.ContactMaterial(floorMaterial, diceMaterial, {
+                friction: 0.3,
+                restitution: 0.5
+            });
+            const diceDiceContact = new CANNON.ContactMaterial(diceMaterial, diceMaterial, {
+                friction: 0.2,
+                restitution: 0.6
+            });
+            world.addContactMaterial(diceFloorContact);
+            world.addContactMaterial(diceDiceContact);
+
+            // 3. ライティング
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 25, 10);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 50;
+            dirLight.shadow.camera.left = -15;
+            dirLight.shadow.camera.right = 15;
+            dirLight.shadow.camera.top = 15;
+            dirLight.shadow.camera.bottom = -15;
+            scene.add(dirLight);
+
+            // スポットライト（中央際立たせ）
+            const spotLight = new THREE.SpotLight(0xffaa00, 1.2, 40, Math.PI / 4, 0.5);
+            spotLight.position.set(0, 20, 0);
+            scene.add(spotLight);
+
+            // 4. 床面・壁（外に飛び出さない見えない壁）
+            createStage(floorMaterial);
+
+            // 5. ダイスマテリアル準備
+            const materials = createDiceTextures();
+            diceMaterialsNormal = materials.normalMaterials;
+            diceMaterialsGlow = materials.glowMaterials;
+
+            // 6. ダイス6個の初期生成
+            createDice(diceMaterial);
+
+            // イベントリスナー
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('pointerdown', handleTap);
+
+            // アニメーションループ開始
+            animate();
+        }
+
+        // ステージ（床・外壁）構築
+        function createStage(floorMaterial) {
+            // 見た目の床
+            const floorGeo = new THREE.PlaneGeometry(30, 30);
+            const floorMat = new THREE.MeshStandardMaterial({
+                color: 0x131a29,
+                roughness: 0.6,
+                metalness: 0.2
+            });
+            const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+            floorMesh.rotation.x = -Math.PI / 2;
+            floorMesh.receiveShadow = true;
+            scene.add(floorMesh);
+
+            // グリッド線（おしゃれなバックグラウンド）
+            const grid = new THREE.GridHelper(30, 20, 0x334155, 0x1e293b);
+            grid.position.y = 0.01;
+            scene.add(grid);
+
+            // 物理の床
+            const floorBody = new CANNON.Body({
+                mass: 0,
+                shape: new CANNON.Plane(),
+                material: floorMaterial
+            });
+            floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            world.addBody(floorBody);
+
+            // 四方の不可視壁（ダイス飛び出し防止）
+            const wallShape = new CANNON.Plane();
+            const wallPositions = [
+                { pos: [0, 0, 11], rot: [0, Math.PI, 0] },
+                { pos: [0, 0, -11], rot: [0, 0, 0] },
+                { pos: [11, 0, 0], rot: [0, -Math.PI / 2, 0] },
+                { pos: [-11, 0, 0], rot: [0, Math.PI / 2, 0] }
+            ];
+
+            wallPositions.forEach(w => {
+                const wallBody = new CANNON.Body({ mass: 0, shape: wallShape, material: floorMaterial });
+                wallBody.position.set(...w.pos);
+                wallBody.quaternion.setFromEuler(...w.rot);
+                world.addBody(wallBody);
+            });
+        }
+
+        // ダイスオブジェクト群の作成
+        function createDice(diceMaterial) {
+            // 角丸立方体ジオメトリ作成
+            const geometry = createRoundedBoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE, 0.15, 4);
+
+            for (let i = 0; i < DICE_COUNT; i++) {
+                // Three.js メッシュ
+                const mesh = new THREE.Mesh(geometry, diceMaterialsNormal);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                scene.add(mesh);
+
+                // Cannon.js 物理ボディ (Box)
+                const halfSize = DICE_SIZE / 2;
+                const shape = new CANNON.Box(new CANNON.Vec3(halfSize, halfSize, halfSize));
+                const body = new CANNON.Body({
+                    mass: 1.2,
+                    shape: shape,
+                    material: diceMaterial,
+                    linearDamping: 0.3,
+                    angularDamping: 0.3
+                });
+
+                // 衝突音イベント
+                body.addEventListener('collide', (e) => {
+                    const velocity = e.contact.getImpactVelocityAlongNormal();
+                    if (velocity > 1.5) {
+                        sounds.playHit(velocity / 10);
+                    }
+                });
+
+                world.addBody(body);
+
+                diceList.push({ mesh, body });
+            }
+
+            // 初期位置設定
+            resetDicePositions();
+        }
+
+        // 角丸サイコロのジオメトリヘルパー
+        function createRoundedBoxGeometry(width, height, depth, radius, smoothness) {
+            const geom = new THREE.BoxGeometry(width, height, depth, smoothness, smoothness, smoothness);
+            // 簡単な角丸化変形
+            const pos = geom.attributes.position;
+            const v = new THREE.Vector3();
+            for (let i = 0; i < pos.count; i++) {
+                v.fromBufferAttribute(pos, i);
+                const innerX = Math.sign(v.x) * Math.max(0, Math.abs(v.x) - radius);
+                const innerY = Math.sign(v.y) * Math.max(0, Math.abs(v.y) - radius);
+                const innerZ = Math.sign(v.z) * Math.max(0, Math.abs(v.z) - radius);
+                
+                const dir = new THREE.Vector3(v.x - innerX, v.y - innerY, v.z - innerZ);
+                if (dir.length() > 0) {
+                    dir.normalize().multiplyScalar(radius);
+                    pos.setXYZ(i, innerX + dir.x, innerY + dir.y, innerZ + dir.z);
+                }
+            }
+            geom.computeVertexNormals();
+            return geom;
+        }
+
+        // ダイスを初期位置（空中待機または初期配置）にリセット
+        function resetDicePositions() {
+            const spacing = 2.2;
+            diceList.forEach((dice, index) => {
+                // ダイスの見た目を通常マテリアルに戻す
+                dice.mesh.material = diceMaterialsNormal;
+
+                const row = Math.floor(index / 3);
+                const col = index % 3;
+                const x = (col - 1) * spacing;
+                const z = (row - 0.5) * spacing;
+                
+                dice.body.position.set(x, DICE_SIZE / 2, z);
+                dice.body.velocity.set(0, 0, 0);
+                dice.body.angularVelocity.set(0, 0, 0);
+                dice.body.quaternion.setFromEuler(0, 0, 0);
+
+                dice.mesh.position.copy(dice.body.position);
+                dice.mesh.quaternion.copy(dice.body.quaternion);
+            });
+        }
+
+        // タップ/クリック時のサイコロ投げ処理
+        function handleTap() {
+            sounds.init();
+
+            if (isRolling) return; // 転がり中はタップ無効
+
+            // 演出バナーリセット
+            hideResultBanner();
+
+            isRolling = true;
+            isSettled = false;
+            document.getElementById('touch-hint').classList.add('opacity-0');
+
+            diceList.forEach((dice, i) => {
+                // ダイスを通常マテリアルに戻す
+                dice.mesh.material = diceMaterialsNormal;
+
+                // 中央寄りのランダムな空中スタート地点
+                const angle = (i / DICE_COUNT) * Math.PI * 2 + Math.random() * 0.5;
+                const radius = 2 + Math.random() * 2;
+                const startX = Math.cos(angle) * radius;
+                const startZ = Math.sin(angle) * radius;
+                const startY = 6 + Math.random() * 3;
+
+                dice.body.position.set(startX, startY, startZ);
+
+                // 中央に向かってしっかりと投げる速度を与える (お互い衝突して跳ね回るように)
+                const forceMag = 12 + Math.random() * 8;
+                const targetVec = new THREE.Vector3(-startX, 2, -startZ).normalize().multiplyScalar(forceMag);
+                
+                // ランダムなひねり・回転を与える
+                dice.body.velocity.set(
+                    targetVec.x + (Math.random() - 0.5) * 6,
+                    Math.random() * 4 + 2,
+                    targetVec.z + (Math.random() - 0.5) * 6
+                );
+
+                dice.body.angularVelocity.set(
+                    (Math.random() - 0.5) * 30,
+                    (Math.random() - 0.5) * 30,
+                    (Math.random() - 0.5) * 30
+                );
+            });
+        }
+
+        // 静止判定と目の確定
+        function checkDiceSettled() {
+            if (!isRolling || isSettled) return;
+
+            let allStopped = true;
+            diceList.forEach(dice => {
+                const speed = dice.body.velocity.length();
+                const angularSpeed = dice.body.angularVelocity.length();
+                if (speed > 0.1 || angularSpeed > 0.1) {
+                    allStopped = false;
+                }
+            });
+
+            if (allStopped) {
+                isSettled = true;
+                isRolling = false;
+                evaluateResults();
+            }
+        }
+
+        // 上に向いている目を計算する
+        function getUpwardFaceNumber(diceMesh) {
+            let maxDot = -1;
+            let resultNumber = 1;
+
+            const worldQuat = diceMesh.quaternion;
+            const upVector = new THREE.Vector3(0, 1, 0);
+
+            faceDirections.forEach(face => {
+                // ダイスの各面のローカル法線ベクトルをワールド座標系に変換
+                const worldDir = face.dir.clone().applyQuaternion(worldQuat);
+                const dot = worldDir.dot(upVector);
+
+                if (dot > maxDot) {
+                    maxDot = dot;
+                    resultNumber = face.number;
+                }
+            });
+
+            return resultNumber;
+        }
+
+        // 結果の判定とドーパミン演出
+        function evaluateResults() {
+            const results = diceList.map(dice => ({
+                dice: dice,
+                number: getUpwardFaceNumber(dice.mesh)
+            }));
+
+            // 6の目をカウント
+            const sixes = results.filter(r => r.number === 6);
+            const sixCount = sixes.length;
+
+            // ハイスコア更新
+            if (sixCount > maxSixCountVal) {
+                maxSixCountVal = sixCount;
+                document.getElementById('max-six-count').innerText = maxSixCountVal;
+            }
+
+            // 6が出たダイスのマテリアルを光るバージョンに置き換え
+            results.forEach(r => {
+                if (r.number === 6) {
+                    r.dice.mesh.material = diceMaterialsGlow;
+                }
+            });
+
+            // 6が2個以上出た場合：特大ドーパミン演出発動！
+            if (sixCount >= 2) {
+                triggerDopamineEffects(sixCount);
+            } else {
+                // 通常結果表示
+                showStandardResult(sixCount);
+            }
+
+            // 次のタップを解禁
+            setTimeout(() => {
+                document.getElementById('touch-hint').classList.remove('opacity-0');
+            }, 1000);
+        }
+
+        // 指数関数的に豪華になる演出
+        function triggerDopamineEffects(count) {
+            sounds.playJackpot(count);
+
+            const banner = document.getElementById('result-banner');
+            const textEl = document.getElementById('result-text');
+            const subEl = document.getElementById('result-sub');
+
+            // カウントに基づく演出テキスト
+            const titles = {
+                2: 'DOUBLE SIX!',
+                3: 'TRIPLE SIX!!',
+                4: 'SUPER JACKPOT!!!',
+                5: 'ULTRA DOPAMINE!!!!',
+                6: 'GODLIKE MAX LUCK!!!!!!'
+            };
+
+            textEl.innerText = titles[count] || 'FEVER!';
+            textEl.className = `text-5xl md:text-7xl font-black italic text-yellow-300 tracking-wider glow-text-jackpot`;
+            subEl.innerText = `「6」が ${count} 個揃いました！`;
+
+            banner.classList.remove('opacity-0');
+
+            // 個数に応じた紙吹雪(Confetti)の量と回数（指数関数的増大）
+            const particleCount = Math.pow(count, 3) * 15; // 2個:120, 3個:405, 6個:3240粒！
+            
+            // 紙吹雪発射
+            confetti({
+                particleCount: Math.min(particleCount, 500),
+                spread: 60 + count * 20,
+                origin: { y: 0.6 }
+            });
+
+            // 高ランク（4個以上）は連続パーリィ演出
+            if (count >= 4) {
+                let bursts = 0;
+                const interval = setInterval(() => {
+                    confetti({
+                        particleCount: 100,
+                        angle: Math.random() * 360,
+                        spread: 70,
+                        origin: { x: Math.random(), y: Math.random() * 0.5 + 0.3 }
+                    });
+                    bursts++;
+                    if (bursts >= count * 2) clearInterval(interval);
+                }, 150);
+            }
+        }
+
+        // 通常結果表示
+        function showStandardResult(sixCount) {
+            const banner = document.getElementById('result-banner');
+            const textEl = document.getElementById('result-text');
+            const subEl = document.getElementById('result-sub');
+
+            textEl.className = "text-4xl md:text-5xl font-bold text-gray-200 drop-shadow";
+            if (sixCount === 1) {
+                textEl.innerText = "SINGLE SIX";
+                subEl.innerText = "6が1個出ました！(2個以上でジャックポット)";
+            } else {
+                textEl.innerText = "NO SIX...";
+                subEl.innerText = "もう一度タップしてチャレンジ！";
+            }
+
+            banner.classList.remove('opacity-0');
+        }
+
+        function hideResultBanner() {
+            const banner = document.getElementById('result-banner');
+            banner.classList.add('opacity-0');
+        }
+
+        // リサイズ対応
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // メインループ
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = Math.min(clock.getDelta(), 0.1);
+
+            // 物理シミュレーションの更新
+            world.step(1 / 60, delta, 3);
+
+            // Meshの位置・回転をPhysics Bodyに同期
+            diceList.forEach(dice => {
+                dice.mesh.position.copy(dice.body.position);
+                dice.mesh.quaternion.copy(dice.body.quaternion);
+            });
+
+            // ダイスの停止状態監視
+            checkDiceSettled();
+
+            // レンダリング
+            renderer.render(scene, camera);
+        }
+
+        // 初期化実行
+        window.onload = () => {
+            init();
+        };
+    </script>
+</body>
+</html>
