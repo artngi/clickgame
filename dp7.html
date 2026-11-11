@@ -1,0 +1,654 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>無限お茶濁し ～悟りを開くためのワンボタン～</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
+    body {
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      user-select: none;
+    }
+    .floating-text {
+      position: absolute;
+      pointer-events: none;
+      animation: floatUp 1.2s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+    }
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translateY(0) scale(0.8); }
+      50% { transform: translateY(-30px) scale(1.2); }
+      100% { opacity: 0; transform: translateY(-60px) scale(1); }
+    }
+    .pulse-glow {
+      animation: pulseGlow 2s infinite alternate;
+    }
+    @keyframes pulseGlow {
+      0% { box-shadow: 0 0 15px rgba(236, 72, 153, 0.4); }
+      100% { box-shadow: 0 0 35px rgba(236, 72, 153, 0.9); }
+    }
+    .zone-bg {
+      animation: zoneRainbow 3s linear infinite;
+    }
+    @keyframes zoneRainbow {
+      0% { filter: hue-rotate(0deg); }
+      100% { filter: hue-rotate(360deg); }
+    }
+    /* カスタムスクロールバー */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.5);
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-pink-500 selection:text-white">
+
+  <!-- ZONE / 熱狂演出オーバースペック背景 -->
+  <div id="zoneOverlay" class="fixed inset-0 pointer-events-none opacity-0 transition-opacity duration-500 z-0 bg-gradient-to-r from-purple-900/30 via-pink-900/30 to-amber-900/30 zone-bg"></div>
+
+  <!-- 通知ポップアップ用エリア（SNSチラ見スキル用） -->
+  <div id="notificationArea" class="fixed inset-0 pointer-events-none z-50"></div>
+
+  <!-- メインコンテナ -->
+  <div class="relative z-10 max-w-5xl mx-auto w-full p-4 flex flex-col min-h-screen">
+    
+    <!-- ヘッダー / ステータス表示 -->
+    <header class="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-4 mb-4 shadow-xl flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h1 class="text-xs font-bold text-slate-400 tracking-widest uppercase flex items-center gap-2">
+          <i class="fa-solid font-sharp fa-mug-hot text-amber-400"></i> 無限お茶濁し
+        </h1>
+        <div class="text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-pink-400 to-indigo-400 mt-1 font-mono" id="satoriCount">
+          0 悟り
+        </div>
+        <div class="text-xs text-slate-400 mt-0.5">
+          秒間生成 (CPS): <span id="cpsDisplay" class="text-emerald-400 font-bold">0</span> / 煩悩倍率: <span id="multiplierDisplay" class="text-amber-400 font-bold">1.0x</span>
+        </div>
+      </div>
+
+      <!-- デバフ・特殊状態インジケーター -->
+      <div class="flex flex-wrap gap-2 items-center" id="statusBadges">
+        <span id="shunBadge" class="hidden px-3 py-1 rounded-full text-xs font-bold bg-slate-800 border border-slate-700 text-slate-400 flex items-center gap-1.5">
+          <i class="fa-solid fa-face-frown"></i> 箸折れシュン中 (効率低下)
+        </span>
+        <span id="ramenBadge" class="hidden px-3 py-1 rounded-full text-xs font-bold bg-amber-950/80 border border-amber-600/50 text-amber-300 flex items-center gap-1.5">
+          <i class="fa-solid fa-clock"></i> 3分お湯待ち中 (<span id="ramenTimer">15</span>s)
+        </span>
+        <span id="hoshuBadge" class="hidden px-3 py-1 rounded-full text-xs font-bold bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 flex items-center gap-1.5">
+          <i class="fa-solid fa-shield-halved"></i> とりあえず保留中 (デバフ無効)
+        </span>
+        <span id="microwaveBadge" class="hidden px-3 py-1 rounded-full text-xs font-bold bg-rose-950/80 border border-rose-500/50 text-rose-300 animate-pulse flex items-center gap-1.5">
+          <i class="fa-solid fa-fire-burner"></i> レンジ加熱中 (<span id="microTimer">10</span>s)
+        </span>
+      </div>
+    </header>
+
+    <!-- メイングリッド -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-grow mb-4">
+
+      <!-- 左カラム: タップゾーン & 能動スキル (5 cols) -->
+      <div class="lg:col-span-5 flex flex-col gap-4">
+        
+        <!-- 大元のタップボタン (悟りを開く) -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-center relative overflow-hidden shadow-lg group hover:border-slate-700 transition">
+          <div id="tapClickArea" class="w-40 h-40 rounded-full bg-gradient-to-tr from-indigo-600 via-pink-600 to-amber-500 p-1 cursor-pointer transition transform active:scale-95 shadow-2xl flex items-center justify-center relative group-hover:scale-105">
+            <div class="w-full h-full bg-slate-950 rounded-full flex flex-col items-center justify-center p-4 text-center">
+              <i class="fa-solid fa-hand-pointer text-4xl text-amber-300 mb-2 group-hover:rotate-12 transition transform"></i>
+              <span class="font-bold text-sm tracking-wider text-slate-200">お茶を濁す</span>
+              <span class="text-[10px] text-slate-400 mt-1" id="clickPowerDisplay">+1 悟り/Tap</span>
+            </div>
+          </div>
+          <!-- 寝落ち蓄積ゲージ -->
+          <div class="w-full mt-4 bg-slate-950/80 rounded-xl p-3 border border-slate-800">
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-400 font-bold flex items-center gap-1"><i class="fa-solid fa-moon text-indigo-400"></i> 寝落ちエネルギー</span>
+              <span class="text-indigo-300 font-mono" id="sleepPowerText">0 / 100</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+              <div id="sleepPowerBar" class="bg-indigo-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-1">※放置/ながら作業でチャージ。タップすると「うたた寝爆破」一閃！</p>
+          </div>
+        </div>
+
+        <!-- 能動スキル（アクティブスキル）一覧 -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex-grow shadow-lg">
+          <h2 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-bolt text-yellow-400"></i> 能動秘技 (クールタイム制)
+          </h2>
+          <div class="space-y-3">
+            
+            <!-- スキル1: 電子レンジチン！ -->
+            <button id="skillMicrowave" class="w-full bg-slate-800 hover:bg-slate-750 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded-xl p-3 text-left transition relative overflow-hidden group">
+              <div class="flex justify-between items-center mb-1">
+                <span class="font-bold text-sm text-rose-300 flex items-center gap-2">
+                  <i class="fa-solid fa-fire"></i> 秘技『電子レンジチン！』
+                </span>
+                <span id="cdMicrowave" class="text-xs font-mono text-slate-400">準備完了</span>
+              </div>
+              <p class="text-xs text-slate-400">10秒間、獲得リソースを「加熱」。終了時に最大10倍爆発撃破！</p>
+              <div id="barMicrowave" class="absolute bottom-0 left-0 h-1 bg-rose-500 transition-all duration-100" style="width: 100%"></div>
+            </button>
+
+            <!-- スキル2: とりあえず保留 -->
+            <button id="skillHoshu" class="w-full bg-slate-800 hover:bg-slate-750 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded-xl p-3 text-left transition relative overflow-hidden group">
+              <div class="flex justify-between items-center mb-1">
+                <span class="font-bold text-sm text-cyan-300 flex items-center gap-2">
+                  <i class="fa-solid fa-pause"></i> 奥義『とりあえず保留』
+                </span>
+                <span id="cdHoshu" class="text-xs font-mono text-slate-400">準備完了</span>
+              </div>
+              <p class="text-xs text-slate-400">15秒間、割箸失敗やラーメン待ちの「すべてのマイナス効果」を完全無視！</p>
+              <div id="barHoshu" class="absolute bottom-0 left-0 h-1 bg-cyan-500 transition-all duration-100" style="width: 100%"></div>
+            </button>
+
+            <!-- スキル3: SNSの通知チラ見 -->
+            <button id="skillSns" class="w-full bg-slate-800 hover:bg-slate-750 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded-xl p-3 text-left transition relative overflow-hidden group">
+              <div class="flex justify-between items-center mb-1">
+                <span class="font-bold text-sm text-purple-300 flex items-center gap-2">
+                  <i class="fa-solid fa-bell"></i> 幻惑『SNS通知チラ見』
+                </span>
+                <span id="cdSns" class="text-xs font-mono text-slate-400">準備完了</span>
+              </div>
+              <p class="text-xs text-slate-400">画面内に架空通知を出破。タップして消すと他スキルのCTを5秒ずつ短縮！</p>
+              <div id="barSns" class="absolute bottom-0 left-0 h-1 bg-purple-500 transition-all duration-100" style="width: 100%"></div>
+            </button>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 右カラム: 独創的な刀・パッシブ強化 (7 cols) -->
+      <div class="lg:col-span-7 flex flex-col gap-4">
+        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex-grow shadow-lg flex flex-col">
+          <h2 class="text-sm font-bold text-slate-300 mb-3 flex items-center justify-between">
+            <span class="flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-pink-400"></i> 概念刀・パッシブ能力強化</span>
+            <span class="text-xs text-slate-500">自動＆特殊シナジーの解放</span>
+          </h2>
+          
+          <div class="space-y-3 flex-grow overflow-y-auto max-h-[520px] pr-1" id="upgradesList">
+
+            <!-- 強化1: 寝落ちの太刀 -->
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-indigo-300 text-sm">妖刀『寝落ちの太刀』</span>
+                  <span class="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded" id="lvlSleep">Lv.0</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">放置中にエネルギーが自動蓄積。タップ時の一撃離脱パワーが大幅上昇。</p>
+              </div>
+              <button id="buySleep" class="w-full sm:w-auto shrink-0 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 font-bold px-4 py-2 rounded-xl text-xs transition border border-indigo-400/30">
+                購入: <span id="costSleep">10</span> 悟り
+              </button>
+            </div>
+
+            <!-- 強化2: ペンライト＆リモコン -->
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-pink-300 text-sm">二刀流『ペンライト＆リモコン』</span>
+                  <span class="text-[10px] bg-pink-950 text-pink-300 border border-pink-800 px-2 py-0.5 rounded" id="lvlPen">Lv.0</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">連打・BPM維持で熱狂ゲージ蓄積。自動悟り獲得(CPS)が増加。</p>
+              </div>
+              <button id="buyPen" class="w-full sm:w-auto shrink-0 bg-pink-600 hover:bg-pink-500 disabled:bg-slate-800 disabled:text-slate-600 font-bold px-4 py-2 rounded-xl text-xs transition border border-pink-400/30">
+                購入: <span id="costPen">50</span> 悟り
+              </button>
+            </div>
+
+            <!-- 強化3: 割り箸一膳・真打ち -->
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-amber-300 text-sm">伝説の割り箸『割り箸一膳・真打ち』</span>
+                  <span class="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.5 rounded" id="lvlChop">Lv.0</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">10秒毎に割る試練。成功(50%)で全生産4倍！失敗で10秒間「シュン状態」に。</p>
+              </div>
+              <button id="buyChop" class="w-full sm:w-auto shrink-0 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-600 font-bold px-4 py-2 rounded-xl text-xs transition border border-amber-400/30">
+                購入: <span id="costChop">200</span> 悟り
+              </button>
+            </div>
+
+            <!-- 強化4: カップ麺のフタ -->
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-emerald-300 text-sm">秘剣『カップ麺のフタ』</span>
+                  <span class="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded" id="lvlRamen">Lv.0</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">定期発動。15秒間の待ち時間（効率低下）の後、溜めたリソースが超大爆発。</p>
+              </div>
+              <button id="buyRamen" class="w-full sm:w-auto shrink-0 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 font-bold px-4 py-2 rounded-xl text-xs transition border border-emerald-400/30">
+                購入: <span id="costRamen">1000</span> 悟り
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- フッター/ログ表示エリア -->
+    <footer class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+      <div class="flex items-center gap-2 overflow-hidden w-full sm:w-auto">
+        <span class="bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold shrink-0">実況ログ</span>
+        <span id="gameLog" class="truncate text-slate-300 font-mono">「悟りを開く準備が完了しました...」</span>
+      </div>
+      <div class="shrink-0 text-[11px] text-slate-500">
+        シナジー暴発推奨 | ながら放置ゲーム
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    // --- ゲーム状態管理 (State) ---
+    const state = {
+      satori: 0,
+      clickPower: 1,
+      cps: 0,
+      sleepPower: 0,
+      maxSleepPower: 100,
+      
+      // パッシブスキルレベル & コスト
+      upgrades: {
+        sleep: { lvl: 0, cost: 10, baseCost: 10 },
+        pen: { lvl: 0, cost: 50, baseCost: 50 },
+        chop: { lvl: 0, cost: 200, baseCost: 200 },
+        ramen: { lvl: 0, cost: 1000, baseCost: 1000 }
+      },
+
+      // クールタイム (現在値 / 最大秒数)
+      cooldowns: {
+        microwave: { current: 0, max: 40 },
+        hoshu: { current: 0, max: 60 },
+        sns: { current: 0, max: 30 }
+      },
+
+      // バフ・デバフ状態 (残り時間秒)
+      activeEffects: {
+        shun: 0,          // 割箸失敗デバフ
+        chopBonus: 0,     // 割箸成功バフ
+        ramenWaiting: 0,  // カップ麺待ち状態
+        hoshu: 0,         // とりあえず保留中 (デバフ無効)
+        microwave: 0,     // 電子レンジ加熱中
+        microwavePool: 0  // レンジで溜め込んだダメージ/悟り
+      },
+
+      // タイマー用カウントダウン
+      chopTimer: 10,
+      ramenTimer: 25
+    };
+
+    // --- DOM要素取得 ---
+    const elSatori = document.getElementById('satoriCount');
+    const elCps = document.getElementById('cpsDisplay');
+    const elMultiplier = document.getElementById('multiplierDisplay');
+    const elClickPower = document.getElementById('clickPowerDisplay');
+    const elSleepText = document.getElementById('sleepPowerText');
+    const elSleepBar = document.getElementById('sleepPowerBar');
+    const elLog = document.getElementById('gameLog');
+    const elZoneOverlay = document.getElementById('zoneOverlay');
+
+    // スキルボタン＆CD表示
+    const btnMicrowave = document.getElementById('skillMicrowave');
+    const cdMicrowave = document.getElementById('cdMicrowave');
+    const barMicrowave = document.getElementById('barMicrowave');
+
+    const btnHoshu = document.getElementById('skillHoshu');
+    const cdHoshu = document.getElementById('cdHoshu');
+    const barHoshu = document.getElementById('barHoshu');
+
+    const btnSns = document.getElementById('skillSns');
+    const cdSns = document.getElementById('cdSns');
+    const barSns = document.getElementById('barSns');
+
+    // バッジ類
+    const badgeShun = document.getElementById('shunBadge');
+    const badgeRamen = document.getElementById('ramenBadge');
+    const badgeHoshu = document.getElementById('hoshuBadge');
+    const badgeMicro = document.getElementById('microwaveBadge');
+
+    // --- ログ出力関数 ---
+    function log(msg, color = 'text-slate-300') {
+      elLog.className = `truncate font-mono ${color}`;
+      elLog.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    }
+
+    // --- フローティングテキスト演出 ---
+    function createFloatingText(x, y, text, colorClass = 'text-amber-300') {
+      const el = document.createElement('div');
+      el.className = `floating-text font-black text-xl ${colorClass}`;
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.textContent = text;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1200);
+    }
+
+    // --- 倍率計算（シナジー核） ---
+    function getGlobalMultiplier() {
+      let mult = 1.0;
+
+      // 割り箸成功バフ
+      if (state.activeEffects.chopBonus > 0) {
+        mult *= 4.0;
+      }
+
+      // デバフ判定 (『とりあえず保留』中は無視)
+      const isProtected = state.activeEffects.hoshu > 0;
+
+      if (!isProtected) {
+        // 割り箸失敗シュン状態 (効率50%カット)
+        if (state.activeEffects.shun > 0) {
+          mult *= 0.5;
+        }
+        // カップ麺待ち状態 (効率90%カット)
+        if (state.activeEffects.ramenWaiting > 0) {
+          mult *= 0.1;
+        }
+      }
+
+      return mult;
+    }
+
+    // --- UI更新 ---
+    function updateUI() {
+      // 悟り数表示
+      elSatori.textContent = `${Math.floor(state.satori).toLocaleString()} 悟り`;
+      
+      // 実効CPS
+      const currentMult = getGlobalMultiplier();
+      const effectiveCps = (state.upgrades.pen.lvl * 3) * currentMult;
+      elCps.textContent = effectiveCps.toFixed(1);
+      elMultiplier.textContent = `${currentMult.toFixed(1)}x`;
+
+      // タップ威力表示
+      const tapDmg = (1 + state.upgrades.sleep.lvl * 2) * currentMult;
+      elClickPower.textContent = `+${Math.floor(tapDmg)} 悟り/Tap`;
+
+      // 寝落ちエネルギーゲージ
+      elSleepText.textContent = `${Math.floor(state.sleepPower)} / ${state.maxSleepPower}`;
+      elSleepBar.style.width = `${(state.sleepPower / state.maxSleepPower) * 100}%`;
+
+      // パッシブボタン状態 & テキスト
+      for (const [key, item] of Object.entries(state.upgrades)) {
+        const btn = document.getElementById(`buy${key.charAt(0).toUpperCase() + key.slice(1)}`);
+        const costEl = document.getElementById(`cost${key.charAt(0).toUpperCase() + key.slice(1)}`);
+        const lvlEl = document.getElementById(`lvl${key.charAt(0).toUpperCase() + key.slice(1)}`);
+
+        if (btn && costEl && lvlEl) {
+          costEl.textContent = Math.floor(item.cost).toLocaleString();
+          lvlEl.textContent = `Lv.${item.lvl}`;
+          btn.disabled = state.satori < item.cost;
+        }
+      }
+
+      // 能動スキルCDバー & ボタン状態
+      updateSkillButton(btnMicrowave, cdMicrowave, barMicrowave, state.cooldowns.microwave);
+      updateSkillButton(btnHoshu, cdHoshu, barHoshu, state.cooldowns.hoshu);
+      updateSkillButton(btnSns, cdSns, barSns, state.cooldowns.sns);
+
+      // バッジ表示制御
+      badgeShun.style.display = state.activeEffects.shun > 0 ? 'inline-flex' : 'none';
+      
+      if (state.activeEffects.ramenWaiting > 0) {
+        badgeRamen.style.display = 'inline-flex';
+        document.getElementById('ramenTimer').textContent = state.activeEffects.ramenWaiting;
+      } else {
+        badgeRamen.style.display = 'none';
+      }
+
+      badgeHoshu.style.display = state.activeEffects.hoshu > 0 ? 'inline-flex' : 'none';
+
+      if (state.activeEffects.microwave > 0) {
+        badgeMicro.style.display = 'inline-flex';
+        document.getElementById('microTimer').textContent = state.activeEffects.microwave;
+      } else {
+        badgeMicro.style.display = 'none';
+      }
+
+      // ZONE演出（超高倍率時に背景変化）
+      if (currentMult >= 4.0 || state.activeEffects.microwave > 0) {
+        elZoneOverlay.style.opacity = '1';
+      } else {
+        elZoneOverlay.style.opacity = '0';
+      }
+    }
+
+    function updateSkillButton(btn, cdText, bar, cdState) {
+      if (cdState.current > 0) {
+        btn.disabled = true;
+        cdText.textContent = `${cdState.current}s`;
+        const pct = ((cdState.max - cdState.current) / cdState.max) * 100;
+        bar.style.width = `${pct}%`;
+      } else {
+        btn.disabled = false;
+        cdText.textContent = '発動可能';
+        bar.style.width = '100%';
+      }
+    }
+
+    // --- メインタップ処理 ---
+    document.getElementById('tapClickArea').addEventListener('click', (e) => {
+      const mult = getGlobalMultiplier();
+      let gain = (1 + state.upgrades.sleep.lvl * 2) * mult;
+
+      // 寝落ちエネルギー解放シナジー
+      if (state.sleepPower > 10) {
+        const releaseDmg = state.sleepPower * (1 + state.upgrades.sleep.lvl * 1.5) * mult;
+        gain += releaseDmg;
+        log(`妖刀『寝落ちの太刀』一閃！ 妄想エネルギー解放 (+${Math.floor(releaseDmg)})`, 'text-indigo-400 font-bold');
+        state.sleepPower = 0;
+      }
+
+      // レンジ加熱中なら蓄積 pool に加算
+      if (state.activeEffects.microwave > 0) {
+        state.activeEffects.microwavePool += gain;
+      } else {
+        state.satori += gain;
+      }
+
+      createFloatingText(e.clientX, e.clientY, `+${Math.floor(gain)}`);
+      updateUI();
+    });
+
+    // --- アップグレード購入処理 ---
+    function buyUpgrade(type) {
+      const up = state.upgrades[type];
+      if (state.satori >= up.cost) {
+        state.satori -= up.cost;
+        up.lvl++;
+        up.cost = Math.floor(up.baseCost * Math.pow(1.35, up.lvl));
+        log(`【強化】${type} を Lv.${up.lvl} に強化しました！`, 'text-emerald-400');
+        updateUI();
+      }
+    }
+
+    document.getElementById('buySleep').addEventListener('click', () => buyUpgrade('sleep'));
+    document.getElementById('buyPen').addEventListener('click', () => buyUpgrade('pen'));
+    document.getElementById('buyChop').addEventListener('click', () => buyUpgrade('chop'));
+    document.getElementById('buyRamen').addEventListener('click', () => buyUpgrade('ramen'));
+
+    // --- 能動スキル発動 ---
+
+    // スキル1: 電子レンジチン！
+    btnMicrowave.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.cooldowns.microwave.current === 0) {
+        state.cooldowns.microwave.current = state.cooldowns.microwave.max;
+        state.activeEffects.microwave = 10;
+        state.activeEffects.microwavePool = 0;
+        log('秘技『電子レンジチン！』発動！10秒間の獲得量を加熱開始！', 'text-rose-400 font-bold');
+        updateUI();
+      }
+    });
+
+    // スキル2: とりあえず保留
+    btnHoshu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.cooldowns.hoshu.current === 0) {
+        state.cooldowns.hoshu.current = state.cooldowns.hoshu.max;
+        state.activeEffects.hoshu = 15;
+        log('奥義『とりあえず保留』発動！15秒間あらゆるデバフを無効化！', 'text-cyan-400 font-bold');
+        updateUI();
+      }
+    });
+
+    // スキル3: SNSの通知チラ見
+    btnSns.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.cooldowns.sns.current === 0) {
+        state.cooldowns.sns.current = state.cooldowns.sns.max;
+        spawnSnsNotifications();
+        log('幻惑『SNS通知チラ見』発動！画面内の通知を消してCT短縮を狙え！', 'text-purple-400 font-bold');
+        updateUI();
+      }
+    });
+
+    // 架空SNS通知の出現
+    function spawnSnsNotifications() {
+      const area = document.getElementById('notificationArea');
+      const messages = [
+        "【バズ】「お茶を濁すだけで人生変わった」が10万RT",
+        "【連絡】明日までに悟り開いておいてください",
+        "【通知】割り箸が綺麗に割れる確率が微増中？",
+        "【速報】カップ麺の待ち時間が3分から15秒に短縮"
+      ];
+
+      for (let i = 0; i < 4; i++) {
+        setTimeout(() => {
+          const notif = document.createElement('div');
+          notif.className = 'pointer-events-auto bg-slate-900/90 border border-purple-500 text-purple-200 p-3 rounded-xl shadow-2xl absolute cursor-pointer hover:bg-purple-900/50 transition transform hover:scale-105 flex items-center justify-between gap-3 min-w-[240px]';
+          
+          // ランダム位置
+          const top = 15 + Math.random() * 60;
+          const left = 10 + Math.random() * 60;
+          notif.style.top = `${top}%`;
+          notif.style.left = `${left}%`;
+
+          notif.innerHTML = `
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-bell text-purple-400"></i>
+              <span class="text-xs font-bold">${messages[i % messages.length]}</span>
+            </div>
+            <span class="text-[10px] bg-purple-500 text-white px-1.5 py-0.5 rounded">Tap</span>
+          `;
+
+          notif.onclick = (e) => {
+            e.stopPropagation();
+            // 他スキルのCTを5秒短縮
+            if (state.cooldowns.microwave.current > 0) state.cooldowns.microwave.current = Math.max(0, state.cooldowns.microwave.current - 5);
+            if (state.cooldowns.hoshu.current > 0) state.cooldowns.hoshu.current = Math.max(0, state.cooldowns.hoshu.current - 5);
+            
+            createFloatingText(e.clientX, e.clientY, 'CT -5s!', 'text-purple-400');
+            log('通知を既読スルー！他スキルのCTが5秒短縮！', 'text-purple-300');
+            notif.remove();
+            updateUI();
+          };
+
+          area.appendChild(notif);
+
+          // 6秒後に自動消滅
+          setTimeout(() => { if (notif.parentNode) notif.remove(); }, 6000);
+        }, i * 400);
+      }
+    }
+
+    // --- メインゲームループ (毎秒実行) ---
+    setInterval(() => {
+      const mult = getGlobalMultiplier();
+
+      // 1. 自動悟り獲得 (CPS)
+      const autoGain = (state.upgrades.pen.lvl * 3) * mult;
+      if (state.activeEffects.microwave > 0) {
+        state.activeEffects.microwavePool += autoGain;
+      } else {
+        state.satori += autoGain;
+      }
+
+      // 2. 寝落ちエネルギー自動充填 (放置)
+      if (state.upgrades.sleep.lvl > 0 && state.sleepPower < state.maxSleepPower) {
+        state.sleepPower = Math.min(state.maxSleepPower, state.sleepPower + 2 + state.upgrades.sleep.lvl);
+      }
+
+      // 3. 割り箸の試練タイマー
+      if (state.upgrades.chop.lvl > 0) {
+        state.chopTimer--;
+        if (state.chopTimer <= 0) {
+          state.chopTimer = 12;
+          const success = Math.random() < 0.5;
+          if (success) {
+            state.activeEffects.chopBonus = 6; // 6秒間4倍
+            log('【大成功】割り箸が奇跡的に綺麗に割れた！全効率4倍爆増！', 'text-amber-400 font-bold');
+          } else {
+            state.activeEffects.shun = 6; // 6秒間デバフ
+            log('【失敗】割り箸が斜めに割れた...意気消沈(効率低下)', 'text-slate-400');
+          }
+        }
+      }
+
+      // 4. カップ麺のフタタイマー
+      if (state.upgrades.ramen.lvl > 0 && state.activeEffects.ramenWaiting === 0) {
+        state.ramenTimer--;
+        if (state.ramenTimer <= 0) {
+          state.ramenTimer = 25;
+          state.activeEffects.ramenWaiting = 8; // 8秒の待ち時間発生
+          log('秘剣『カップ麺のフタ』発動！お湯戻り待ち（8秒）に突入...', 'text-emerald-400');
+        }
+      }
+
+      // --- バフ・デバフのカウントダウン ---
+      if (state.activeEffects.chopBonus > 0) state.activeEffects.chopBonus--;
+      if (state.activeEffects.shun > 0) state.activeEffects.shun--;
+      if (state.activeEffects.hoshu > 0) state.activeEffects.hoshu--;
+
+      // カップ麺の待ち時間完了時の大爆発
+      if (state.activeEffects.ramenWaiting > 0) {
+        state.activeEffects.ramenWaiting--;
+        if (state.activeEffects.ramenWaiting === 0) {
+          const ramenExplosion = (state.upgrades.ramen.lvl * 500) * mult;
+          state.satori += ramenExplosion;
+          log(`【麺完成】麺が最高にほぐれた！お湯戻りボーナス発動 (+${Math.floor(ramenExplosion)} 悟り)`, 'text-emerald-300 font-black');
+        }
+      }
+
+      // 電子レンジ加熱完了時の大爆発
+      if (state.activeEffects.microwave > 0) {
+        state.activeEffects.microwave--;
+        if (state.activeEffects.microwave === 0) {
+          const rngMultiplier = 3 + Math.floor(Math.random() * 8); // 3〜10倍
+          const finalGain = state.activeEffects.microwavePool * rngMultiplier;
+          state.satori += finalGain;
+          log(`【チンッ！】加熱完了！${rngMultiplier}倍に膨らみ爆発回収！ (+${Math.floor(finalGain)} 悟り)`, 'text-rose-400 font-black');
+          state.activeEffects.microwavePool = 0;
+        }
+      }
+
+      // --- クールタイムカウントダウン ---
+      for (const key in state.cooldowns) {
+        if (state.cooldowns[key].current > 0) {
+          state.cooldowns[key].current--;
+        }
+      }
+
+      updateUI();
+    }, 1000);
+
+    // 初期化UI描画
+    updateUI();
+  </script>
+</body>
+</html>
