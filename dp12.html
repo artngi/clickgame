@@ -1,0 +1,2393 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>チェーン・オーバードライブ | CHAIN OVERDRIVE</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Noto+Sans+JP:wght@500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --neon-cyan: #00f3ff;
+      --neon-yellow: #ffe600;
+      --neon-red: #ff2a55;
+      --neon-blue: #38bdf8;
+      --neon-purple: #c084fc;
+      --neon-gold: #fbbf24;
+      --bg-dark: #05070e;
+    }
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      color: #f8fafc;
+      font-family: 'Noto Sans JP', sans-serif;
+    }
+    .font-cyber {
+      font-family: 'Orbitron', 'Noto Sans JP', sans-serif;
+    }
+    .neon-text-cyan {
+      text-shadow: 0 0 8px rgba(0, 243, 255, 0.8), 0 0 20px rgba(0, 243, 255, 0.4);
+    }
+    .neon-text-gold {
+      text-shadow: 0 0 10px rgba(251, 191, 36, 0.9), 0 0 24px rgba(245, 158, 11, 0.6);
+    }
+    .neon-box {
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.15), inset 0 0 15px rgba(0, 243, 255, 0.08);
+      border: 1px solid rgba(0, 243, 255, 0.35);
+      background: rgba(10, 15, 30, 0.88);
+      backdrop-filter: blur(8px);
+    }
+    .neon-btn {
+      transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .neon-btn:hover:not(:disabled) {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+    }
+    .neon-btn:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+    @keyframes pulseBeat {
+      0% { transform: scale(1); filter: brightness(1); }
+      40% { transform: scale(1.35); filter: brightness(1.8); }
+      100% { transform: scale(1); filter: brightness(1); }
+    }
+    .synergy-pulse {
+      animation: pulseBeat 0.35s ease-out;
+    }
+    @keyframes rainbowGlow {
+      0% { filter: hue-rotate(0deg); }
+      100% { filter: hue-rotate(360deg); }
+    }
+    .rainbow-overdrive {
+      animation: rainbowGlow 1.5s linear infinite;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 243, 255, 0.4);
+      border-radius: 999px;
+    }
+    #gameCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    .edge-vignette {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      transition: box-shadow 0.2s ease;
+      z-index: 5;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 画面端オーバードライブ発光オーバーレイ -->
+  <div id="edgeVignette" class="edge-vignette"></div>
+
+  <!-- メインゲームキャンバス -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- ==================== バトル中 HUD ==================== -->
+  <div id="battleHud" class="hidden fixed inset-0 pointer-events-none z-10 flex flex-col justify-between p-3 sm:p-5">
+    <!-- 上部エリア：左上（ステータス＆設定）と右上端（スキル星座）、その下に中央情報 -->
+    <div class="flex flex-col gap-2 w-full">
+      <!-- 最上段：左右の空白を埋めるスマートな配置 -->
+      <div class="flex items-start justify-between gap-2 w-full">
+        <!-- 左上：ステータス・HP・EXP ＆ 設定ボタン -->
+        <div class="flex flex-col gap-1.5 pointer-events-auto">
+          <div class="neon-box rounded-xl p-2 sm:p-3 w-44 sm:w-64">
+            <div class="flex justify-between items-center text-xs sm:text-sm font-bold mb-1">
+              <span id="hudFrameName" class="text-cyan-300 truncate">ストライカー</span>
+              <span class="font-cyber text-yellow-300 shrink-0">LV.<span id="hudLevel">1</span></span>
+            </div>
+            <!-- HPバー -->
+            <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-700 mb-1">
+              <div id="hudHpBar" class="h-full bg-gradient-to-r from-rose-500 to-emerald-400 transition-all duration-100" style="width: 100%"></div>
+            </div>
+            <!-- EXPバー -->
+            <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-700 mb-1">
+              <div id="hudExpBar" class="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 transition-all duration-75" style="width: 0%"></div>
+            </div>
+            <div class="flex justify-between text-[10px] sm:text-[11px] text-slate-300">
+              <span>HP: <b id="hudHpText">100/100</b></span>
+              <span>データ片: <b id="hudShards" class="text-amber-300">0</b></span>
+            </div>
+          </div>
+
+          <!-- 左上：設定ボタンのみスッキリ配置（オート強化ボタンは削除） -->
+          <div class="flex items-center">
+            <button id="btnOpenSettings" class="neon-box rounded-lg px-3 py-1.5 text-xs font-bold text-cyan-300 hover:text-white cursor-pointer flex items-center gap-1 bg-slate-900/90 border-cyan-400">
+              ⚙️ 設定
+            </button>
+          </div>
+        </div>
+
+        <!-- 右上端：スキル星座ボタン（右上端の空白にぴったり収まるよう配置） -->
+        <div class="pointer-events-auto shrink-0">
+          <button id="btnOpenTree" class="neon-btn neon-box rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 flex items-center gap-2 border-cyan-400 cursor-pointer">
+            <span class="text-base sm:text-lg">🕸️</span>
+            <div class="text-left">
+              <div class="text-xs sm:text-sm font-black text-cyan-300 leading-tight">スキル星座</div>
+              <div class="text-[11px] text-slate-300 leading-tight">SP: <b id="hudSpCount" class="text-yellow-300 font-cyber text-xs sm:text-sm">0</b> <span class="hidden sm:inline text-slate-400">[T / TAB]</span></div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- 中央上：ウェーブ時間＆コンボ倍率メーター＆ボスHP -->
+      <div class="flex flex-col items-center">
+        <div class="neon-box rounded-full px-3.5 py-1 flex items-center gap-2.5 sm:gap-3 mb-1">
+          <span id="hudPhaseBadge" class="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">序盤：覚醒の予感</span>
+          <span id="hudTimer" class="font-cyber text-sm sm:text-xl font-black tracking-wider text-white">00:00</span>
+          <span class="text-[11px] sm:text-xs text-slate-400">KILL: <b id="hudKills" class="text-white">0</b></span>
+        </div>
+        <!-- コンボ＆チェーン倍率 -->
+        <div id="comboContainer" class="flex flex-col items-center transition-transform duration-75">
+          <div class="flex items-baseline gap-1.5">
+            <span class="text-xs font-cyber text-cyan-300 tracking-widest">CHAIN</span>
+            <span id="hudCombo" class="font-cyber text-2xl sm:text-4xl font-black text-white neon-text-cyan">x1</span>
+          </div>
+          <div id="hudOverdriveTag" class="hidden text-[11px] font-cyber font-black px-2.5 py-0.5 rounded bg-gradient-to-r from-amber-400 via-pink-500 to-cyan-400 text-slate-950 tracking-widest">
+            OVERDRIVE ACTIVE!
+          </div>
+        </div>
+        <!-- ボスHPバー（出現時のみ） -->
+        <div id="bossHud" class="hidden mt-2 w-64 sm:w-96 neon-box rounded-xl p-2 border-rose-500/60">
+          <div class="flex justify-between text-xs font-bold text-rose-300 mb-1">
+            <span id="bossName">BOSS: オーバーロード・コア</span>
+            <span id="bossHpPercent">100%</span>
+          </div>
+          <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-rose-500/50">
+            <div id="bossHpBar" class="h-full bg-gradient-to-r from-rose-600 via-amber-500 to-rose-400" style="width: 100%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 下部バー：アクティブシナジーアイコン群 & ダッシュゲージ（マウス追従ボタンは削除） -->
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-2">
+      <!-- ダッシュゲージ -->
+      <div class="neon-box rounded-xl px-3 py-2 flex items-center gap-3 pointer-events-auto">
+        <button id="btnDashMobile" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-400 text-cyan-200 font-bold text-xs active:scale-95 cursor-pointer">
+          ⚡ ダッシュ [SPACE]
+        </button>
+        <div class="w-28 sm:w-36">
+          <div class="flex justify-between text-[10px] text-cyan-300 mb-0.5">
+            <span>OVERDRIVE DASH</span>
+            <span id="dashChargesText">2/2</span>
+          </div>
+          <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+            <div id="hudDashBar" class="h-full bg-cyan-400 transition-all duration-75" style="width: 100%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- アクティブ・シナジー一覧 -->
+      <div id="activeSynergyBar" class="flex flex-wrap justify-center gap-2 pointer-events-auto max-w-full">
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 設定画面モーダル（一時停止＆コンパクト化） ==================== -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="neon-box rounded-2xl max-w-sm w-full p-5 text-center border-cyan-400">
+      <h2 class="font-cyber text-xl font-black text-cyan-300 mb-4">設定・オプション</h2>
+      <div class="flex flex-col gap-3 text-left text-xs mb-5">
+        <div class="flex justify-between items-center p-2 rounded bg-slate-900 border border-slate-800">
+          <span class="font-bold text-slate-300">音量設定 (BGM/SE)</span>
+          <button id="btnToggleMuteModal" class="px-3 py-1.5 rounded bg-cyan-500/20 border border-cyan-400 text-cyan-200 font-bold cursor-pointer">
+            🔊 ON
+          </button>
+        </div>
+        <div class="flex justify-between items-center p-2 rounded bg-slate-900 border border-slate-800">
+          <span class="font-bold text-slate-300">マウス設定 (追従)</span>
+          <button id="btnMouseFollowModal" class="px-3 py-1.5 rounded bg-cyan-500/20 border border-cyan-400 text-cyan-200 font-bold cursor-pointer">
+            ON
+          </button>
+        </div>
+        <div class="flex justify-between items-center p-2 rounded bg-slate-900 border border-slate-800">
+          <span class="font-bold text-slate-300">オート強化</span>
+          <button id="btnAutoBuildModal" class="px-3 py-1.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer">
+            OFF
+          </button>
+        </div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <button id="btnCloseSettings" class="neon-btn py-2.5 rounded-xl bg-cyan-400 text-slate-950 font-black text-sm cursor-pointer">
+          設定を閉じて再開
+        </button>
+        <button id="btnQuitRunFromSettings" class="neon-btn py-2.5 rounded-xl bg-rose-500/20 border border-rose-500 text-rose-300 font-bold text-xs cursor-pointer">
+          🏳️ 対戦を終了する（帰還）
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 星座（コンステレーション）スキルツリー画面 ==================== -->
+  <div id="treeModal" class="hidden fixed inset-0 z-30 bg-slate-950/90 backdrop-blur-md flex flex-col">
+    <!-- ヘッダー -->
+    <div class="flex flex-wrap items-center justify-between gap-2 p-3 sm:p-4 border-b border-cyan-500/30 bg-slate-900/80">
+      <div class="flex items-center gap-3">
+        <h2 class="font-cyber text-lg sm:text-2xl font-black text-cyan-300 neon-text-cyan">CONSTELLATION SKILL TREE</h2>
+        <span class="px-3 py-1 rounded-full bg-yellow-400/20 border border-yellow-400 text-yellow-300 font-bold text-xs sm:text-sm">
+          未使用SP: <b id="treeSpDisplay" class="font-cyber text-base sm:text-lg">0</b>
+        </span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnQuickSpend" class="neon-btn px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-pink-500 text-slate-950 font-black text-xs sm:text-sm cursor-pointer">
+          ⚡ おすすめ一括強化
+        </button>
+        <button id="btnCloseTree" class="neon-btn px-4 py-2 rounded-xl bg-cyan-500 text-slate-950 font-black text-xs sm:text-sm cursor-pointer">
+          ▶ バトルに戻る [ESC / T]
+        </button>
+      </div>
+    </div>
+
+    <!-- メイン：星座キャンバス＋詳細パネル -->
+    <div class="flex-1 relative flex flex-col lg:flex-row overflow-hidden">
+      <!-- 星座インタラクティブキャンバス -->
+      <div id="treeCanvasWrapper" class="flex-1 relative overflow-hidden cursor-pointer">
+        <canvas id="treeCanvas" class="w-full h-full block"></canvas>
+        <div class="absolute top-3 left-3 flex flex-wrap gap-2 pointer-events-none text-[11px] font-bold">
+          <span class="px-2 py-1 rounded bg-yellow-500/20 border border-yellow-400/50 text-yellow-300">⚡ 上：ボルテージ(雷)</span>
+          <span class="px-2 py-1 rounded bg-rose-500/20 border border-rose-400/50 text-rose-300">🔥 右：インフェルノ(炎)</span>
+          <span class="px-2 py-1 rounded bg-sky-500/20 border border-sky-400/50 text-sky-300">🧊 下：フロスト(氷)</span>
+          <span class="px-2 py-1 rounded bg-purple-500/20 border border-purple-400/50 text-purple-300">🔮 左：オート(自動)</span>
+        </div>
+      </div>
+
+      <!-- 右/下：選択ノード情報＆シナジーガイド -->
+      <div class="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-cyan-500/30 bg-slate-900/95 p-4 flex flex-col justify-between max-h-[42vh] lg:max-h-none overflow-y-auto">
+        <div id="nodeDetailBox">
+          <div class="text-xs text-cyan-400 font-bold mb-1">ノードを選択して下のボタンで強化</div>
+          <h3 id="detailTitle" class="text-lg font-black text-white mb-1">中央コア・リアクター</h3>
+          <p id="detailDesc" class="text-xs sm:text-sm text-slate-300 leading-relaxed mb-3">
+            ノードをタップして選択し、下側のボタンを押すことでSPを消費してレベルアップします。
+          </p>
+          <div id="detailSynergyHint" class="p-2.5 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-amber-300 mb-3">
+            💡 ヒント：隣接系統の対応ノードを育ててハイブリッド・シナジーを覚醒させよう！
+          </div>
+          <!-- スキルツリー画面下側のボタンでのみ強化できる -->
+          <button id="btnUpgradeSelected" class="hidden w-full py-3 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-black text-sm shadow-lg cursor-pointer">
+            このスキルを強化する (1 SP)
+          </button>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-800">
+          <div class="text-xs font-bold text-slate-400 mb-2">ハイブリッド・シナジー覚醒状況 (<span id="synergyUnlockedCount">0</span>/8)</div>
+          <div id="treeSynergyList" class="grid grid-cols-1 gap-1.5 text-xs"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== タイトル＆拠点（メタ進行）画面 ==================== -->
+  <div id="titleScreen" class="fixed inset-0 z-20 flex flex-col items-center justify-between p-4 sm:p-6 overflow-y-auto bg-slate-950/75 backdrop-blur-sm">
+    <div class="w-full max-w-5xl flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-1 rounded bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 font-cyber text-xs font-bold">VER 1.0 FULL EDITION</span>
+        <span class="text-xs text-slate-400">24 SKILLS × 8 SYNERGIES</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <!-- セーブデータ削除ボタン（二重確認つき） -->
+        <button id="btnResetSave" class="px-3 py-1 rounded bg-rose-500/20 border border-rose-500/60 text-rose-300 text-xs font-bold hover:bg-rose-500/30 cursor-pointer">
+          🗑️ セーブデータ削除
+        </button>
+        <div class="neon-box rounded-full px-4 py-1.5 flex items-center gap-3">
+          <span class="text-xs text-slate-300">所持データ片:</span>
+          <span id="metaShardsDisplay" class="font-cyber text-lg font-black text-amber-300 neon-text-gold">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="my-4 text-center max-w-3xl">
+      <div class="text-xs sm:text-sm font-cyber tracking-[0.35em] text-cyan-400 mb-1">HYPER DOPAMINE ACTION ROGUELITE</div>
+      <h1 class="font-cyber text-3xl sm:text-6xl font-black tracking-tight text-white neon-text-cyan mb-2">
+        CHAIN OVERDRIVE
+      </h1>
+      <p class="text-sm sm:text-base font-bold text-slate-300 mb-5">
+        チェーン・オーバードライブ ── 24種の星座スキルと8種の相乗シナジーで画面を埋め尽くせ
+      </p>
+
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mb-2">
+        <div class="neon-box rounded-xl px-4 py-2.5 flex items-center gap-3">
+          <span class="text-xs font-bold text-rose-300">🔥 危険度 (HEAT):</span>
+          <select id="heatLevelSelect" class="bg-slate-900 border border-rose-500/50 rounded-lg px-3 py-1 text-sm font-bold text-white outline-none cursor-pointer">
+            <option value="1">HEAT 1：標準 (報酬 x1.0)</option>
+          </select>
+        </div>
+
+        <button id="btnStartGame" class="neon-btn px-8 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-slate-950 font-black text-base sm:text-lg tracking-wider shadow-[0_0_30px_rgba(0,243,255,0.6)] cursor-pointer">
+          ⚡ オーバードライブ出撃
+        </button>
+      </div>
+      <div class="text-[11px] text-slate-400">
+        操作：WASD / 矢印キー / マウス追従移動 ｜ SPACE / 右クリックで無敵ダッシュ（ジャスト回避で全スキル即リロード！）
+      </div>
+    </div>
+
+    <div class="w-full max-w-5xl neon-box rounded-2xl p-4 sm:p-5">
+      <div class="flex flex-wrap gap-2 border-b border-slate-800 pb-3 mb-4">
+        <button data-tab="frames" class="meta-tab-btn px-4 py-2 rounded-xl font-bold text-xs sm:text-sm bg-cyan-500 text-slate-950 cursor-pointer">
+          🚀 機体フレーム選択 (4種)
+        </button>
+        <button data-tab="reactor" class="meta-tab-btn px-4 py-2 rounded-xl font-bold text-xs sm:text-sm bg-slate-800 text-slate-300 hover:text-white cursor-pointer">
+          🧬 コア・リアクター (永続強化)
+        </button>
+        <button data-tab="archive" class="meta-tab-btn px-4 py-2 rounded-xl font-bold text-xs sm:text-sm bg-slate-800 text-slate-300 hover:text-white cursor-pointer">
+          📖 シナジー図鑑 (<span id="archiveCountBadge">0</span>/8)
+        </button>
+      </div>
+
+      <div id="tab-frames" class="meta-tab-content grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+      <div id="tab-reactor" class="meta-tab-content hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+      <div id="tab-archive" class="meta-tab-content hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+    </div>
+  </div>
+
+  <!-- ==================== リザルトモーダル ==================== -->
+  <div id="resultModal" class="hidden fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="neon-box rounded-2xl max-w-lg w-full p-6 text-center border-cyan-400">
+      <div id="resultBadge" class="inline-block px-3 py-1 rounded-full text-xs font-cyber font-bold mb-2 bg-cyan-500/20 text-cyan-300">
+        MISSION COMPLETE
+      </div>
+      <h2 id="resultTitle" class="font-cyber text-2xl sm:text-4xl font-black text-white neon-text-cyan mb-2">
+        OVERDRIVE CLEARED!
+      </h2>
+      <p id="resultSubtitle" class="text-xs sm:text-sm text-slate-300 mb-5">
+        圧倒的なシナジー連鎖でオーバーロード・コアを撃破した！
+      </p>
+
+      <div class="grid grid-cols-2 gap-3 bg-slate-900/90 rounded-xl p-4 border border-slate-800 mb-5 text-left text-xs sm:text-sm">
+        <div>生存時間: <b id="resTime" class="text-white float-right font-cyber">00:00</b></div>
+        <div>撃破数: <b id="resKills" class="text-cyan-300 float-right font-cyber">0</b></div>
+        <div>最大CHAIN: <b id="resMaxCombo" class="text-fuchsia-400 float-right font-cyber">x1</b></div>
+        <div>覚醒シナジー: <b id="resSynergies" class="text-emerald-400 float-right font-cyber">0種</b></div>
+        <div class="col-span-2 pt-2 border-t border-slate-800 text-base">
+          獲得データ片: <b id="resShards" class="text-amber-300 float-right font-cyber text-lg">+0</b>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <button id="btnEndlessContinue" class="hidden neon-btn px-5 py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 to-amber-500 text-slate-950 font-black text-sm cursor-pointer">
+          ♾️ エンドレス突入
+        </button>
+        <button id="btnBackToTitle" class="neon-btn px-6 py-3 rounded-xl bg-cyan-400 text-slate-950 font-black text-sm cursor-pointer">
+          拠点へ戻る（強化・図鑑）
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- トースト通知 -->
+  <div id="toastBanner" class="pointer-events-none fixed top-24 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 opacity-0 scale-90">
+    <div id="toastInner" class="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 via-pink-500 to-cyan-400 text-slate-950 font-black text-sm sm:text-lg shadow-[0_0_30px_rgba(255,255,255,0.8)] text-center">
+      ⚡ SYNERGY AWAKENED!
+    </div>
+  </div>
+
+<script>
+class SoundEngine {
+  constructor() {
+    this.ctx = null;
+    this.muted = false;
+    this.bgmTimer = null;
+    this.bgmStep = 0;
+    this.comboIntensity = 0;
+  }
+
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AudioCtx();
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+
+  toggleMute() {
+    this.muted = !this.muted;
+    return this.muted;
+  }
+
+  playTone(freq, type, duration, vol = 0.12, slideFreq = null) {
+    if (this.muted || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now);
+      if (slideFreq) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20, slideFreq), now + duration);
+      }
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration);
+    } catch (e) {}
+  }
+
+  playNoise(duration, vol = 0.15, filterFreq = 800) {
+    if (this.muted || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const bufferSize = this.ctx.sampleRate * duration;
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(filterFreq, now);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+      noise.start(now);
+    } catch (e) {}
+  }
+
+  sfxZap() { this.playTone(900 + Math.random() * 400, 'sawtooth', 0.08, 0.06, 220); }
+  sfxExplosion() { this.playNoise(0.22, 0.14, 550); this.playTone(110, 'sine', 0.2, 0.15, 35); }
+  sfxIce() { this.playTone(1500 + Math.random() * 500, 'triangle', 0.1, 0.07, 2400); }
+  sfxHit() { this.playTone(280 + Math.random() * 80, 'square', 0.04, 0.03, 120); }
+  sfxGem(pitchBoost = 0) {
+    this.playTone(660 + Math.min(600, pitchBoost * 15), 'sine', 0.07, 0.05, 990 + pitchBoost * 15);
+  }
+  sfxDash() { this.playTone(300, 'sawtooth', 0.15, 0.1, 950); }
+  sfxJustDodge() {
+    this.playTone(1046.5, 'sine', 0.35, 0.18, 2093);
+    setTimeout(() => this.playTone(1318.5, 'triangle', 0.35, 0.15, 2637), 40);
+    setTimeout(() => this.playTone(1568.0, 'sine', 0.4, 0.16, 3136), 80);
+  }
+  sfxLevelUp() {
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((n, idx) => {
+      setTimeout(() => this.playTone(n, 'triangle', 0.18, 0.12), idx * 55);
+    });
+  }
+  sfxSkillUpgrade(lv) {
+    const base = 440 + lv * 110;
+    this.playTone(base, 'sine', 0.14, 0.14, base * 1.5);
+  }
+  sfxSynergyAwaken() {
+    const chord = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568.0];
+    chord.forEach((n, i) => {
+      setTimeout(() => this.playTone(n, 'sawtooth', 0.45, 0.12), i * 60);
+    });
+  }
+
+  startBgm() {
+    this.stopBgm();
+    const bassLine = [110, 110, 130.81, 146.83, 110, 110, 164.81, 146.83];
+    const leadLine = [440, 0, 523.25, 587.33, 659.25, 523.25, 783.99, 659.25];
+    const tick = () => {
+      if (!this.muted && this.ctx && game && game.state === 'playing') {
+        const step = this.bgmStep % 8;
+        this.playTone(bassLine[step], 'triangle', 0.14, 0.045);
+        if (this.comboIntensity > 15 && leadLine[step] > 0) {
+          this.playTone(leadLine[step], 'sine', 0.12, 0.03);
+        }
+        if (this.comboIntensity > 60 && step % 2 === 0) {
+          this.playTone(leadLine[step] * 2 || 880, 'square', 0.06, 0.018);
+        }
+        this.bgmStep++;
+      }
+      const interval = Math.max(105, 175 - Math.min(65, this.comboIntensity * 0.5));
+      this.bgmTimer = setTimeout(tick, interval);
+    };
+    tick();
+  }
+
+  stopBgm() {
+    if (this.bgmTimer) clearTimeout(this.bgmTimer);
+    this.bgmTimer = null;
+  }
+}
+
+const sound = new SoundEngine();
+
+const BRANCH_META = {
+  V: { name: 'ボルテージ (雷)', color: '#ffe600', icon: '⚡' },
+  I: { name: 'インフェルノ (炎)', color: '#ff2a55', icon: '🔥' },
+  F: { name: 'フロスト (氷)', color: '#38bdf8', icon: '🧊' },
+  A: { name: 'オート (自動)', color: '#c084fc', icon: '🔮' }
+};
+
+const SKILLS_DATA = [
+  { id: 'V1', branch: 'V', tier: 1, name: 'スパーク・ショット', icon: '⚡', dx: 0, dy: -85, req: null, desc: '基本電撃ショットを高速発射。' },
+  { id: 'V2', branch: 'V', tier: 2, name: 'チェーン・ライトニング', icon: '🌩️', dx: 65, dy: -145, req: 'V1', desc: '攻撃命中時に近くの敵へ連鎖する稲妻を放つ。' },
+  { id: 'V3', branch: 'V', tier: 2, name: 'オーバークロック', icon: '⏩', dx: -65, dy: -145, req: 'V1', desc: '移動速度とスキルの回転率が加速。' },
+  { id: 'V4', branch: 'V', tier: 3, name: 'クリティカル・サージ', icon: '💥', dx: -115, dy: -225, req: 'V3', desc: 'クリティカル率＆倍率増。' },
+  { id: 'V5', branch: 'V', tier: 3, name: 'サンダー・ストーム', icon: '⛈️', dx: 115, dy: -225, req: 'V2', desc: '落雷を連続発生。' },
+  { id: 'V6', branch: 'V', tier: 4, name: 'ライトニング・ロード', icon: '🚄', dx: 0, dy: -275, req: 'V2', isUltimate: true, desc: '【奥義】ダッシュ軌跡に電流の壁を残す。' },
+
+  { id: 'I1', branch: 'I', tier: 1, name: 'イグニッション', icon: '🔥', dx: 85, dy: 0, req: null, desc: '攻撃に炎上を付与。' },
+  { id: 'I2', branch: 'I', tier: 2, name: 'コープス・エクスプロージョン', icon: '💣', dx: 145, dy: -65, req: 'I1', desc: '敵撃破時に大爆発。' },
+  { id: 'I3', branch: 'I', tier: 2, name: 'メテオ・シャワー', icon: '☄️', dx: 225, dy: -115, req: 'I2', desc: '上空から隕石が降る。' },
+  { id: 'I4', branch: 'I', tier: 3, name: 'ヒート・オーラ', icon: '⭕', dx: 145, dy: 65, req: 'I1', desc: '周囲を焼き尽くすリング。' },
+  { id: 'I5', branch: 'I', tier: 3, name: 'マグマ・トレイル', icon: '🌋', dx: 225, dy: 115, req: 'I4', desc: '移動軌道に溶岩生成。' },
+  { id: 'I6', branch: 'I', tier: 4, name: 'スーパーノヴァ', icon: '☀️', dx: 275, dy: 0, req: 'I2', isUltimate: true, desc: '【奥義】超新星爆発！' },
+
+  { id: 'F1', branch: 'F', tier: 1, name: 'チル・タッチ', icon: '❄️', dx: 0, dy: 85, req: null, desc: '攻撃に冷気を付与してスロー化。' },
+  { id: 'F2', branch: 'F', tier: 2, name: 'ディープ・フリーズ', icon: '🧊', dx: 65, dy: 145, req: 'F1', desc: '確率で完全凍結。' },
+  { id: 'F3', branch: 'F', tier: 2, name: 'アイス・シャッター', icon: '💎', dx: 115, dy: 225, req: 'F2', desc: '凍結敵撃破時に氷破片飛散。' },
+  { id: 'F4', branch: 'F', tier: 3, name: 'ブリザード・フィールド', icon: '🌨️', dx: -65, dy: 145, req: 'F1', desc: '吹雪フィールドを展開。' },
+  { id: 'F5', branch: 'F', tier: 3, name: 'グレイシャル・ランス', icon: '🔱', dx: -115, dy: 225, req: 'F4', desc: '貫通する氷の槍。' },
+  { id: 'F6', branch: 'F', tier: 4, name: 'ダイヤモンド・ダスト', icon: '💠', dx: 0, dy: 275, req: 'F2', isUltimate: true, desc: '【奥義】氷結共鳴ダメージ。' },
+
+  { id: 'A1', branch: 'A', tier: 1, name: 'オート・ビット', icon: '🛰️', dx: -85, dy: 0, req: null, desc: '自動射撃ドローン。' },
+  { id: 'A2', branch: 'A', tier: 2, name: 'ホーミング・ミサイル', icon: '🚀', dx: -225, dy: -115, req: 'A3', desc: '追尾ミサイル発射。' },
+  { id: 'A3', branch: 'A', tier: 2, name: 'マルチ・キャスト', icon: '✨', dx: -145, dy: -65, req: 'A1', desc: '確率で2回連続発動。' },
+  { id: 'A4', branch: 'A', tier: 3, name: 'グラビティ・ウェル', icon: '🌀', dx: -145, dy: 65, req: 'A1', desc: 'ブラックホール生成。' },
+  { id: 'A5', branch: 'A', tier: 3, name: 'ファントム・クローン', icon: '👥', dx: -225, dy: 115, req: 'A4', desc: 'ダッシュ時に分身を残す。' },
+  { id: 'A6', branch: 'A', tier: 4, name: 'インフィニティ・コア', icon: '♾️', dx: -275, dy: 0, req: 'A3', isUltimate: true, desc: '【奥義】ビット数倍増。' }
+];
+
+const SKILL_MAP = Object.fromEntries(SKILLS_DATA.map(s => [s.id, s]));
+
+const SYNERGIES_DATA = [
+  { id: 'plasma_flare', name: 'プラズマ・フレア', icon: '🌩️🔥', color: '#fb923c', reqSkills: ['V2', 'I2'], desc: '稲妻と爆発の連鎖！' },
+  { id: 'thermal_shock', name: 'サーマル・ショック', icon: '🔥🧊', color: '#f472b6', reqSkills: ['I1', 'F3'], desc: '凍結と炎の熱膨張ダメージ！' },
+  { id: 'railgun', name: '電磁レールガン', icon: '⚡🔱', color: '#38bdf8', reqSkills: ['V4', 'F5'], desc: '超高速電磁砲！' },
+  { id: 'hellfire_drone', name: 'ヘルファイア・ドローン', icon: '🔥🛰️', color: '#f87171', reqSkills: ['I4', 'A1'], desc: '灼熱リングを纏うビット！' },
+  { id: 'tesla_net', name: 'テスラ・コイル網', icon: '⚡👥', color: '#a78bfa', reqSkills: ['V6', 'A5'], desc: '分身同士の電撃網！' },
+  { id: 'absolute_zero', name: 'アブソリュート・ゼロ', icon: '🧊🌀', color: '#22d3ee', reqSkills: ['F4', 'A4'], desc: 'ブラックホール凍結！' },
+  { id: 'ragnarok', name: 'ラグナロク', icon: '⛈️☄️', color: '#facc15', reqSkills: ['V5', 'I3'], desc: '隕石と落雷の同時攻撃！' },
+  { id: 'omega_overdrive', name: 'オメガ・オーバードライブ', icon: '👑♾️', color: '#ffffff', reqUltimates: true, desc: '【最終覚醒】ステータス青天井上昇！' }
+];
+
+const FRAMES_DATA = [
+  { id: 'striker', name: 'ストライカー', tag: 'BALANCE / 初期機体', color: '#00f3ff', unlockCond: () => true, unlockText: '初期解放済み', desc: 'バランス型コア。', stats: { hp: 100, speed: 240, dmgMult: 1.0, cdMult: 1.0, startSp: 1 } },
+  { id: 'tesla', name: 'テスラ・モデル', tag: 'SPEED & VOLTAGE', color: '#ffe600', unlockCond: (meta) => meta.totalKills >= 300 || meta.unlockedSynergies.length >= 1, unlockText: '条件達成で解放', desc: '移動で放電＆CD短縮。', stats: { hp: 90, speed: 295, dmgMult: 1.05, cdMult: 0.75, startSp: 1, passiveSpark: true } },
+  { id: 'catastrophe', name: 'カタストロフィ', tag: 'GLASS CANNON', color: '#ff2a55', unlockCond: (meta) => meta.maxComboEver >= 150 || meta.unlockedSynergies.length >= 3, unlockText: '条件達成で解放', desc: '超高火力・低HP。', stats: { hp: 30, speed: 265, dmgMult: 2.2, areaMult: 1.5, cdMult: 0.9, startSp: 2 } },
+  { id: 'necro', name: 'ネクロ・マリオネット', tag: 'AUTO SUMMON', color: '#c084fc', unlockCond: (meta) => meta.clears >= 1 || meta.unlockedSynergies.length >= 5, unlockText: '条件達成で解放', desc: '最初からオートビット保有。', stats: { hp: 110, speed: 230, dmgMult: 1.1, cdMult: 0.85, startSp: 1, startBits: 3 } }
+];
+
+const REACTOR_UPGRADES = [
+  { id: 'magnet', name: 'マグネット・パルス拡張', maxLv: 5, baseCost: 40, costStep: 40, desc: '回収範囲拡大。' },
+  { id: 'starterLv', name: 'スターター・ブースト', maxLv: 5, baseCost: 60, costStep: 60, desc: '初期SP増加。' },
+  { id: 'crossLink', name: 'クロス・リンク', maxLv: 2, baseCost: 120, costStep: 180, desc: 'シナジー条件緩和。' },
+  { id: 'overdriveCap', name: 'オーバードライブ倍率突破', maxLv: 5, baseCost: 50, costStep: 50, desc: 'コンボボーナス増加。' },
+  { id: 'coreArmor', name: 'ナノシールド・リペア', maxLv: 5, baseCost: 45, costStep: 45, desc: '最大HP＆自動回復。' },
+  { id: 'autoSlot', name: 'オートビルドAI高速化', maxLv: 3, baseCost: 80, costStep: 80, desc: 'ダメージアップ。' }
+];
+
+const DEFAULT_META = {
+  shards: 0,
+  selectedFrame: 'striker',
+  maxHeatUnlocked: 1,
+  clears: 0,
+  totalKills: 0,
+  maxComboEver: 0,
+  unlockedSynergies: [],
+  upgrades: { magnet: 0, starterLv: 0, crossLink: 0, overdriveCap: 0, coreArmor: 0, autoSlot: 0 }
+};
+
+let metaData = loadMeta();
+
+function loadMeta() {
+  try {
+    const raw = localStorage.getItem('chain_overdrive_save_v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_META, ...parsed, upgrades: { ...DEFAULT_META.upgrades, ...(parsed.upgrades || {}) } };
+    }
+  } catch (e) {}
+  return JSON.parse(JSON.stringify(DEFAULT_META));
+}
+
+function saveMeta() {
+  try {
+    localStorage.setItem('chain_overdrive_save_v1', JSON.stringify(metaData));
+  } catch (e) {}
+}
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let width = window.innerWidth;
+let height = window.innerHeight;
+
+function resizeCanvas() {
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = width;
+  canvas.height = height;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+let game = null;
+
+function createNewGameSession(heatLevel = 1) {
+  const frame = FRAMES_DATA.find(f => f.id === metaData.selectedFrame) || FRAMES_DATA[0];
+  const upg = metaData.upgrades;
+  const maxHp = frame.stats.hp + upg.coreArmor * 20;
+
+  return {
+    state: 'playing',
+    endless: false,
+    heat: heatLevel,
+    time: 0,
+    lastTimestamp: performance.now(),
+    dt: 0,
+    hitstop: 0,
+    shake: 0,
+    flashAlpha: 0,
+    flashColor: '#ffffff',
+    player: {
+      x: 0, y: 0, vx: 0, vy: 0, radius: 16,
+      hp: maxHp, maxHp: maxHp,
+      regen: upg.coreArmor * 0.6,
+      speed: frame.stats.speed,
+      dmgMult: frame.stats.dmgMult * (1 + upg.autoSlot * 0.12),
+      areaMult: frame.stats.areaMult || 1.0,
+      cdMult: frame.stats.cdMult,
+      magnetRadius: 110 * (1 + upg.magnet * 0.35),
+      invuln: 0,
+      dashCharges: 2, maxDashCharges: 2,
+      dashCooldown: 0, dashMaxCd: 2.2,
+      dashActive: 0, dashDirX: 1, dashDirY: 0,
+      auraAngle: 0, trailTimer: 0,
+      frame: frame
+    },
+    level: 1, exp: 0, nextExp: 18,
+    sp: (frame.stats.startSp || 1) + upg.starterLv,
+    shardsEarned: 0, kills: 0,
+    combo: 1, maxCombo: 1, comboTimer: 0,
+    skills: {},
+    synergies: new Set(),
+    autoBuild: false,
+    mouseFollow: true,
+    timers: { V1: 0, V5: 0, I3: 0, F5: 0, A2: 0, A4: 0, magnetPulse: 8, spawn: 0.4, feverTriggered: false, miniBossSpawned: false, finalBossSpawned: false },
+    enemies: [], projectiles: [], gems: [], particles: [], floatingTexts: [], lightnings: [], zones: [], bits: [], boss: null
+  };
+}
+
+function initPlayerLoadout(g) {
+  const frame = g.player.frame;
+  if (frame.stats.startBits) {
+    g.skills['A1'] = 1;
+    rebuildBits(g);
+  }
+  if (frame.id === 'tesla') {
+    g.skills['V1'] = 1;
+  }
+}
+
+function rebuildBits(g) {
+  const a1 = g.skills['A1'] || 0;
+  const a6 = g.skills['A6'] || 0;
+  if (a1 <= 0) { g.bits = []; return; }
+  let count = 1 + a1;
+  if (a6 > 0) count *= 2;
+  g.bits = [];
+  for (let i = 0; i < count; i++) {
+    g.bits.push({ angle: (Math.PI * 2 * i) / count, shootTimer: (i * 0.15) });
+  }
+}
+
+const keys = {};
+const pointer = { x: width / 2, y: height / 2, down: false, active: false };
+
+window.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (!game) return;
+  if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    if (game.state === 'playing') { e.preventDefault(); triggerDash(); }
+  }
+  if (e.code === 'KeyT' || e.code === 'Tab') {
+    if (game.state === 'playing' || game.state === 'tree') { e.preventDefault(); toggleSkillTreeModal(); }
+  }
+  if (e.code === 'Escape') {
+    if (game.state === 'tree') { toggleSkillTreeModal(false); }
+    else if (game.state === 'playing') { toggleSettings(true); }
+    else if (game.state === 'settings') { toggleSettings(false); }
+  }
+});
+
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+canvas.addEventListener('mousemove', (e) => {
+  pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
+});
+canvas.addEventListener('mousedown', (e) => {
+  sound.init();
+  if (!game || game.state !== 'playing') return;
+  if (e.button === 2) { triggerDash(); } else { pointer.down = true; pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; }
+});
+window.addEventListener('mouseup', () => { pointer.down = false; });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+canvas.addEventListener('touchstart', (e) => {
+  sound.init();
+  if (!game || game.state !== 'playing') return;
+  if (e.touches.length > 0) { pointer.down = true; pointer.x = e.touches[0].clientX; pointer.y = e.touches[0].clientY; pointer.active = true; }
+}, { passive: true });
+canvas.addEventListener('touchmove', (e) => {
+  if (e.touches.length > 0) { pointer.x = e.touches[0].clientX; pointer.y = e.touches[0].clientY; pointer.active = true; }
+}, { passive: true });
+canvas.addEventListener('touchend', () => { pointer.down = false; });
+
+function triggerDash() {
+  if (!game || game.state !== 'playing') return;
+  const p = game.player;
+  if (p.dashCharges <= 0 || p.dashActive > 0) return;
+
+  p.dashCharges--;
+  p.dashActive = 0.18;
+  p.invuln = 0.35;
+  sound.sfxDash();
+
+  let dx = p.vx, dy = p.vy;
+  if (Math.hypot(dx, dy) < 10) { dx = (pointer.x - width / 2); dy = (pointer.y - height / 2); }
+  const len = Math.hypot(dx, dy) || 1;
+  p.dashDirX = dx / len; p.dashDirY = dy / len;
+
+  const v6 = game.skills['V6'] || 0;
+  if (v6 > 0) {
+    game.zones.push({ type: 'lightning_wall', x1: p.x, y1: p.y, x2: p.x + p.dashDirX * 190, y2: p.y + p.dashDirY * 190, life: 3.5 + v6 * 0.6, dmg: (28 + v6 * 14) * p.dmgMult, tick: 0 });
+  }
+
+  const a5 = game.skills['A5'] || 0;
+  if (a5 > 0) {
+    const cloneCount = (game.skills['A6'] || 0) > 0 ? 2 : 1;
+    for (let c = 0; c < cloneCount; c++) {
+      game.zones.push({ type: 'clone', x: p.x + (c * 24 - 12), y: p.y + (c * 24 - 12), life: 4.5 + a5 * 0.8, shootTimer: 0.1, dmg: (22 + a5 * 10) * p.dmgMult });
+    }
+  }
+
+  let nearThreat = false;
+  for (const e of game.enemies) {
+    if (Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius + 68) { nearThreat = true; break; }
+  }
+  if (!nearThreat) {
+    for (const pr of game.projectiles) {
+      if (pr.fromEnemy && Math.hypot(pr.x - p.x, pr.y - p.y) < 75) { nearThreat = true; break; }
+    }
+  }
+
+  if (nearThreat) {
+    sound.sfxJustDodge();
+    game.flashAlpha = 0.45; game.flashColor = '#00f3ff'; game.shake = 12; game.hitstop = 0.04;
+    p.dashCharges = Math.min(p.maxDashCharges, p.dashCharges + 1);
+    game.combo += 5; game.comboTimer = 4.0;
+    game.timers.V1 = 0; game.timers.V5 = 0; game.timers.I3 = 0; game.timers.F5 = 0; game.timers.A2 = 0;
+    addFloatingText(p.x, p.y - 30, 'JUST DODGE!! COOLDOWN RESET!', '#00f3ff', 20, true);
+    spawnParticles(p.x, p.y, '#00f3ff', 24, 280);
+  }
+}
+
+function getRequiredSynergyLevel() {
+  const cross = metaData.upgrades.crossLink || 0;
+  return Math.max(1, 3 - cross);
+}
+
+function upgradeSkill(skillId) {
+  if (!game || game.sp <= 0) return false;
+  const skill = SKILL_MAP[skillId];
+  if (!skill) return false;
+
+  const curLv = game.skills[skillId] || 0;
+  if (curLv >= 5) return false;
+  if (skill.req && !(game.skills[skill.req] > 0)) return false;
+
+  game.skills[skillId] = curLv + 1;
+  game.sp--;
+  sound.sfxSkillUpgrade(curLv + 1);
+
+  if (skillId === 'A1' || skillId === 'A6') rebuildBits(game);
+  checkSynergies();
+  updateHud();
+  return true;
+}
+
+function checkSynergies() {
+  if (!game) return;
+  const reqLv = getRequiredSynergyLevel();
+
+  for (const syn of SYNERGIES_DATA) {
+    if (game.synergies.has(syn.id)) continue;
+    let unlocked = false;
+    if (syn.reqUltimates) {
+      const ults = ['V6', 'I6', 'F6', 'A6'].filter(id => (game.skills[id] || 0) >= 1);
+      const needed = (metaData.upgrades.crossLink || 0) >= 2 ? 1 : 2;
+      if (ults.length >= needed) unlocked = true;
+    } else if (syn.reqSkills) {
+      const [s1, s2] = syn.reqSkills;
+      if ((game.skills[s1] || 0) >= reqLv && (game.skills[s2] || 0) >= reqLv) unlocked = true;
+    }
+
+    if (unlocked) {
+      game.synergies.add(syn.id);
+      sound.sfxSynergyAwaken();
+      game.flashAlpha = 0.55; game.flashColor = syn.color; game.shake = 18;
+      showToast(`⚡ シナジー覚醒：【${syn.name}】`);
+      if (!metaData.unlockedSynergies.includes(syn.id)) {
+        metaData.unlockedSynergies.push(syn.id);
+        saveMeta();
+      }
+      renderActiveSynergyBar();
+    }
+  }
+}
+
+function autoSpendSp(smartPriority = true) {
+  if (!game || game.sp <= 0) return;
+  while (game.sp > 0) {
+    const available = SKILLS_DATA.filter(s => {
+      const lv = game.skills[s.id] || 0;
+      if (lv >= 5) return false;
+      if (s.req && !(game.skills[s.req] > 0)) return false;
+      return true;
+    });
+    if (available.length === 0) break;
+    let chosen = available[0];
+    if (smartPriority || metaData.upgrades.autoSlot > 0) {
+      available.sort((a, b) => getSkillPriorityScore(b) - getSkillPriorityScore(a));
+      chosen = available[0];
+    }
+    if (!upgradeSkill(chosen.id)) break;
+  }
+}
+
+function getSkillPriorityScore(skill) {
+  let score = Math.random() * 10;
+  const lv = game.skills[skill.id] || 0;
+  if (lv === 0) score += 25;
+  if (skill.isUltimate) score += 35;
+  const reqLv = getRequiredSynergyLevel();
+  for (const syn of SYNERGIES_DATA) {
+    if (game.synergies.has(syn.id)) continue;
+    if (syn.reqSkills && syn.reqSkills.includes(skill.id) && lv < reqLv) score += 45;
+  }
+  return score;
+}
+
+function updateGame(dt) {
+  if (!game || game.state !== 'playing') return;
+
+  if (game.hitstop > 0) { game.hitstop -= dt; return; }
+
+  game.dt = dt;
+  game.time += dt;
+  game.shake = Math.max(0, game.shake - dt * 38);
+  game.flashAlpha = Math.max(0, game.flashAlpha - dt * 1.8);
+
+  const p = game.player;
+  p.auraAngle += dt * 2.5;
+  p.invuln = Math.max(0, p.invuln - dt);
+
+  if (p.regen > 0 && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + p.regen * dt); }
+  if (p.dashCharges < p.maxDashCharges) {
+    p.dashCooldown += dt;
+    if (p.dashCooldown >= p.dashMaxCd) { p.dashCooldown = 0; p.dashCharges++; }
+  }
+
+  updatePlayerMovement(dt);
+
+  if (game.combo > 1) {
+    game.comboTimer -= dt;
+    if (game.comboTimer <= 0) game.combo = 1;
+  }
+  sound.comboIntensity = game.combo;
+
+  updateOverdriveVignette();
+  updateSkillsAndCombat(dt);
+  updateWavesAndSpawning(dt);
+  updateZones(dt);
+  updateProjectiles(dt);
+  updateEnemies(dt);
+  updateGems(dt);
+  updateParticlesAndTexts(dt);
+
+  if (game.autoBuild && game.sp > 0) {
+    autoSpendSp(true);
+    if (selectedNodeId) renderTreeDetails(selectedNodeId);
+  }
+
+  updateHud();
+}
+
+function updatePlayerMovement(dt) {
+  const p = game.player;
+  const v3 = game.skills['V3'] || 0;
+  let moveSpeed = p.speed * (1 + v3 * 0.12);
+
+  if (p.dashActive > 0) {
+    p.dashActive -= dt;
+    p.x += p.dashDirX * 820 * dt;
+    p.y += p.dashDirY * 820 * dt;
+    spawnParticles(p.x, p.y, '#00f3ff', 2, 60);
+    return;
+  }
+
+  let ix = 0, iy = 0;
+  if (keys['KeyW'] || keys['ArrowUp']) iy -= 1;
+  if (keys['KeyS'] || keys['ArrowDown']) iy += 1;
+  if (keys['KeyA'] || keys['ArrowLeft']) ix -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+
+  if (ix === 0 && iy === 0 && pointer.active && (game.mouseFollow || pointer.down)) {
+    const dx = pointer.x - width / 2, dy = pointer.y - height / 2;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 14) { ix = dx / dist; iy = dy / dist; }
+  } else if (ix !== 0 || iy !== 0) {
+    const len = Math.hypot(ix, iy);
+    ix /= len; iy /= len;
+  }
+
+  p.vx = ix * moveSpeed; p.vy = iy * moveSpeed;
+  p.x += p.vx * dt; p.y += p.vy * dt;
+
+  const movedDist = Math.hypot(p.vx * dt, p.vy * dt);
+
+  if (v3 > 0 && movedDist > 0) {
+    const cdr = (movedDist / 250) * (0.15 * v3);
+    game.timers.V1 -= cdr; game.timers.I3 -= cdr; game.timers.F5 -= cdr; game.timers.A2 -= cdr;
+  }
+
+  if (p.frame.stats.passiveSpark && movedDist > 0) {
+    p.trailTimer += movedDist;
+    if (p.trailTimer > 65) {
+      p.trailTimer = 0;
+      const target = findNearestEnemy(p.x, p.y, 240);
+      if (target) triggerChainLightning(p.x, p.y, target, 2, 16 * p.dmgMult);
+    }
+  }
+
+  const i5 = game.skills['I5'] || 0;
+  if (i5 > 0 && movedDist > 0) {
+    p.trailTimer += movedDist;
+    if (p.trailTimer > 48) {
+      p.trailTimer = 0;
+      game.zones.push({ type: 'magma', x: p.x, y: p.y, radius: (34 + i5 * 6) * p.areaMult, life: 3.0 + i5 * 0.4, dmg: (16 + i5 * 8) * p.dmgMult, tick: 0 });
+    }
+  }
+}
+
+function updateSkillsAndCombat(dt) {
+  const p = game.player;
+  const s = game.skills;
+  const cdMult = p.cdMult * (game.synergies.has('omega_overdrive') ? 0.65 : 1.0);
+
+  let omegaMult = 1.0;
+  if (game.synergies.has('omega_overdrive')) {
+    const activeFx = game.projectiles.length + game.lightnings.length + game.zones.length;
+    omegaMult = 1.0 + Math.min(4.0, activeFx * 0.035);
+  }
+
+  const totalDmgMult = p.dmgMult * omegaMult * (1 + Math.min(2.5, (game.combo - 1) * (0.004 + metaData.upgrades.overdriveCap * 0.0015)));
+  const multiCastChance = (s['A3'] || 0) * 0.14;
+  const doMultiCast = () => (Math.random() < multiCastChance ? 2 : 1);
+
+  const v1 = s['V1'] || 0;
+  game.timers.V1 -= dt;
+  if (game.timers.V1 <= 0) {
+    game.timers.V1 = Math.max(0.14, (0.58 - v1 * 0.07) * cdMult);
+    const target = findNearestEnemy(p.x, p.y, 550);
+    if (target) {
+      const count = 1 + Math.floor(v1 / 2);
+      const baseAngle = Math.atan2(target.y - p.y, target.x - p.x);
+      for (let i = 0; i < count; i++) {
+        const spread = (i - (count - 1) / 2) * 0.14;
+        spawnProjectile({ x: p.x, y: p.y, vx: Math.cos(baseAngle + spread) * 640, vy: Math.sin(baseAngle + spread) * 640, radius: v1 > 0 ? 7 : 6, dmg: (18 + v1 * 9) * totalDmgMult, color: v1 > 0 ? '#ffe600' : '#00f3ff', life: 1.2, pierce: 1, isElectric: v1 > 0 });
+      }
+      if (v1 > 0) sound.sfxZap();
+    }
+  }
+
+  const v5 = s['V5'] || 0;
+  if (v5 > 0) {
+    game.timers.V5 -= dt;
+    if (game.timers.V5 <= 0) {
+      game.timers.V5 = Math.max(0.45, (1.8 - v5 * 0.22) * cdMult);
+      const strikes = (1 + Math.floor(v5 / 2)) * doMultiCast();
+      for (let i = 0; i < strikes; i++) {
+        const target = game.enemies[Math.floor(Math.random() * game.enemies.length)];
+        if (target) triggerLightningStrike(target.x, target.y, (55 + v5 * 24) * totalDmgMult, 65 * p.areaMult);
+      }
+    }
+  }
+
+  const i3 = s['I3'] || 0;
+  if (i3 > 0) {
+    game.timers.I3 -= dt;
+    if (game.timers.I3 <= 0) {
+      game.timers.I3 = Math.max(0.7, (2.4 - i3 * 0.28) * cdMult);
+      const meteors = (1 + Math.floor(i3 / 3)) * doMultiCast();
+      for (let i = 0; i < meteors; i++) {
+        const target = game.enemies[Math.floor(Math.random() * game.enemies.length)];
+        const tx = target ? target.x + (Math.random() - 0.5) * 60 : p.x + (Math.random() - 0.5) * 350;
+        const ty = target ? target.y + (Math.random() - 0.5) * 60 : p.y + (Math.random() - 0.5) * 350;
+        triggerMeteor(tx, ty, (75 + i3 * 32) * totalDmgMult, (95 + i3 * 12) * p.areaMult);
+      }
+    }
+  }
+
+  const i4 = s['I4'] || 0;
+  if (i4 > 0) {
+    const auraR = (78 + i4 * 16) * p.areaMult;
+    const dps = (24 + i4 * 14) * totalDmgMult * dt;
+    for (const e of game.enemies) {
+      if (Math.hypot(e.x - p.x, e.y - p.y) < auraR + e.radius) damageEnemy(e, dps, false, 'fire');
+    }
+  }
+
+  const f4 = s['F4'] || 0;
+  if (f4 > 0) {
+    const blizzR = (115 + f4 * 20) * p.areaMult;
+    const dps = (14 + f4 * 8) * totalDmgMult * dt;
+    for (const e of game.enemies) {
+      if (Math.hypot(e.x - p.x, e.y - p.y) < blizzR + e.radius) {
+        e.slowTimer = 1.5;
+        if (Math.random() < dt * (0.6 + f4 * 0.25)) e.freezeTimer = Math.max(e.freezeTimer, 1.8 + f4 * 0.2);
+        damageEnemy(e, dps, false, 'ice');
+      }
+    }
+  }
+
+  const f5 = s['F5'] || 0;
+  if (f5 > 0) {
+    game.timers.F5 -= dt;
+    if (game.timers.F5 <= 0) {
+      game.timers.F5 = Math.max(0.55, (2.1 - f5 * 0.24) * cdMult);
+      const isRailgun = game.synergies.has('railgun');
+      const count = (1 + Math.floor(f5 / 3)) * doMultiCast();
+      for (let i = 0; i < count; i++) {
+        const target = game.enemies[Math.floor(Math.random() * game.enemies.length)];
+        const ang = target ? Math.atan2(target.y - p.y, target.x - p.x) : Math.random() * Math.PI * 2;
+        spawnProjectile({ x: p.x, y: p.y, vx: Math.cos(ang) * (isRailgun ? 1150 : 720), vy: Math.sin(ang) * (isRailgun ? 1150 : 720), radius: isRailgun ? 12 : 9, dmg: (48 + f5 * 22) * totalDmgMult * (isRailgun ? 1.8 : 1.0), color: isRailgun ? '#fde047' : '#38bdf8', life: 1.5, pierce: 99, isIce: true, isRailgun: isRailgun });
+      }
+      sound.sfxIce();
+    }
+  }
+
+  const f6 = s['F6'] || 0;
+  if (f6 > 0) {
+    const resonanceDps = (35 + f6 * 18) * totalDmgMult * dt;
+    for (const e of game.enemies) {
+      if (e.freezeTimer > 0) damageEnemy(e, resonanceDps + e.maxHp * 0.04 * dt, false, 'ice');
+    }
+  }
+
+  const a1 = s['A1'] || 0;
+  if (a1 > 0 && game.bits.length > 0) {
+    const a6 = s['A6'] || 0;
+    const rotSpeed = 2.6 + a1 * 0.3;
+    const orbitR = 56 * p.areaMult;
+    const hasHellfire = game.synergies.has('hellfire_drone');
+
+    game.bits.forEach((bit) => {
+      bit.angle += rotSpeed * dt;
+      const bx = p.x + Math.cos(bit.angle) * orbitR;
+      const by = p.y + Math.sin(bit.angle) * orbitR;
+      bit.x = bx; bit.y = by;
+
+      if (hasHellfire) {
+        const ringR = 38 * p.areaMult;
+        for (const e of game.enemies) {
+          if (Math.hypot(e.x - bx, e.y - by) < ringR + e.radius) damageEnemy(e, (26 + a1 * 10) * totalDmgMult * dt, false, 'fire');
+        }
+      }
+
+      bit.shootTimer -= dt;
+      if (bit.shootTimer <= 0) {
+        bit.shootTimer = (Math.max(0.28, 0.85 - a1 * 0.09) * (a6 > 0 ? 0.5 : 1.0)) * cdMult;
+        const target = findNearestEnemy(bx, by, 480);
+        if (target) {
+          const ang = Math.atan2(target.y - by, target.x - bx);
+          spawnProjectile({ x: bx, y: by, vx: Math.cos(ang) * 620, vy: Math.sin(ang) * 620, radius: 5, dmg: (15 + a1 * 7) * totalDmgMult, color: '#c084fc', life: 1.0, pierce: 1 });
+        }
+      }
+    });
+  }
+
+  const a2 = s['A2'] || 0;
+  if (a2 > 0) {
+    game.timers.A2 -= dt;
+    if (game.timers.A2 <= 0) {
+      game.timers.A2 = Math.max(0.65, (2.2 - a2 * 0.24) * cdMult);
+      const missiles = (2 + a2) * doMultiCast();
+      for (let i = 0; i < missiles; i++) {
+        const ang = (Math.PI * 2 * i) / missiles + game.time;
+        spawnProjectile({ x: p.x, y: p.y, vx: Math.cos(ang) * 320, vy: Math.sin(ang) * 320, radius: 6, dmg: (26 + a2 * 12) * totalDmgMult, color: '#e879f9', life: 2.2, pierce: 1, homing: true });
+      }
+    }
+  }
+
+  const a4 = s['A4'] || 0;
+  if (a4 > 0) {
+    game.timers.A4 -= dt;
+    if (game.timers.A4 <= 0) {
+      game.timers.A4 = Math.max(2.2, (5.5 - a4 * 0.5) * cdMult);
+      const target = game.enemies[Math.floor(Math.random() * game.enemies.length)];
+      const bx = target ? target.x : p.x + (Math.random() - 0.5) * 260;
+      const by = target ? target.y : p.y + (Math.random() - 0.5) * 260;
+      game.zones.push({ type: 'blackhole', x: bx, y: by, radius: (130 + a4 * 18) * p.areaMult, life: 3.2 + a4 * 0.3, dmg: (18 + a4 * 8) * totalDmgMult, absZero: game.synergies.has('absolute_zero') });
+    }
+  }
+
+  if (game.synergies.has('tesla_net')) {
+    const clones = game.zones.filter(z => z.type === 'clone');
+    for (let i = 0; i < clones.length; i++) {
+      for (let j = i + 1; j < clones.length; j++) {
+        const c1 = clones[i], c2 = clones[j];
+        game.lightnings.push({ x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y, life: 0.06, color: '#a78bfa', width: 4 });
+        for (const e of game.enemies) {
+          if (pointToSegmentDist(e.x, e.y, c1.x, c1.y, c2.x, c2.y) < e.radius + 16) damageEnemy(e, 95 * totalDmgMult * dt, false, 'electric');
+        }
+      }
+    }
+  }
+
+  game.timers.magnetPulse -= dt;
+  if (game.timers.magnetPulse <= 0) {
+    game.timers.magnetPulse = Math.max(3.5, 9.0 - metaData.upgrades.magnet * 1.0);
+    for (const gem of game.gems) gem.magnetized = true;
+    if (game.gems.length > 8) spawnParticles(p.x, p.y, '#38bdf8', 12, 160);
+  }
+}
+
+function damageEnemy(enemy, rawDmg, forceCrit = false, element = 'normal', depth = 0) {
+  if (!enemy || enemy.hp <= 0 || depth > 4) return;
+
+  const s = game.skills;
+  const v4 = s['V4'] || 0;
+  const critChance = 0.08 + v4 * 0.11;
+  const isCrit = forceCrit || (Math.random() < critChance);
+  const critMult = isCrit ? (1.8 + v4 * 0.35) : 1.0;
+  let dmg = rawDmg * critMult;
+
+  const i1 = s['I1'] || 0;
+  const f1 = s['F1'] || 0;
+  const f2 = s['F2'] || 0;
+
+  if (i1 > 0 || element === 'fire') {
+    enemy.burnTimer = Math.max(enemy.burnTimer, 2.5);
+    enemy.burnDps = Math.max(enemy.burnDps, (8 + i1 * 7) * game.player.dmgMult);
+  }
+  if (f1 > 0 || element === 'ice') {
+    enemy.slowTimer = Math.max(enemy.slowTimer, 2.2);
+    if (f2 > 0 && Math.random() < (0.12 + f2 * 0.07)) enemy.freezeTimer = Math.max(enemy.freezeTimer, 1.6 + f2 * 0.2);
+  }
+
+  if (game.synergies.has('thermal_shock') && enemy.freezeTimer > 0 && (element === 'fire' || enemy.burnTimer > 0)) {
+    dmg *= 2.0;
+    enemy.freezeTimer = 0;
+    spawnIceShards(enemy.x, enemy.y, dmg * 0.45, true);
+    addFloatingText(enemy.x, enemy.y - 24, 'THERMAL SHOCK!', '#f472b6', 15, true);
+  }
+
+  if (enemy.freezeTimer > 0) dmg *= 1.25;
+
+  enemy.hp -= dmg;
+  enemy.hitFlash = 0.08;
+
+  if (isCrit && v4 > 0 && depth === 0 && Math.random() < 0.45) {
+    const near = findNearestEnemy(enemy.x, enemy.y, 170, enemy);
+    if (near) triggerChainLightning(enemy.x, enemy.y, near, 1, dmg * 0.4, depth + 1);
+  }
+
+  if (dmg >= 12 || isCrit || enemy.isBoss) {
+    const isMega = isCrit || dmg >= 120;
+    const col = isCrit ? '#fde047' : (element === 'fire' ? '#fb7185' : (element === 'ice' ? '#7dd3fc' : '#ffffff'));
+    addFloatingText(enemy.x + (Math.random() - 0.5) * 16, enemy.y - enemy.radius, Math.round(dmg).toString() + (isCrit ? '!' : ''), col, isMega ? 17 : 12, isMega);
+  }
+
+  if (enemy.hp <= 0) handleEnemyDeath(enemy, dmg, depth);
+}
+
+function handleEnemyDeath(enemy, lastDmg, depth) {
+  if (enemy.dead) return;
+  enemy.dead = true;
+
+  game.kills++;
+  game.combo++;
+  game.comboTimer = 3.5;
+  if (game.combo > game.maxCombo) game.maxCombo = game.combo;
+
+  const i6 = game.skills['I6'] || 0;
+  if (i6 > 0 && game.combo % 100 === 0) triggerSupernova(i6);
+
+  const v5 = game.skills['V5'] || 0;
+  if (v5 > 0 && game.combo % 25 === 0) {
+    const target = game.enemies[Math.floor(Math.random() * game.enemies.length)];
+    if (target) triggerLightningStrike(target.x, target.y, (60 + v5 * 25) * game.player.dmgMult, 80);
+  }
+
+  const i2 = game.skills['I2'] || 0;
+  if (i2 > 0 && depth < 3) {
+    const expR = (68 + i2 * 14) * game.player.areaMult;
+    const expDmg = (26 + i2 * 14) * game.player.dmgMult;
+    triggerExplosion(enemy.x, enemy.y, expR, expDmg, '#ff2a55', depth + 1);
+  }
+
+  const f3 = game.skills['F3'] || 0;
+  if (f3 > 0 && (enemy.freezeTimer > 0 || enemy.slowTimer > 0)) {
+    spawnIceShards(enemy.x, enemy.y, (20 + f3 * 11) * game.player.dmgMult, game.synergies.has('thermal_shock'));
+  }
+
+  spawnParticles(enemy.x, enemy.y, enemy.color, enemy.isBoss ? 50 : 9, enemy.isBoss ? 360 : 160);
+  if (enemy.isBoss) { sound.sfxExplosion(); game.shake = 24; game.hitstop = 0.08; }
+
+  const shardChance = enemy.isGolden ? 1.0 : (enemy.isBoss ? 1.0 : 0.14);
+  if (Math.random() < shardChance) {
+    const bonus = Math.round((enemy.isBoss ? 25 : (enemy.isGolden ? 3 : 1)) * (1 + (game.heat - 1) * 0.4));
+    game.shardsEarned += bonus;
+  }
+
+  game.gems.push({ x: enemy.x, y: enemy.y, value: enemy.expValue, color: enemy.isGolden ? '#fbbf24' : '#00f3ff', magnetized: false });
+}
+
+function triggerChainLightning(x, y, firstTarget, jumps, dmg, depth = 0) {
+  if (!firstTarget || depth > 3) return;
+  let curX = x, curY = y;
+  let target = firstTarget;
+  const visited = new Set();
+
+  for (let i = 0; i < jumps; i++) {
+    if (!target) break;
+    visited.add(target);
+    game.lightnings.push({ x1: curX, y1: curY, x2: target.x, y2: target.y, life: 0.14, color: '#ffe600', width: 3 });
+    damageEnemy(target, dmg, false, 'electric', depth + 1);
+
+    if (game.synergies.has('plasma_flare') && Math.random() < 0.42 && depth < 2) {
+      triggerExplosion(target.x, target.y, 62 * game.player.areaMult, dmg * 0.65, '#fb923c', depth + 1);
+    }
+    curX = target.x; curY = target.y;
+    target = findNearestEnemy(curX, curY, 210, null, visited);
+  }
+}
+
+function triggerExplosion(x, y, radius, dmg, color = '#ff2a55', depth = 0) {
+  sound.sfxExplosion();
+  game.shake = Math.max(game.shake, 5);
+  spawnParticles(x, y, color, 14, radius * 2.2);
+  game.zones.push({ type: 'shockwave', x, y, radius, maxRadius: radius, life: 0.22, color });
+
+  for (const e of game.enemies) {
+    if (!e.dead && Math.hypot(e.x - x, e.y - y) <= radius + e.radius) damageEnemy(e, dmg, false, 'fire', depth);
+  }
+}
+
+function triggerLightningStrike(x, y, dmg, radius) {
+  sound.sfxZap();
+  game.shake = Math.max(game.shake, 7);
+  game.lightnings.push({ x1: x + (Math.random() - 0.5) * 40, y1: y - 480, x2: x, y2: y, life: 0.22, color: '#fef08a', width: 5 });
+  spawnParticles(x, y, '#ffe600', 16, 220);
+
+  for (const e of game.enemies) {
+    if (!e.dead && Math.hypot(e.x - x, e.y - y) <= radius + e.radius) damageEnemy(e, dmg, true, 'electric', 1);
+  }
+}
+
+function triggerMeteor(x, y, dmg, radius) {
+  triggerExplosion(x, y, radius, dmg, '#f97316', 1);
+  game.lightnings.push({ x1: x + 160, y1: y - 450, x2: x, y2: y, life: 0.25, color: '#fb923c', width: 8 });
+
+  if (game.synergies.has('ragnarok')) {
+    for (let i = 0; i < 10; i++) {
+      const ang = (Math.PI * 2 * i) / 10;
+      const dist = 35 + Math.random() * 85;
+      triggerLightningStrike(x + Math.cos(ang) * dist, y + Math.sin(ang) * dist, dmg * 0.45, 55);
+    }
+  }
+}
+
+function triggerSupernova(lv) {
+  sound.sfxSynergyAwaken();
+  game.flashAlpha = 0.65; game.flashColor = '#fde047'; game.shake = 22;
+  addFloatingText(game.player.x, game.player.y - 50, 'SUPERNOVA!!', '#fde047', 26, true);
+  const dmg = (180 + lv * 90) * game.player.dmgMult;
+  for (const e of game.enemies) {
+    if (!e.dead && Math.hypot(e.x - game.player.x, e.y - game.player.y) < 750) damageEnemy(e, dmg, true, 'fire', 2);
+  }
+}
+
+function spawnIceShards(x, y, dmg, withFire = false) {
+  sound.sfxIce();
+  for (let i = 0; i < 8; i++) {
+    const ang = (Math.PI * 2 * i) / 8;
+    spawnProjectile({ x, y, vx: Math.cos(ang) * 520, vy: Math.sin(ang) * 520, radius: 5, dmg, color: withFire ? '#f472b6' : '#38bdf8', life: 0.65, pierce: 2, isIce: true, hasFire: withFire });
+  }
+}
+
+function updateWavesAndSpawning(dt) {
+  const t = game.time;
+  const heatMult = 1 + (game.heat - 1) * 0.45;
+
+  const badge = document.getElementById('hudPhaseBadge');
+  if (game.endless) {
+    badge.textContent = '♾️ エンドレス・オーバードライブ';
+    badge.className = 'text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-fuchsia-500/30 text-fuchsia-300 border border-fuchsia-400';
+  } else if (t < 60) {
+    badge.textContent = '序盤：覚醒の予感';
+  } else if (t < 130) {
+    badge.textContent = '中盤：シナジー開眼';
+    badge.className = 'text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/25 text-amber-300 border border-amber-400/50';
+  } else if (t < 195) {
+    badge.textContent = '終盤：画面制圧ラッシュ';
+    badge.className = 'text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-rose-500/30 text-rose-300 border border-rose-400/60';
+  } else {
+    badge.textContent = '決戦：オーバーロード・コア';
+    badge.className = 'text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-red-600/40 text-yellow-300 border border-yellow-400';
+  }
+
+  if (t >= 60 && !game.timers.miniBossSpawned) {
+    game.timers.miniBossSpawned = true;
+    showToast('⚠️ 強襲：エリート・ガーディアン出現！');
+    spawnEnemy('miniboss', heatMult);
+  }
+
+  if (t >= 130 && !game.timers.feverTriggered) {
+    game.timers.feverTriggered = true;
+    showToast('✨ フィーバータイム！黄金の敵大発生！');
+    for (let i = 0; i < 28; i++) spawnEnemy('golden', heatMult);
+  }
+
+  if (t >= 195 && !game.timers.finalBossSpawned && !game.endless) {
+    game.timers.finalBossSpawned = true;
+    showToast('🚨 最終決戦：オーバーロード・コア降臨！');
+    spawnEnemy('finalboss', heatMult);
+  }
+
+  const maxEnemies = Math.min(220, Math.round((45 + t * 0.65) * heatMult));
+  if (game.enemies.length >= maxEnemies) return;
+
+  game.timers.spawn -= dt;
+  if (game.timers.spawn <= 0) {
+    game.timers.spawn = Math.max(0.14, 0.75 - t * 0.0026) / heatMult;
+    const batch = 1 + Math.floor(t / 45);
+    for (let i = 0; i < batch; i++) {
+      let type = 'swarm';
+      const r = Math.random();
+      if (t > 35 && r < 0.3) type = 'runner';
+      if (t > 85 && r < 0.18) type = 'tank';
+      if (t > 130 && t < 160 && r < 0.35) type = 'golden';
+      spawnEnemy(type, heatMult);
+    }
+  }
+}
+
+function spawnEnemy(type, heatMult) {
+  const ang = Math.random() * Math.PI * 2;
+  const spawnDist = Math.max(width, height) * 0.62 + 60;
+  const x = game.player.x + Math.cos(ang) * spawnDist;
+  const y = game.player.y + Math.sin(ang) * spawnDist;
+  const timeScale = 1 + game.time * 0.014;
+
+  let enemy = {
+    x, y, vx: 0, vy: 0, type, radius: 14,
+    hp: 24 * timeScale * heatMult, maxHp: 24 * timeScale * heatMult,
+    speed: 95, dmg: 10 * heatMult, color: '#ff2a55', expValue: 6,
+    burnTimer: 0, burnDps: 0, slowTimer: 0, freezeTimer: 0, hitFlash: 0,
+    isBoss: false, isGolden: false, shootTimer: 2.5
+  };
+
+  if (type === 'runner') {
+    enemy.radius = 11; enemy.hp *= 0.75; enemy.maxHp = enemy.hp; enemy.speed = 155; enemy.color = '#fb923c'; enemy.expValue = 8;
+  } else if (type === 'tank') {
+    enemy.radius = 22; enemy.hp *= 3.4; enemy.maxHp = enemy.hp; enemy.speed = 62; enemy.color = '#a855f7'; enemy.expValue = 18;
+  } else if (type === 'golden') {
+    enemy.radius = 15; enemy.hp *= 1.1; enemy.maxHp = enemy.hp; enemy.speed = 125; enemy.color = '#fbbf24'; enemy.expValue = 22; enemy.isGolden = true;
+  } else if (type === 'miniboss') {
+    enemy.radius = 34; enemy.hp = 1600 * heatMult; enemy.maxHp = enemy.hp; enemy.speed = 82; enemy.dmg = 18 * heatMult; enemy.color = '#f43f5e'; enemy.expValue = 90; enemy.isBoss = true;
+  } else if (type === 'finalboss') {
+    enemy.radius = 52; enemy.hp = 9500 * heatMult; enemy.maxHp = enemy.hp; enemy.speed = 70; enemy.dmg = 24 * heatMult; enemy.color = '#fde047'; enemy.expValue = 300; enemy.isBoss = true; enemy.isFinalBoss = true;
+    game.boss = enemy;
+    document.getElementById('bossHud').classList.remove('hidden');
+  }
+
+  game.enemies.push(enemy);
+}
+
+function spawnProjectile(proj) { game.projectiles.push(proj); }
+
+function updateProjectiles(dt) {
+  const v2 = game.skills['V2'] || 0;
+
+  for (let i = game.projectiles.length - 1; i >= 0; i--) {
+    const pr = game.projectiles[i];
+    pr.life -= dt;
+    if (pr.life <= 0) { game.projectiles.splice(i, 1); continue; }
+
+    if (pr.homing && !pr.fromEnemy) {
+      const target = findNearestEnemy(pr.x, pr.y, 450);
+      if (target) {
+        const desired = Math.atan2(target.y - pr.y, target.x - pr.x);
+        const cur = Math.atan2(pr.vy, pr.vx);
+        const diff = Math.atan2(Math.sin(desired - cur), Math.cos(desired - cur));
+        const newAng = cur + diff * Math.min(1, dt * 8);
+        const spd = Math.hypot(pr.vx, pr.vy);
+        pr.vx = Math.cos(newAng) * spd; pr.vy = Math.sin(newAng) * spd;
+      }
+    }
+
+    pr.x += pr.vx * dt; pr.y += pr.vy * dt;
+
+    if (pr.fromEnemy) {
+      const p = game.player;
+      if (p.invuln <= 0 && Math.hypot(pr.x - p.x, pr.y - p.y) < pr.radius + p.radius) {
+        damagePlayer(pr.dmg);
+        game.projectiles.splice(i, 1);
+      }
+      continue;
+    }
+
+    for (const e of game.enemies) {
+      if (e.dead) continue;
+      if (pr.hitSet && pr.hitSet.has(e)) continue;
+
+      if (Math.hypot(pr.x - e.x, pr.y - e.y) < pr.radius + e.radius) {
+        if (!pr.hitSet) pr.hitSet = new Set();
+        pr.hitSet.add(e);
+
+        const elem = pr.hasFire ? 'fire' : (pr.isIce ? 'ice' : (pr.isElectric ? 'electric' : 'normal'));
+        damageEnemy(e, pr.dmg, pr.isRailgun, elem);
+
+        if (v2 > 0 && (pr.isElectric || Math.random() < 0.35)) {
+          const next = findNearestEnemy(e.x, e.y, 200, e);
+          if (next) triggerChainLightning(e.x, e.y, next, 2 + v2, pr.dmg * (0.45 + v2 * 0.08));
+        }
+
+        if (pr.isRailgun) triggerLightningStrike(e.x, e.y, pr.dmg * 0.65, 65);
+
+        pr.pierce--;
+        if (pr.pierce <= 0) { game.projectiles.splice(i, 1); break; }
+      }
+    }
+  }
+}
+
+function updateZones(dt) {
+  for (let i = game.zones.length - 1; i >= 0; i--) {
+    const z = game.zones[i];
+    z.life -= dt;
+    if (z.life <= 0) { game.zones.splice(i, 1); continue; }
+
+    if (z.type === 'shockwave') {
+      z.radius = z.maxRadius * (1 - z.life / 0.22);
+    } else if (z.type === 'magma') {
+      for (const e of game.enemies) {
+        if (!e.dead && Math.hypot(e.x - z.x, e.y - z.y) < z.radius + e.radius) damageEnemy(e, z.dmg * dt, false, 'fire');
+      }
+    } else if (z.type === 'lightning_wall') {
+      for (const e of game.enemies) {
+        if (!e.dead && pointToSegmentDist(e.x, e.y, z.x1, z.y1, z.x2, z.y2) < e.radius + 14) damageEnemy(e, z.dmg * dt * 2.5, false, 'electric');
+      }
+    } else if (z.type === 'blackhole') {
+      for (const e of game.enemies) {
+        if (e.dead) continue;
+        const dx = z.x - e.x, dy = z.y - e.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < z.radius + e.radius) {
+          if (!e.isBoss && dist > 10) { e.x += (dx / dist) * 210 * dt; e.y += (dy / dist) * 210 * dt; }
+          damageEnemy(e, z.dmg * dt, false, z.absZero ? 'ice' : 'normal');
+          if (z.absZero) e.freezeTimer = Math.max(e.freezeTimer, 1.5);
+        }
+      }
+    } else if (z.type === 'clone') {
+      z.shootTimer -= dt;
+      if (z.shootTimer <= 0) {
+        z.shootTimer = 0.25;
+        const target = findNearestEnemy(z.x, z.y, 450);
+        if (target) {
+          const ang = Math.atan2(target.y - z.y, target.x - z.x);
+          spawnProjectile({ x: z.x, y: z.y, vx: Math.cos(ang) * 650, vy: Math.sin(ang) * 650, radius: 6, dmg: z.dmg, color: '#c084fc', life: 1.0, pierce: 1 });
+        }
+      }
+    }
+  }
+}
+
+function updateEnemies(dt) {
+  const p = game.player;
+
+  for (let i = game.enemies.length - 1; i >= 0; i--) {
+    const e = game.enemies[i];
+    if (e.dead) {
+      if (e.isFinalBoss) handleFinalBossVictory();
+      game.enemies.splice(i, 1);
+      continue;
+    }
+
+    e.hitFlash = Math.max(0, e.hitFlash - dt);
+
+    if (e.burnTimer > 0) {
+      e.burnTimer -= dt;
+      damageEnemy(e, e.burnDps * dt, false, 'fire', 2);
+      if (e.dead) continue;
+    }
+
+    let speedMult = 1.0;
+    if (e.freezeTimer > 0) {
+      e.freezeTimer -= dt;
+      speedMult = 0.25;
+    } else if (e.slowTimer > 0) {
+      e.slowTimer -= dt;
+      speedMult = 0.45;
+    }
+
+    const dx = p.x - e.x, dy = p.y - e.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    e.x += (dx / dist) * e.speed * speedMult * dt;
+    e.y += (dy / dist) * e.speed * speedMult * dt;
+
+    if (e.isBoss && speedMult > 0) {
+      e.shootTimer -= dt;
+      if (e.shootTimer <= 0) {
+        e.shootTimer = e.isFinalBoss ? 1.8 : 2.6;
+        const bullets = e.isFinalBoss ? 12 : 6;
+        for (let b = 0; b < bullets; b++) {
+          const ang = (Math.PI * 2 * b) / bullets + game.time;
+          spawnProjectile({ x: e.x, y: e.y, vx: Math.cos(ang) * 240, vy: Math.sin(ang) * 240, radius: 7, dmg: e.dmg * 0.8, color: '#ff2a55', life: 3.5, fromEnemy: true });
+        }
+      }
+    }
+
+    if (p.invuln <= 0 && dist < e.radius + p.radius) damagePlayer(e.dmg);
+  }
+}
+
+function damagePlayer(amount) {
+  const p = game.player;
+  if (p.invuln > 0) return;
+  p.hp -= amount;
+  p.invuln = 0.55;
+  game.shake = 14; game.flashAlpha = 0.35; game.flashColor = '#ff2a55';
+  sound.sfxExplosion();
+  if (p.hp <= 0) { p.hp = 0; endGameRun(false); }
+}
+
+function updateGems(dt) {
+  const p = game.player;
+  for (let i = game.gems.length - 1; i >= 0; i--) {
+    const g = game.gems[i];
+    const dx = p.x - g.x, dy = p.y - g.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < p.magnetRadius) g.magnetized = true;
+    if (g.magnetized) {
+      const spd = 680;
+      g.x += (dx / (dist || 1)) * spd * dt;
+      g.y += (dy / (dist || 1)) * spd * dt;
+    }
+
+    if (dist < p.radius + 14) {
+      gainExp(g.value);
+      sound.sfxGem(game.combo);
+      game.gems.splice(i, 1);
+    }
+  }
+}
+
+function gainExp(val) {
+  game.exp += val;
+  while (game.exp >= game.nextExp) {
+    game.exp -= game.nextExp;
+    game.level++;
+    game.sp++;
+    game.nextExp = Math.round(game.nextExp * 1.24 + 8);
+    sound.sfxLevelUp();
+    spawnParticles(game.player.x, game.player.y, '#ffe600', 18, 220);
+    addFloatingText(game.player.x, game.player.y - 36, `LEVEL UP! +1 SP`, '#ffe600', 18, true);
+  }
+}
+
+function updateParticlesAndTexts(dt) {
+  for (let i = game.particles.length - 1; i >= 0; i--) {
+    const pt = game.particles[i];
+    pt.life -= dt;
+    if (pt.life <= 0) { game.particles.splice(i, 1); continue; }
+    pt.x += pt.vx * dt; pt.y += pt.vy * dt;
+    pt.vx *= 0.94; pt.vy *= 0.94;
+  }
+  for (let i = game.lightnings.length - 1; i >= 0; i--) {
+    game.lightnings[i].life -= dt;
+    if (game.lightnings[i].life <= 0) game.lightnings.splice(i, 1);
+  }
+  for (let i = game.floatingTexts.length - 1; i >= 0; i--) {
+    const ft = game.floatingTexts[i];
+    ft.life -= dt;
+    if (ft.life <= 0) { game.floatingTexts.splice(i, 1); continue; }
+    ft.y -= 42 * dt;
+  }
+}
+
+function renderGame() {
+  ctx.fillStyle = '#05070e';
+  ctx.fillRect(0, 0, width, height);
+
+  if (!game) {
+    renderCyberGrid(performance.now() * 0.03, performance.now() * 0.02);
+    return;
+  }
+
+  const p = game.player;
+  const shakeX = (Math.random() - 0.5) * game.shake * 2;
+  const shakeY = (Math.random() - 0.5) * game.shake * 2;
+
+  ctx.save();
+  ctx.translate(width / 2 - p.x + shakeX, height / 2 - p.y + shakeY);
+
+  renderCyberGrid(p.x, p.y);
+
+  for (const z of game.zones) {
+    if (z.type === 'magma') {
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(249, 115, 22, 0.22)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(251, 146, 60, 0.5)'; ctx.lineWidth = 2; ctx.stroke();
+    } else if (z.type === 'blackhole') {
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+      ctx.fillStyle = z.absZero ? 'rgba(34, 211, 238, 0.14)' : 'rgba(168, 85, 247, 0.16)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(z.x, z.y, 18, 0, Math.PI * 2);
+      ctx.fillStyle = '#020617'; ctx.fill();
+      ctx.strokeStyle = z.absZero ? '#22d3ee' : '#c084fc'; ctx.lineWidth = 3; ctx.stroke();
+    } else if (z.type === 'lightning_wall') {
+      ctx.beginPath(); ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2);
+      ctx.strokeStyle = '#ffe600'; ctx.lineWidth = 6; ctx.stroke();
+    } else if (z.type === 'shockwave') {
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+      ctx.strokeStyle = z.color; ctx.lineWidth = 3;
+      ctx.globalAlpha = Math.max(0, z.life / 0.22); ctx.stroke(); ctx.globalAlpha = 1;
+    } else if (z.type === 'clone') {
+      ctx.beginPath(); ctx.arc(z.x, z.y, 14, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(192, 132, 252, 0.45)'; ctx.fill();
+      ctx.strokeStyle = '#e879f9'; ctx.lineWidth = 2; ctx.stroke();
+    }
+  }
+
+  for (const g of game.gems) {
+    ctx.beginPath(); ctx.arc(g.x, g.y, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = g.color; ctx.fill();
+  }
+
+  const i4 = game.skills['I4'] || 0;
+  if (i4 > 0) {
+    ctx.beginPath(); ctx.arc(p.x, p.y, (78 + i4 * 16) * p.areaMult, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 42, 85, 0.55)'; ctx.lineWidth = 3; ctx.stroke();
+  }
+  const f4 = game.skills['F4'] || 0;
+  if (f4 > 0) {
+    ctx.beginPath(); ctx.arc(p.x, p.y, (115 + f4 * 20) * p.areaMult, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.08)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)'; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  for (const e of game.enemies) {
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+    ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : (e.freezeTimer > 0 ? '#38bdf8' : e.color);
+    ctx.fill();
+    ctx.lineWidth = e.isBoss ? 4 : 2;
+    ctx.strokeStyle = e.burnTimer > 0 ? '#fb923c' : '#0f172a';
+    ctx.stroke();
+    if (e.isBoss) {
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.radius * 0.55, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+    }
+  }
+
+  const hasHellfire = game.synergies.has('hellfire_drone');
+  for (const bit of game.bits) {
+    if (bit.x === undefined) continue;
+    if (hasHellfire) {
+      ctx.beginPath(); ctx.arc(bit.x, bit.y, 38 * p.areaMult, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 69, 0, 0.6)'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(bit.x, bit.y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#e879f9'; ctx.fill();
+  }
+
+  for (const pr of game.projectiles) {
+    ctx.beginPath(); ctx.arc(pr.x, pr.y, pr.radius, 0, Math.PI * 2);
+    ctx.fillStyle = pr.color; ctx.fill();
+  }
+
+  for (const l of game.lightnings) {
+    ctx.beginPath(); ctx.moveTo(l.x1, l.y1);
+    const midX = (l.x1 + l.x2) / 2 + (Math.random() - 0.5) * 26;
+    const midY = (l.y1 + l.y2) / 2 + (Math.random() - 0.5) * 26;
+    ctx.lineTo(midX, midY); ctx.lineTo(l.x2, l.y2);
+    ctx.strokeStyle = l.color; ctx.lineWidth = l.width || 3; ctx.stroke();
+  }
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.auraAngle);
+  ctx.beginPath(); ctx.arc(0, 0, p.radius + 9, 0, Math.PI * 1.65);
+  ctx.strokeStyle = p.frame.color; ctx.lineWidth = 3; ctx.stroke();
+  ctx.restore();
+
+  ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+  ctx.fillStyle = p.invuln > 0 ? '#ffffff' : p.frame.color;
+  ctx.shadowColor = p.frame.color; ctx.shadowBlur = 18;
+  ctx.fill(); ctx.shadowBlur = 0;
+
+  for (const pt of game.particles) {
+    ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+    ctx.fillStyle = pt.color;
+    ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+  }
+  ctx.globalAlpha = 1;
+
+  for (const ft of game.floatingTexts) {
+    ctx.globalAlpha = Math.min(1, ft.life * 2);
+    ctx.font = `${ft.bold ? '900' : '700'} ${ft.size}px 'Orbitron', 'Noto Sans JP', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = '#020617'; ctx.lineWidth = 3; ctx.strokeText(ft.text, ft.x, ft.y);
+    ctx.fillStyle = ft.color; ctx.fillText(ft.text, ft.x, ft.y);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+
+  if (game.flashAlpha > 0) {
+    ctx.fillStyle = game.flashColor;
+    ctx.globalAlpha = game.flashAlpha;
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function renderCyberGrid(camX, camY) {
+  const gridSize = 80;
+  const startX = Math.floor((camX - width / 2) / gridSize) * gridSize;
+  const startY = Math.floor((camY - height / 2) / gridSize) * gridSize;
+  const endX = camX + width / 2 + gridSize;
+  const endY = camY + height / 2 + gridSize;
+
+  ctx.strokeStyle = 'rgba(0, 243, 255, 0.08)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = startX; x <= endX; x += gridSize) { ctx.moveTo(x, startY); ctx.lineTo(x, endY); }
+  for (let y = startY; y <= endY; y += gridSize) { ctx.moveTo(startX, y); ctx.lineTo(endX, y); }
+  ctx.stroke();
+}
+
+function updateOverdriveVignette() {
+  const vig = document.getElementById('edgeVignette');
+  const tag = document.getElementById('hudOverdriveTag');
+  if (game.combo >= 80) {
+    vig.style.boxShadow = 'inset 0 0 65px rgba(236, 72, 153, 0.45), inset 0 0 25px rgba(0, 243, 255, 0.5)';
+    tag.classList.remove('hidden');
+  } else if (game.combo >= 30) {
+    vig.style.boxShadow = 'inset 0 0 40px rgba(0, 243, 255, 0.35)';
+    tag.classList.remove('hidden');
+  } else {
+    vig.style.boxShadow = 'none';
+    tag.classList.add('hidden');
+  }
+}
+
+function findNearestEnemy(x, y, maxRange, exclude = null, visitedSet = null) {
+  let best = null, bestDist = maxRange;
+  for (const e of game.enemies) {
+    if (e.dead || e === exclude) continue;
+    if (visitedSet && visitedSet.has(e)) continue;
+    const d = Math.hypot(e.x - x, e.y - y);
+    if (d < bestDist) { bestDist = d; best = e; }
+  }
+  return best;
+}
+
+function pointToSegmentDist(px, py, x1, y1, x2, y2) {
+  const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+  if (l2 === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+}
+
+function spawnParticles(x, y, color, count, speed) {
+  if (game.particles.length > 350) return;
+  for (let i = 0; i < count; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const spd = (0.3 + Math.random() * 0.7) * speed;
+    const life = 0.25 + Math.random() * 0.3;
+    game.particles.push({ x, y, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, size: 3 + Math.random() * 4, color, life, maxLife: life });
+  }
+}
+
+function addFloatingText(x, y, text, color, size = 14, bold = false) {
+  if (game.floatingTexts.length > 75) game.floatingTexts.shift();
+  game.floatingTexts.push({ x, y, text, color, size, bold, life: 0.75 });
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const banner = document.getElementById('toastBanner');
+  document.getElementById('toastInner').textContent = msg;
+  banner.classList.remove('opacity-0', 'scale-90');
+  banner.classList.add('opacity-100', 'scale-100');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    banner.classList.remove('opacity-100', 'scale-100');
+    banner.classList.add('opacity-0', 'scale-90');
+  }, 2600);
+}
+
+const treeCanvas = document.getElementById('treeCanvas');
+const treeCtx = treeCanvas.getContext('2d');
+let selectedNodeId = null;
+let nodeHitboxes = [];
+
+function toggleSkillTreeModal(forceState = null) {
+  if (!game) return;
+  const modal = document.getElementById('treeModal');
+  const open = forceState !== null ? forceState : modal.classList.contains('hidden');
+
+  if (open) {
+    game.state = 'tree';
+    modal.classList.remove('hidden');
+    resizeTreeCanvas();
+    renderTreeSynergyList();
+    if (selectedNodeId) renderTreeDetails(selectedNodeId);
+  } else {
+    game.state = 'playing';
+    game.lastTimestamp = performance.now();
+    modal.classList.add('hidden');
+  }
+}
+
+function resizeTreeCanvas() {
+  const wrapper = document.getElementById('treeCanvasWrapper');
+  treeCanvas.width = wrapper.clientWidth;
+  treeCanvas.height = wrapper.clientHeight;
+  drawConstellationTree();
+}
+window.addEventListener('resize', () => { if (game && game.state === 'tree') resizeTreeCanvas(); });
+
+function drawConstellationTree() {
+  if (!game) return;
+  const w = treeCanvas.width, h = treeCanvas.height;
+  const cx = w / 2, cy = h / 2;
+  const scale = Math.min(w, h) / 640;
+
+  treeCtx.fillStyle = '#04060d';
+  treeCtx.fillRect(0, 0, w, h);
+
+  for (let r = 90; r <= 280; r += 95) {
+    treeCtx.beginPath(); treeCtx.arc(cx, cy, r * scale, 0, Math.PI * 2);
+    treeCtx.strokeStyle = 'rgba(0, 243, 255, 0.08)'; treeCtx.lineWidth = 1; treeCtx.stroke();
+  }
+
+  const reqLv = getRequiredSynergyLevel();
+  for (const syn of SYNERGIES_DATA) {
+    if (!syn.reqSkills) continue;
+    const s1 = SKILL_MAP[syn.reqSkills[0]], s2 = SKILL_MAP[syn.reqSkills[1]];
+    const x1 = cx + s1.dx * scale, y1 = cy + s1.dy * scale;
+    const x2 = cx + s2.dx * scale, y2 = cy + s2.dy * scale;
+    const isAwakened = game.synergies.has(syn.id);
+
+    treeCtx.beginPath(); treeCtx.moveTo(x1, y1); treeCtx.lineTo(x2, y2);
+    if (isAwakened) {
+      treeCtx.strokeStyle = syn.color; treeCtx.lineWidth = 4; treeCtx.setLineDash([]);
+    } else {
+      treeCtx.strokeStyle = 'rgba(255, 255, 255, 0.14)'; treeCtx.lineWidth = 1.5; treeCtx.setLineDash([5, 5]);
+    }
+    treeCtx.stroke(); treeCtx.setLineDash([]);
+
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    treeCtx.beginPath(); treeCtx.arc(mx, my, 12 * Math.max(0.75, scale), 0, Math.PI * 2);
+    treeCtx.fillStyle = isAwakened ? syn.color : '#0f172a'; treeCtx.fill();
+    treeCtx.font = `${Math.round(12 * Math.max(0.8, scale))}px sans-serif`;
+    treeCtx.textAlign = 'center'; treeCtx.textBaseline = 'middle';
+    treeCtx.fillText(isAwakened ? '⚡' : '?', mx, my);
+  }
+
+  for (const sk of SKILLS_DATA) {
+    const x2 = cx + sk.dx * scale, y2 = cy + sk.dy * scale;
+    const x1 = sk.req ? cx + SKILL_MAP[sk.req].dx * scale : cx;
+    const y1 = sk.req ? cy + SKILL_MAP[sk.req].dy * scale : cy;
+    const unlocked = (game.skills[sk.id] || 0) > 0;
+
+    treeCtx.beginPath(); treeCtx.moveTo(x1, y1); treeCtx.lineTo(x2, y2);
+    treeCtx.strokeStyle = unlocked ? BRANCH_META[sk.branch].color : 'rgba(148, 163, 184, 0.25)';
+    treeCtx.lineWidth = unlocked ? 3 : 1.5; treeCtx.stroke();
+  }
+
+  treeCtx.beginPath(); treeCtx.arc(cx, cy, 24 * Math.max(0.8, scale), 0, Math.PI * 2);
+  treeCtx.fillStyle = '#00f3ff'; treeCtx.fill();
+  treeCtx.fillStyle = '#020617'; treeCtx.font = '900 11px Orbitron, sans-serif';
+  treeCtx.textAlign = 'center'; treeCtx.textBaseline = 'middle';
+  treeCtx.fillText('CORE', cx, cy);
+
+  nodeHitboxes = [];
+  for (const sk of SKILLS_DATA) {
+    const nx = cx + sk.dx * scale, ny = cy + sk.dy * scale;
+    const r = (sk.isUltimate ? 23 : 18) * Math.max(0.75, scale);
+    const lv = game.skills[sk.id] || 0;
+    const canUnlock = !sk.req || (game.skills[sk.req] || 0) > 0;
+    const bColor = BRANCH_META[sk.branch].color;
+
+    nodeHitboxes.push({ id: sk.id, x: nx, y: ny, r: r + 6 });
+
+    treeCtx.beginPath(); treeCtx.arc(nx, ny, r, 0, Math.PI * 2);
+    treeCtx.fillStyle = lv > 0 ? '#0f172a' : (canUnlock ? '#1e293b' : '#090d16');
+    treeCtx.fill();
+    treeCtx.lineWidth = selectedNodeId === sk.id ? 4 : (lv > 0 ? 3 : 1.5);
+    treeCtx.strokeStyle = lv > 0 ? bColor : (canUnlock ? 'rgba(255,255,255,0.45)' : 'rgba(100,116,139,0.25)');
+    treeCtx.stroke();
+
+    treeCtx.globalAlpha = canUnlock ? 1 : 0.35;
+    treeCtx.font = `${Math.round(15 * Math.max(0.8, scale))}px sans-serif`;
+    treeCtx.textAlign = 'center'; treeCtx.textBaseline = 'middle';
+    treeCtx.fillText(sk.icon, nx, ny - 2);
+
+    treeCtx.font = `900 ${Math.round(9 * Math.max(0.85, scale))}px Orbitron, sans-serif`;
+    treeCtx.fillStyle = lv >= 5 ? '#4ade80' : (lv > 0 ? bColor : '#94a3b8');
+    treeCtx.fillText(lv >= 5 ? 'MAX' : `Lv${lv}`, nx, ny + r + 9);
+    treeCtx.globalAlpha = 1;
+  }
+
+  document.getElementById('treeSpDisplay').textContent = game.sp;
+}
+
+treeCanvas.addEventListener('click', (e) => {
+  if (!game || game.state !== 'tree') return;
+  const rect = treeCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+
+  for (const hb of nodeHitboxes) {
+    if (Math.hypot(mx - hb.x, my - hb.y) <= hb.r) {
+      selectedNodeId = hb.id;
+      renderTreeDetails(hb.id);
+      drawConstellationTree();
+      renderTreeSynergyList();
+      return;
+    }
+  }
+});
+
+function renderTreeDetails(skillId) {
+  const sk = SKILL_MAP[skillId];
+  if (!sk) return;
+  const lv = game.skills[skillId] || 0;
+  const canUnlock = !sk.req || (game.skills[sk.req] || 0) > 0;
+
+  document.getElementById('detailTitle').innerHTML = `${sk.icon} ${sk.name} <span class="text-cyan-300 text-sm font-cyber">(Lv.${lv}/5)</span>`;
+  document.getElementById('detailDesc').textContent = sk.desc;
+
+  const related = SYNERGIES_DATA.filter(syn => syn.reqSkills && syn.reqSkills.includes(skillId));
+  const hintBox = document.getElementById('detailSynergyHint');
+  if (related.length > 0) {
+    const r = related[0];
+    const partnerId = r.reqSkills.find(id => id !== skillId);
+    const partner = SKILL_MAP[partnerId];
+    hintBox.innerHTML = `🔗 相乗シナジー：【<b>${r.name}</b>】<br>条件：このスキル ＋ ${partner.icon}${partner.name}（各Lv.${getRequiredSynergyLevel()}以上）`;
+  } else if (sk.isUltimate) {
+    hintBox.innerHTML = `👑 【奥義スキル】他の奥義と組み合わせると最終覚醒へ到達！`;
+  } else {
+    hintBox.innerHTML = `系統：${BRANCH_META[sk.branch].name}`;
+  }
+
+  const btn = document.getElementById('btnUpgradeSelected');
+  btn.classList.remove('hidden');
+  if (lv >= 5) {
+    btn.textContent = 'MAX LEVEL REACHED';
+    btn.disabled = true;
+    btn.className = 'w-full py-3 rounded-xl bg-slate-700 text-slate-400 font-black text-sm';
+  } else if (!canUnlock) {
+    btn.textContent = `前提スキルが必要`;
+    btn.disabled = true;
+    btn.className = 'w-full py-3 rounded-xl bg-slate-800 text-rose-400 font-bold text-sm';
+  } else if (game.sp <= 0) {
+    btn.textContent = 'SPが不足しています';
+    btn.disabled = true;
+    btn.className = 'w-full py-3 rounded-xl bg-slate-800 text-slate-400 font-bold text-sm';
+  } else {
+    btn.textContent = `⚡ このスキルを強化する (消費 1 SP)`;
+    btn.disabled = false;
+    btn.className = 'neon-btn w-full py-3 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-black text-sm cursor-pointer';
+  }
+}
+
+function renderTreeSynergyList() {
+  const list = document.getElementById('treeSynergyList');
+  list.innerHTML = '';
+  document.getElementById('synergyUnlockedCount').textContent = game.synergies.size;
+
+  for (const syn of SYNERGIES_DATA) {
+    const active = game.synergies.has(syn.id);
+    const div = document.createElement('div');
+    div.className = `p-2 rounded-lg border ${active ? 'bg-slate-800 border-amber-400/70 text-white' : 'bg-slate-900/60 border-slate-800 text-slate-400'}`;
+    const condText = syn.reqUltimates ? '奥義2種以上' : `${SKILL_MAP[syn.reqSkills[0]].icon} + ${SKILL_MAP[syn.reqSkills[1]].icon}`;
+    div.innerHTML = `
+      <div class="flex justify-between font-bold">
+        <span>${syn.icon} ${syn.name}</span>
+        <span class="text-[11px] ${active ? 'text-amber-300' : 'text-slate-500'}">${active ? '覚醒済！' : condText}</span>
+      </div>
+      <div class="text-[11px] text-slate-300 mt-0.5">${syn.desc}</div>
+    `;
+    list.appendChild(div);
+  }
+}
+
+function renderActiveSynergyBar() {
+  const bar = document.getElementById('activeSynergyBar');
+  bar.innerHTML = '';
+  for (const synId of game.synergies) {
+    const syn = SYNERGIES_DATA.find(s => s.id === synId);
+    if (!syn) continue;
+    const badge = document.createElement('div');
+    badge.className = 'synergy-pulse px-2.5 py-1 rounded-full bg-slate-900/90 border border-amber-400 text-xs font-bold text-amber-200 flex items-center gap-1 shadow-[0_0_12px_rgba(251,191,36,0.4)]';
+    badge.innerHTML = `<span>${syn.icon}</span><span>${syn.name}</span>`;
+    bar.appendChild(badge);
+  }
+}
+
+function updateHud() {
+  if (!game) return;
+  const p = game.player;
+
+  document.getElementById('hudFrameName').textContent = p.frame.name;
+  document.getElementById('hudLevel').textContent = game.level;
+  document.getElementById('hudHpBar').style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
+  document.getElementById('hudHpText').textContent = `${Math.ceil(p.hp)}/${Math.ceil(p.maxHp)}`;
+  document.getElementById('hudExpBar').style.width = `${Math.min(100, (game.exp / game.nextExp) * 100)}%`;
+  document.getElementById('hudShards').textContent = game.shardsEarned;
+  document.getElementById('hudKills').textContent = game.kills;
+  document.getElementById('hudSpCount').textContent = game.sp;
+
+  const mins = Math.floor(game.time / 60).toString().padStart(2, '0');
+  const secs = Math.floor(game.time % 60).toString().padStart(2, '0');
+  document.getElementById('hudTimer').textContent = `${mins}:${secs}`;
+
+  const comboEl = document.getElementById('hudCombo');
+  comboEl.textContent = `x${game.combo}`;
+  if (game.combo >= 100) {
+    comboEl.className = 'font-cyber text-3xl sm:text-5xl font-black text-amber-300 neon-text-gold rainbow-overdrive';
+  } else if (game.combo >= 30) {
+    comboEl.className = 'font-cyber text-2xl sm:text-4xl font-black text-fuchsia-400 neon-text-cyan';
+  } else {
+    comboEl.className = 'font-cyber text-2xl sm:text-4xl font-black text-white neon-text-cyan';
+  }
+
+  document.getElementById('dashChargesText').textContent = `${p.dashCharges}/${p.maxDashCharges}`;
+  const dashPct = p.dashCharges >= p.maxDashCharges ? 100 : (p.dashCooldown / p.dashMaxCd) * 100;
+  document.getElementById('hudDashBar').style.width = `${dashPct}%`;
+
+  if (game.boss && !game.boss.dead) {
+    const pct = Math.max(0, Math.ceil((game.boss.hp / game.boss.maxHp) * 100));
+    document.getElementById('bossHpPercent').textContent = `${pct}%`;
+    document.getElementById('bossHpBar').style.width = `${pct}%`;
+  } else {
+    document.getElementById('bossHud').classList.add('hidden');
+  }
+}
+
+function handleFinalBossVictory() {
+  game.boss = null;
+  document.getElementById('bossHud').classList.add('hidden');
+  sound.sfxSynergyAwaken();
+  endGameRun(true);
+}
+
+function endGameRun(isVictory) {
+  game.state = isVictory ? 'victory' : 'gameover';
+  sound.stopBgm();
+
+  metaData.shards += game.shardsEarned;
+  metaData.totalKills += game.kills;
+  if (game.maxCombo > metaData.maxComboEver) metaData.maxComboEver = game.maxCombo;
+  if (isVictory) {
+    metaData.clears++;
+    if (game.heat >= metaData.maxHeatUnlocked && metaData.maxHeatUnlocked < 10) metaData.maxHeatUnlocked++;
+  }
+  saveMeta();
+
+  const modal = document.getElementById('resultModal');
+  modal.classList.remove('hidden');
+
+  document.getElementById('resultBadge').textContent = isVictory ? 'MISSION COMPLETE' : 'SIGNAL LOST';
+  document.getElementById('resultTitle').textContent = isVictory ? 'OVERDRIVE CLEARED!' : 'SYSTEM OVERLOAD';
+  document.getElementById('resultSubtitle').textContent = isVictory ? '圧倒的なシナジーの嵐でオーバーロード・コアを完全制圧した！' : '力尽きたが、蓄積した戦闘データはコア・リアクターへと転送された。';
+
+  const mins = Math.floor(game.time / 60).toString().padStart(2, '0');
+  const secs = Math.floor(game.time % 60).toString().padStart(2, '0');
+  document.getElementById('resTime').textContent = `${mins}:${secs}`;
+  document.getElementById('resKills').textContent = game.kills;
+  document.getElementById('resMaxCombo').textContent = `x${game.maxCombo}`;
+  document.getElementById('resSynergies').textContent = `${game.synergies.size} / 8種`;
+  document.getElementById('resShards').textContent = `+${game.shardsEarned}`;
+
+  const endlessBtn = document.getElementById('btnEndlessContinue');
+  if (isVictory) endlessBtn.classList.remove('hidden'); else endlessBtn.classList.add('hidden');
+}
+
+function toggleSettings(open) {
+  if (!game) return;
+  const modal = document.getElementById('settingsModal');
+  if (open) {
+    game.state = 'settings';
+    modal.classList.remove('hidden');
+  } else {
+    game.state = 'playing';
+    game.lastTimestamp = performance.now();
+    modal.classList.add('hidden');
+  }
+}
+
+function renderTitleMetaUI() {
+  document.getElementById('metaShardsDisplay').textContent = metaData.shards;
+  document.getElementById('archiveCountBadge').textContent = metaData.unlockedSynergies.length;
+
+  const heatSel = document.getElementById('heatLevelSelect');
+  heatSel.innerHTML = '';
+  for (let h = 1; h <= metaData.maxHeatUnlocked; h++) {
+    const opt = document.createElement('option');
+    opt.value = h;
+    opt.textContent = `HEAT ${h}：敵密度 x${(1 + (h - 1) * 0.45).toFixed(2)} (報酬 x${(1 + (h - 1) * 0.4).toFixed(1)})`;
+    heatSel.appendChild(opt);
+  }
+
+  const framesContainer = document.getElementById('tab-frames');
+  framesContainer.innerHTML = '';
+  for (const fr of FRAMES_DATA) {
+    const unlocked = fr.unlockCond(metaData);
+    const selected = metaData.selectedFrame === fr.id;
+    const card = document.createElement('div');
+    card.className = `p-3.5 rounded-xl border transition-all cursor-pointer ${selected ? 'bg-slate-800/95 border-cyan-400 shadow-[0_0_15px_rgba(0,243,255,0.3)]' : (unlocked ? 'bg-slate-900/80 border-slate-700 hover:border-slate-500' : 'bg-slate-950/80 border-slate-800 opacity-65')}`;
+    card.innerHTML = `
+      <div class="flex justify-between items-center mb-1">
+        <span class="font-bold text-sm" style="color:${fr.color}">${fr.name}</span>
+        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-cyber">${selected ? 'SELECTED' : (unlocked ? 'READY' : 'LOCKED')}</span>
+      </div>
+      <div class="text-[10px] font-cyber text-slate-400 mb-2">${fr.tag}</div>
+      <p class="text-xs text-slate-300 leading-relaxed mb-2">${unlocked ? fr.desc : '🔒 ' + fr.unlockText}</p>
+    `;
+    if (unlocked) {
+      card.addEventListener('click', () => {
+        metaData.selectedFrame = fr.id;
+        saveMeta();
+        sound.init();
+        sound.playTone(660, 'sine', 0.1, 0.08);
+        renderTitleMetaUI();
+      });
+    }
+    framesContainer.appendChild(card);
+  }
+
+  const reactorContainer = document.getElementById('tab-reactor');
+  reactorContainer.innerHTML = '';
+  for (const upg of REACTOR_UPGRADES) {
+    const curLv = metaData.upgrades[upg.id] || 0;
+    const isMax = curLv >= upg.maxLv;
+    const cost = upg.baseCost + curLv * upg.costStep;
+    const canBuy = !isMax && metaData.shards >= cost;
+
+    const card = document.createElement('div');
+    card.className = 'p-3.5 rounded-xl bg-slate-900/90 border border-slate-700 flex flex-col justify-between';
+    card.innerHTML = `
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="font-bold text-xs sm:text-sm text-cyan-200">${upg.name}</span>
+          <span class="font-cyber text-xs text-amber-300">Lv.${curLv}/${upg.maxLv}</span>
+        </div>
+        <p class="text-xs text-slate-300 mb-3">${upg.desc}</p>
+      </div>
+      <button ${canBuy ? '' : 'disabled'} class="w-full py-2 rounded-lg font-bold text-xs ${isMax ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : (canBuy ? 'neon-btn bg-amber-400 text-slate-950 cursor-pointer' : 'bg-slate-800 text-slate-500')}">
+        ${isMax ? 'MAX ENHANCED' : `データ片 ${cost} で強化`}
+      </button>
+    `;
+    if (canBuy) {
+      card.querySelector('button').addEventListener('click', () => {
+        sound.init();
+        metaData.shards -= cost;
+        metaData.upgrades[upg.id] = curLv + 1;
+        saveMeta();
+        sound.sfxLevelUp();
+        renderTitleMetaUI();
+      });
+    }
+    reactorContainer.appendChild(card);
+  }
+
+  const archiveContainer = document.getElementById('tab-archive');
+  archiveContainer.innerHTML = '';
+  for (const syn of SYNERGIES_DATA) {
+    const discovered = metaData.unlockedSynergies.includes(syn.id);
+    const card = document.createElement('div');
+    card.className = `p-3 rounded-xl border ${discovered ? 'bg-slate-900/90 border-amber-400/50' : 'bg-slate-950/80 border-slate-800'}`;
+    const recipe = syn.reqUltimates ? '奥義スキル 2種以上' : `${SKILL_MAP[syn.reqSkills[0]].icon} + ${SKILL_MAP[syn.reqSkills[1]].icon}`;
+    card.innerHTML = `
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-bold text-xs sm:text-sm ${discovered ? 'text-amber-300' : 'text-slate-500'}">
+          ${discovered ? `${syn.icon} ${syn.name}` : '❓ 未発見シナジー'}
+        </span>
+      </div>
+      <div class="text-[11px] text-cyan-300/80 mb-1.5">組合せ: ${recipe}</div>
+      <p class="text-[11px] text-slate-300 leading-relaxed">${discovered ? syn.desc : 'バトル中に条件のスキルを育てて覚醒させよう！'}</p>
+    `;
+    archiveContainer.appendChild(card);
+  }
+}
+
+document.getElementById('btnResetSave').addEventListener('click', () => {
+  const firstConfirm = confirm('【警告】セーブデータを完全に削除しますか？\n（これまでの進行状況やデータ片がすべてリセットされます）');
+  if (firstConfirm) {
+    const secondConfirm = confirm('【最終確認】本当にセーブデータを削除してもよろしいですか？\nこの操作は取り消せません。');
+    if (secondConfirm) {
+      localStorage.removeItem('chain_overdrive_save_v1');
+      metaData = JSON.parse(JSON.stringify(DEFAULT_META));
+      renderTitleMetaUI();
+      alert('セーブデータを削除しました。');
+    }
+  }
+});
+
+document.querySelectorAll('.meta-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.meta-tab-btn').forEach(b => {
+      b.className = 'meta-tab-btn px-4 py-2 rounded-xl font-bold text-xs sm:text-sm bg-slate-800 text-slate-300 hover:text-white cursor-pointer';
+    });
+    btn.className = 'meta-tab-btn px-4 py-2 rounded-xl font-bold text-xs sm:text-sm bg-cyan-500 text-slate-950 cursor-pointer';
+    const target = btn.getAttribute('data-tab');
+    document.querySelectorAll('.meta-tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById(`tab-${target}`).classList.remove('hidden');
+  });
+});
+
+document.getElementById('btnStartGame').addEventListener('click', () => {
+  sound.init();
+  const heat = parseInt(document.getElementById('heatLevelSelect').value, 10) || 1;
+  game = createNewGameSession(heat);
+  initPlayerLoadout(game);
+
+  document.getElementById('titleScreen').classList.add('hidden');
+  document.getElementById('resultModal').classList.add('hidden');
+  document.getElementById('battleHud').classList.remove('hidden');
+  document.getElementById('bossHud').classList.add('hidden');
+  renderActiveSynergyBar();
+  updateHud();
+  sound.startBgm();
+});
+
+document.getElementById('btnOpenTree').addEventListener('click', () => toggleSkillTreeModal(true));
+document.getElementById('btnCloseTree').addEventListener('click', () => toggleSkillTreeModal(false));
+
+document.getElementById('btnUpgradeSelected').addEventListener('click', () => {
+  if (selectedNodeId && upgradeSkill(selectedNodeId)) {
+    renderTreeDetails(selectedNodeId);
+    drawConstellationTree();
+    renderTreeSynergyList();
+  }
+});
+
+document.getElementById('btnQuickSpend').addEventListener('click', () => {
+  autoSpendSp(true);
+  if (selectedNodeId) renderTreeDetails(selectedNodeId);
+  drawConstellationTree();
+  renderTreeSynergyList();
+});
+
+// 設定画面を開くボタン
+document.getElementById('btnOpenSettings').addEventListener('click', () => toggleSettings(true));
+document.getElementById('btnCloseSettings').addEventListener('click', () => toggleSettings(false));
+document.getElementById('btnQuitRunFromSettings').addEventListener('click', () => {
+  document.getElementById('settingsModal').classList.add('hidden');
+  endGameRun(false);
+});
+
+// 設定画面内のボタン連携（通常HUDのオート強化・マウス追従ボタンは削除されたため設定画面内のみ）
+const toggleMuteAction = () => {
+  sound.init();
+  const muted = sound.toggleMute();
+  const txt = muted ? '🔇 OFF' : '🔊 ON';
+  document.getElementById('btnToggleMuteModal').textContent = txt;
+};
+document.getElementById('btnToggleMuteModal').addEventListener('click', toggleMuteAction);
+
+const toggleMouseAction = () => {
+  if (!game) return;
+  game.mouseFollow = !game.mouseFollow;
+  const btn = document.getElementById('btnMouseFollowModal');
+  btn.textContent = game.mouseFollow ? 'ON' : 'OFF';
+  btn.className = game.mouseFollow 
+    ? 'px-3 py-1.5 rounded bg-cyan-500/20 border border-cyan-400 text-cyan-200 font-bold cursor-pointer'
+    : 'px-3 py-1.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer';
+};
+document.getElementById('btnMouseFollowModal').addEventListener('click', toggleMouseAction);
+
+const toggleAutoAction = () => {
+  if (!game) return;
+  game.autoBuild = !game.autoBuild;
+  const btn = document.getElementById('btnAutoBuildModal');
+  btn.textContent = game.autoBuild ? 'ON' : 'OFF';
+  btn.className = game.autoBuild 
+    ? 'px-3 py-1.5 rounded bg-emerald-500/20 border border-emerald-400 text-emerald-200 font-bold cursor-pointer' 
+    : 'px-3 py-1.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer';
+  if (game.autoBuild && game.sp > 0) autoSpendSp(true);
+};
+document.getElementById('btnAutoBuildModal').addEventListener('click', toggleAutoAction);
+
+document.getElementById('btnDashMobile').addEventListener('click', () => triggerDash());
+
+document.getElementById('btnEndlessContinue').addEventListener('click', () => {
+  document.getElementById('resultModal').classList.add('hidden');
+  game.state = 'playing';
+  game.endless = true;
+  game.lastTimestamp = performance.now();
+  sound.startBgm();
+  showToast('♾️ エンドレス・オーバードライブ突入！限界に挑め！');
+});
+
+document.getElementById('btnBackToTitle').addEventListener('click', () => {
+  document.getElementById('resultModal').classList.add('hidden');
+  document.getElementById('battleHud').classList.add('hidden');
+  document.getElementById('edgeVignette').style.boxShadow = 'none';
+  game = null;
+  renderTitleMetaUI();
+  document.getElementById('titleScreen').classList.remove('hidden');
+});
+
+function mainLoop(timestamp) {
+  if (game) {
+    const dt = Math.min(0.05, (timestamp - game.lastTimestamp) / 1000);
+    game.lastTimestamp = timestamp;
+    updateGame(dt);
+  }
+  renderGame();
+  requestAnimationFrame(mainLoop);
+}
+
+window.onload = () => {
+  renderTitleMetaUI();
+  requestAnimationFrame(mainLoop);
+};
+</script>
+</body>
+</html>
