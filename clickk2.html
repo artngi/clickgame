@@ -1,0 +1,2994 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>カカシ斬り - ながら連打剣戟 -</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Shippori+Mincho:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f1117;
+            --panel-bg: rgba(24, 28, 38, 0.92);
+            --accent-gold: #fbbf24;
+            --accent-crimson: #ef4444;
+        }
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(circle at 50% 45%, rgba(45, 55, 72, 0.35) 0%, rgba(15, 17, 23, 0.95) 75%),
+                repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 2px, transparent 2px, transparent 10px);
+            color: #f3f4f6;
+            overflow: hidden;
+            height: 100dvh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+        }
+        /* カカシ揺れアニメーション */
+        @keyframes scarecrowHit {
+            0% { transform: scale3d(1, 1, 1) rotate(0deg); }
+            20% { transform: scale3d(0.93, 0.93, 1) rotate(-6deg) translate3d(-6px, 0, 0); }
+            50% { transform: scale3d(1.04, 1.04, 1) rotate(5deg) translate3d(6px, 0, 0); }
+            80% { transform: scale3d(0.98, 0.98, 1) rotate(-2deg); }
+            100% { transform: scale3d(1, 1, 1) rotate(0deg); }
+        }
+        .hit-anim {
+            animation: scarecrowHit 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+            will-change: transform;
+        }
+        /* 画面シェイクアニメーション */
+        @keyframes screenShake {
+            0%, 100% { transform: translate3d(0, 0, 0); }
+            15% { transform: translate3d(-8px, 6px, 0); }
+            30% { transform: translate3d(8px, -6px, 0); }
+            45% { transform: translate3d(-6px, -4px, 0); }
+            60% { transform: translate3d(6px, 5px, 0); }
+            75% { transform: translate3d(-4px, 3px, 0); }
+        }
+        .shake-anim {
+            animation: screenShake 0.38s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+        }
+        /* 黄金オーラ */
+        @keyframes goldPulse {
+            0%, 100% { filter: drop-shadow(0 0 18px rgba(251, 191, 36, 0.95)) brightness(1.35) sepia(1) saturate(4.5) hue-rotate(5deg); }
+            50% { filter: drop-shadow(0 0 36px rgba(253, 224, 71, 1)) brightness(1.55) sepia(1) saturate(5.5) hue-rotate(10deg); }
+        }
+        .status-gold {
+            animation: goldPulse 0.75s infinite;
+        }
+        /* 凍結エフェクト */
+        .status-frozen {
+            filter: drop-shadow(0 0 22px rgba(56, 189, 248, 0.95)) brightness(1.25) saturate(1.6) hue-rotate(175deg);
+        }
+        /* 炎上エフェクト */
+        @keyframes burnFlicker {
+            0%, 100% { filter: drop-shadow(0 0 16px rgba(239, 68, 68, 0.95)); }
+            50% { filter: drop-shadow(0 -10px 28px rgba(249, 115, 22, 1)); }
+        }
+        .status-burn {
+            animation: burnFlicker 0.35s infinite;
+        }
+        /* コンボ刀・禍々しい呪怨オーラ段階変化 */
+        .status-omen-1 {
+            filter: drop-shadow(0 0 14px rgba(239, 68, 68, 0.75));
+        }
+        .status-omen-2 {
+            filter: drop-shadow(0 0 22px rgba(220, 38, 38, 0.95)) drop-shadow(0 0 8px rgba(127, 29, 29, 0.9));
+        }
+        @keyframes omenPulse {
+            0%, 100% { filter: drop-shadow(0 0 24px rgba(168, 85, 247, 0.95)) drop-shadow(0 0 42px rgba(225, 29, 72, 0.9)) contrast(1.15); }
+            50% { filter: drop-shadow(0 0 38px rgba(192, 132, 252, 1)) drop-shadow(0 0 58px rgba(153, 27, 27, 1)) contrast(1.25); }
+        }
+        .status-omen-3 {
+            animation: omenPulse 0.45s infinite;
+        }
+        /* ダメージ数字ポップアップ（GPU高速化） */
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translate3d(-50%, 0, 0) scale(0.82); }
+            20% { opacity: 1; transform: translate3d(-50%, -14px, 0) scale(1.18); }
+            100% { opacity: 0; transform: translate3d(-50%, -68px, 0) scale(0.95); }
+        }
+        .dmg-popup {
+            position: absolute;
+            pointer-events: none;
+            font-weight: 900;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.75);
+            animation: floatUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            z-index: 30;
+            white-space: nowrap;
+            will-change: transform, opacity;
+        }
+        /* 画面フラッシュ */
+        @keyframes screenFlash {
+            0% { opacity: 0.7; }
+            100% { opacity: 0; }
+        }
+        .flash-overlay {
+            animation: screenFlash 0.35s ease-out forwards;
+            will-change: opacity;
+        }
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 17, 23, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.5);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.8);
+        }
+        /* レアリティバッジカラー */
+        .rarity-R { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff; }
+        .rarity-SR { background: linear-gradient(135deg, #a855f7, #6d28d9); color: #fff; }
+        .rarity-HR { background: linear-gradient(135deg, #f59e0b, #b45309); color: #fff; }
+        .rarity-UR { background: linear-gradient(135deg, #ec4899, #ef4444, #eab308); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body id="game-body" class="flex flex-col justify-between relative">
+
+    <!-- 演出用フルスクリーンCanvas & フラッシュレイヤー -->
+    <canvas id="fx-canvas" class="fixed inset-0 pointer-events-none z-20"></canvas>
+    <div id="flash-layer" class="fixed inset-0 pointer-events-none z-20 opacity-0 bg-white"></div>
+
+    <!-- 1. 上部ステータスバー -->
+    <header class="relative z-30 w-full bg-slate-900/90 border-b border-slate-700/80 backdrop-blur-md px-3 py-2 sm:px-5 shadow-lg">
+        <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-2">
+            <!-- コイン & ポイント -->
+            <div class="flex items-center gap-3 sm:gap-6">
+                <div class="flex items-center gap-2 bg-slate-800/90 border border-amber-500/30 rounded-xl px-3 py-1.5 shadow-inner">
+                    <i class="fa-solid fa-coins text-amber-400 text-base sm:text-lg"></i>
+                    <div>
+                        <div class="text-[10px] text-slate-400 leading-none">所持コイン</div>
+                        <div id="ui-coins" class="text-sm sm:text-lg font-black text-amber-300 tracking-tight">0</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 bg-slate-800/90 border border-rose-500/30 rounded-xl px-3 py-1.5 shadow-inner">
+                    <i class="fa-solid fa-fire-flame-curved text-rose-400 text-base sm:text-lg"></i>
+                    <div>
+                        <div class="text-[10px] text-slate-400 leading-none">累計ポイント</div>
+                        <div id="ui-points" class="text-sm sm:text-lg font-black text-rose-200 tracking-tight">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 現在の装備刀 & 火力ステータス & サウンド切替 -->
+            <div class="flex items-center gap-2 sm:gap-4 ml-auto">
+                <div class="text-right hidden xs:block sm:block">
+                    <div class="flex items-center justify-end gap-1.5">
+                        <span id="ui-sword-rarity" class="text-[10px] font-bold px-1.5 py-0.5 rounded rarity-R">R</span>
+                        <span id="ui-sword-name" class="text-xs sm:text-sm font-bold text-slate-100">ノーマル刀</span>
+                        <span id="ui-sword-lv" class="text-[10px] font-black text-amber-300 bg-slate-800 px-1.5 py-0.5 rounded">Lv.1</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400">
+                        基礎火力: <span id="ui-base-atk" class="text-emerald-400 font-bold">1</span>
+                        <span class="mx-1">|</span>
+                        スキル倍率: <span id="ui-skill-mult" class="text-sky-400 font-bold">x1.0</span>
+                    </div>
+                </div>
+                <button id="btn-sound" onclick="toggleSound()" title="効果音切替" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-slate-300 transition active:scale-95">
+                    <i id="icon-sound" class="fa-solid fa-volume-xmark"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2. 右上アクションボタン（ショップ & 装備） -->
+    <div class="fixed top-[62px] sm:top-[68px] right-3 sm:right-5 z-30 flex flex-col gap-2.5">
+        <button onclick="openModal('shop')" class="group flex items-center gap-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-black px-3.5 py-2.5 rounded-2xl shadow-lg shadow-amber-900/40 border border-amber-300/60 transition transform active:scale-95">
+            <i class="fa-solid fa-store text-base"></i>
+            <span class="text-xs sm:text-sm tracking-wide">ショップ</span>
+        </button>
+        <button onclick="openModal('equip')" class="group flex items-center gap-2 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white font-bold px-3.5 py-2.5 rounded-2xl shadow-lg border border-slate-500/60 transition transform active:scale-95">
+            <i class="fa-solid fa-khanda text-base text-sky-400"></i>
+            <span class="text-xs sm:text-sm tracking-wide">装備変更</span>
+        </button>
+    </div>
+
+    <!-- 左上ステータス＆特殊ゲージ表示エリア -->
+    <div class="fixed top-[62px] sm:top-[68px] left-3 sm:left-5 z-20 pointer-events-none flex flex-col gap-1.5 max-w-[215px] sm:max-w-[265px]">
+        <!-- モバイル用ミニ刀表示 -->
+        <div class="sm:hidden bg-slate-900/80 border border-slate-700/70 rounded-xl px-2.5 py-1.5 backdrop-blur-sm">
+            <div class="flex items-center gap-1.5">
+                <span id="ui-sword-rarity-m" class="text-[9px] font-bold px-1.5 py-0.2 rounded rarity-R">R</span>
+                <span id="ui-sword-name-m" class="text-xs font-bold text-slate-100 truncate">ノーマル刀</span>
+                <span id="ui-sword-lv-m" class="text-[9px] font-black text-amber-300">Lv.1</span>
+            </div>
+            <div class="text-[10px] text-slate-300 mt-0.5">
+                火力: <span id="ui-base-atk-m" class="text-emerald-400 font-bold">1</span> / スキル: <span id="ui-skill-mult-m" class="text-sky-400 font-bold">x1.0</span>
+            </div>
+        </div>
+
+        <!-- 状態異常バッジ群 -->
+        <div id="status-badges" class="flex flex-wrap gap-1"></div>
+
+        <!-- 特殊武器ゲージ（アイス・チャージ・コンボ） -->
+        <div id="special-gauge-box" class="hidden bg-slate-900/85 border border-slate-700 rounded-xl p-2 backdrop-blur-sm shadow-md">
+            <div class="flex justify-between items-center text-[11px] font-bold mb-1">
+                <span id="special-gauge-label" class="text-sky-300">氷結ゲージ</span>
+                <span id="special-gauge-val" class="text-white">0%</span>
+            </div>
+            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div id="special-gauge-bar" class="h-full bg-sky-400 transition-all duration-75" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- ダイス表示エリア（ダイス刀装備時） -->
+        <div id="dice-display-box" class="hidden bg-slate-900/90 border border-pink-500/50 rounded-xl p-2 backdrop-blur-sm shadow-lg">
+            <div class="text-[10px] font-bold text-pink-300 mb-1 flex justify-between items-center gap-2">
+                <span>ダイス出目</span>
+                <span id="dice-total-text" class="text-right">合計: 0</span>
+            </div>
+            <div id="dice-icons" class="flex items-center gap-1 text-lg sm:text-xl text-white">
+                <i class="fa-solid fa-dice-one text-slate-400"></i>
+                <i class="fa-solid fa-dice-one text-slate-400"></i>
+                <i class="fa-solid fa-dice-one text-slate-400"></i>
+                <i class="fa-solid fa-dice-one text-slate-400"></i>
+                <i class="fa-solid fa-dice-one text-slate-400"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 画面中央：タップエリア & カカシ -->
+    <main id="tap-zone" class="relative flex-1 w-full flex flex-col items-center justify-center cursor-pointer overflow-hidden z-10" style="touch-action: none;">
+        <!-- 背景の和風月輪装飾 -->
+        <div class="absolute w-64 h-64 sm:w-80 sm:h-80 rounded-full border border-slate-700/40 bg-gradient-to-b from-slate-800/20 to-transparent pointer-events-none"></div>
+        <div class="absolute w-48 h-48 sm:w-60 sm:h-60 rounded-full border border-amber-500/10 pointer-events-none"></div>
+
+        <!-- 召喚獣（忠犬）アニメーション表示レイヤー -->
+        <div id="summon-layer" class="absolute inset-0 pointer-events-none flex items-center justify-center z-20"></div>
+
+        <!-- カカシ本体コンテナ -->
+        <div id="scarecrow-wrapper" class="relative flex items-center justify-center w-52 h-64 sm:w-64 sm:h-72 transition-transform">
+            <!-- チャージ刀用オーラリング -->
+            <div id="charge-aura-ring" class="hidden absolute inset-2 rounded-full pointer-events-none border-4 border-purple-400/70 shadow-[0_0_30px_rgba(168,85,247,0.8)] transition-all duration-75"></div>
+
+            <!-- コンボ刀用・禍々しい呪怨オーラリング -->
+            <div id="omen-aura-ring" class="hidden absolute inset-0 rounded-full pointer-events-none border-4 border-rose-600/80 shadow-[0_0_35px_rgba(225,29,72,0.85)] transition-all duration-100"></div>
+
+            <!-- 凍結時の氷塊クリスタルオーバーレイ -->
+            <svg id="ice-crystal-overlay" viewBox="0 0 220 260" class="hidden absolute inset-0 w-full h-full pointer-events-none z-10 drop-shadow-[0_0_15px_rgba(56,189,248,0.9)]">
+                <polygon points="110,18 168,62 178,165 148,238 72,238 42,165 52,62" fill="rgba(56, 189, 248, 0.28)" stroke="#bae6fd" stroke-width="3"/>
+                <polygon points="110,18 135,95 178,165 110,145 42,165 85,95" fill="rgba(255, 255, 255, 0.22)" stroke="#7dd3fc" stroke-width="1.5"/>
+                <line x1="72" y1="68" x2="96" y2="115" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+                <line x1="145" y1="85" x2="122" y2="132" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+
+            <!-- カカシ SVGグラフィック -->
+            <svg id="scarecrow-svg" viewBox="0 0 220 260" class="w-48 h-60 sm:w-56 sm:h-68 drop-shadow-2xl overflow-visible">
+                <!-- 地面の影 -->
+                <ellipse cx="110" cy="245" rx="58" ry="12" fill="rgba(0,0,0,0.55)" />
+                <!-- 支柱（縦木） -->
+                <rect x="103" y="35" width="14" height="210" rx="4" fill="#5c3a21" stroke="#3b2313" stroke-width="2"/>
+                <!-- 横木（腕） -->
+                <rect x="30" y="102" width="160" height="12" rx="5" fill="#6b4423" stroke="#3b2313" stroke-width="2"/>
+                <!-- 藁の袖（左・右） -->
+                <path d="M35 100 L18 94 L22 108 L15 116 L35 115 Z" fill="#eab308" stroke="#a16207" stroke-width="1.5"/>
+                <path d="M185 100 L202 94 L198 108 L205 116 L185 115 Z" fill="#eab308" stroke="#a16207" stroke-width="1.5"/>
+                <!-- 胴体（着物・藁束） -->
+                <path d="M76 92 L144 92 L154 185 L66 185 Z" fill="#334155" stroke="#1e293b" stroke-width="2.5" stroke-linejoin="round"/>
+                <!-- 着物の襟合わせ -->
+                <path d="M88 92 L110 125 L132 92" fill="none" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+                <path d="M96 92 L110 115 L124 92" fill="#cbd5e1"/>
+                <!-- 藁の腰ミノ -->
+                <path d="M70 175 L62 208 L78 202 L86 212 L98 200 L110 214 L122 200 L134 212 L142 202 L158 208 L150 175 Z" fill="#ca8a04" stroke="#854d0e" stroke-width="2" stroke-linejoin="round"/>
+                <!-- 荒縄の帯 -->
+                <rect x="72" y="156" width="76" height="14" rx="4" fill="#d97706" stroke="#78350f" stroke-width="2"/>
+                <path d="M76 160 L86 167 M92 160 L102 167 M108 160 L118 167 M124 160 L134 167" stroke="#78350f" stroke-width="2"/>
+                <!-- 頭部（麻袋） -->
+                <ellipse cx="110" cy="64" rx="28" ry="30" fill="#d6c096" stroke="#8c734b" stroke-width="2.5"/>
+                <!-- 首の縄 -->
+                <rect x="92" y="88" width="36" height="8" rx="3" fill="#b45309" stroke="#78350f" stroke-width="1.5"/>
+                <!-- へのへのもへじ顔 -->
+                <g stroke="#292524" stroke-width="2.5" fill="none" stroke-linecap="round">
+                    <!-- 眉（へ・へ） -->
+                    <path d="M91 52 Q97 46 103 52"/>
+                    <path d="M117 52 Q123 46 129 52"/>
+                    <!-- 目（の・の） -->
+                    <path d="M98 58 C94 58 93 64 98 64 C102 64 102 57 97 57"/>
+                    <path d="M122 58 C118 58 117 64 122 64 C126 64 126 57 121 57"/>
+                    <!-- 鼻（も） -->
+                    <path d="M110 58 L108 72 Q108 76 113 74 M104 65 L114 65 M104 70 L114 70"/>
+                    <!-- 口（へ） -->
+                    <path d="M98 81 Q110 74 122 81"/>
+                </g>
+                <!-- 三度笠（編み笠） -->
+                <path d="M52 44 Q110 8 168 44 Q110 52 52 44 Z" fill="#eab308" stroke="#854d0e" stroke-width="2.5" stroke-linejoin="round"/>
+                <path d="M68 42 Q110 18 152 42" fill="none" stroke="#ca8a04" stroke-width="1.5"/>
+            </svg>
+        </div>
+
+        <!-- 操作ガイド（控えめ） -->
+        <div class="mt-3 text-center pointer-events-none">
+            <p class="text-xs sm:text-sm text-slate-400/80 font-medium tracking-wider">
+                画面中央をタップしてカカシを斬る
+            </p>
+        </div>
+    </main>
+
+    <!-- 4. 画面下部：サブウェポンスロット（3枠・マルチタッチ完全分離領域） -->
+    <footer id="subweapon-footer" class="relative z-30 w-full bg-slate-900/95 border-t border-slate-700/80 backdrop-blur-md px-3 py-2.5 sm:px-6 sm:py-3 shadow-2xl" style="touch-action: manipulation;">
+        <div class="max-w-3xl mx-auto">
+            <div class="flex items-center justify-between mb-1.5 px-1">
+                <span class="text-[11px] font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
+                    <i class="fa-solid fa-bolt text-amber-400"></i> サブウェポン（タップで発動）
+                </span>
+                <span class="text-[10px] text-slate-500">個別クールタイム</span>
+            </div>
+            <div id="subweapon-slots" class="grid grid-cols-3 gap-2.5 sm:gap-4">
+                <!-- JSで3スロット描画 -->
+            </div>
+        </div>
+    </footer>
+
+    <!-- 5. モーダル（ショップ / 装備変更） -->
+    <div id="modal-backdrop" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-3xl max-h-[88dvh] flex flex-col shadow-2xl overflow-hidden">
+            <!-- モーダルヘッダー -->
+            <div class="flex items-center justify-between px-5 py-3.5 bg-slate-800/90 border-b border-slate-700">
+                <div class="flex items-center gap-2.5">
+                    <i id="modal-icon" class="fa-solid fa-store text-amber-400 text-xl"></i>
+                    <h2 id="modal-title" class="text-lg sm:text-xl font-black text-white tracking-wide">ショップ</h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div id="modal-coin-badge" class="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1 rounded-full border border-amber-500/30">
+                        <i class="fa-solid fa-coins text-amber-400 text-xs"></i>
+                        <span id="modal-coins" class="text-xs sm:text-sm font-black text-amber-300">0</span>
+                    </div>
+                    <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center transition">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- タブ切り替え -->
+            <div class="flex border-b border-slate-700 bg-slate-800/40 px-4 pt-2 gap-2">
+                <button id="tab-swords" onclick="switchTab('swords')" class="px-4 py-2 text-xs sm:text-sm font-bold rounded-t-xl border-b-2 border-amber-400 text-amber-300 bg-slate-800/80 transition">
+                    <i class="fa-solid fa-khanda mr-1.5"></i>刀（メイン武器）
+                </button>
+                <button id="tab-subs" onclick="switchTab('subs')" class="px-4 py-2 text-xs sm:text-sm font-bold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">
+                    <i class="fa-solid fa-bomb mr-1.5"></i>サブウェポン（全20種）
+                </button>
+            </div>
+
+            <!-- モーダルコンテンツ（スクロール領域） -->
+            <div id="modal-content" class="flex-1 overflow-y-auto p-4 space-y-3">
+                <!-- JSで動的生成 -->
+            </div>
+
+            <!-- モーダルフッター（セーブデータリセットなど） -->
+            <div class="px-5 py-2.5 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
+                <span>※進行状況は自動保存されます</span>
+                <button id="btn-reset-save" onclick="handleResetConfirm()" class="text-rose-400/80 hover:text-rose-400 underline transition">
+                    セーブデータ初期化
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-opacity duration-200 bg-slate-800/95 border border-amber-400/50 text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-full shadow-xl">
+        メッセージ
+    </div>
+
+<script>
+/**
+ * ============================================================================
+ * 全20種サブウェポン専用SVGテクスチャ生成＆CanvasオフスクリーンImageキャッシュ
+ * （既存の10種のハイクオリティを維持しつつ、残り10種も同等の精緻イラストを実装）
+ * ============================================================================
+ */
+const SUBWEAPON_RAW_SVGS = {
+    // 1. 手裏剣（四方八方手裏剣・メタリック刃＋中心穴）
+    shuriken: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <polygon points="32,4 39,25 60,32 39,39 32,60 25,39 4,32 25,25" fill="#94a3b8" stroke="#1e293b" stroke-width="2.5" stroke-linejoin="round"/>
+        <polygon points="32,4 35,28 32,32 29,28" fill="#f8fafc"/>
+        <polygon points="60,32 36,35 32,32 36,29" fill="#cbd5e1"/>
+        <polygon points="32,60 29,36 32,32 35,36" fill="#64748b"/>
+        <polygon points="4,32 28,29 32,32 28,35" fill="#e2e8f0"/>
+        <circle cx="32" cy="32" r="6" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+    </svg>`,
+
+    // 2. 拳銃（重厚なリボルバー＆マズルフラッシュ）
+    handgun: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <path d="M16 36 L26 36 L23 54 L13 52 Z" fill="#78350f" stroke="#451a03" stroke-width="2.5" stroke-linejoin="round"/>
+        <rect x="18" y="22" width="34" height="11" rx="2" fill="#475569" stroke="#0f172a" stroke-width="2.5"/>
+        <rect x="24" y="25" width="11" height="9" rx="1.5" fill="#94a3b8" stroke="#1e293b" stroke-width="2"/>
+        <rect x="36" y="20" width="16" height="4" rx="1" fill="#cbd5e1"/>
+        <path d="M54 21 L62 18 L58 26 L62 32 L54 29 Z" fill="#facc15"/>
+    </svg>`,
+
+    // 3. 爆弾（既存ハイクオリティ維持）
+    bomb: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <circle cx="30" cy="38" r="19" fill="#1e293b" stroke="#090d16" stroke-width="2.5"/>
+        <path d="M21 29 A12 12 0 0 1 32 23" fill="none" stroke="#64748b" stroke-width="3" stroke-linecap="round"/>
+        <rect x="37" y="18" width="8" height="7" rx="1.5" transform="rotate(35 41 21)" fill="#475569"/>
+        <path d="M43 18 Q49 11 54 14" fill="none" stroke="#d97706" stroke-width="3" stroke-linecap="round"/>
+        <polygon points="54,7 56,12 61,12 57,15 59,20 54,17 49,20 51,15 47,12 52,12" fill="#facc15"/>
+        <circle cx="54" cy="14" r="2.5" fill="#ef4444"/>
+    </svg>`,
+
+    // 4. 鎖鎌（三日月鎌＋鉄鎖＋分銅）
+    kusarigama: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <path d="M16 14 Q42 8 54 28 Q38 22 22 25 Z" fill="#e2e8f0" stroke="#334155" stroke-width="2.5" stroke-linejoin="round"/>
+        <rect x="15" y="13" width="6" height="36" rx="2.5" fill="#78350f" stroke="#451a03" stroke-width="2"/>
+        <path d="M18 49 Q28 58 38 48 Q46 39 50 48" fill="none" stroke="#a855f7" stroke-width="3" stroke-dasharray="4 3" stroke-linecap="round"/>
+        <circle cx="52" cy="50" r="6" fill="#475569" stroke="#1e293b" stroke-width="2"/>
+    </svg>`,
+
+    // 5. 火炎瓶（既存ハイクオリティ維持）
+    molotov: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <path d="M27 16 L37 16 L39 26 L44 33 L44 54 C44 57 41 59 38 59 L26 59 C23 59 20 57 20 54 L20 33 L25 26 Z" fill="#059669" stroke="#064e3b" stroke-width="2.5"/>
+        <path d="M22 39 L42 39 L42 54 C42 56 40 57 38 57 L26 57 C24 57 22 56 22 54 Z" fill="#f97316"/>
+        <path d="M29 16 C28 10 34 7 38 11 C36 14 34 16 34 16 Z" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+        <path d="M36 10 C35 4 42 2 44 7 C46 11 40 14 37 12 Z" fill="#ef4444"/>
+        <circle cx="39" cy="8" r="2.5" fill="#facc15"/>
+    </svg>`,
+
+    // 6. 散弾銃（ポンプアクション・ダブルバレル）
+    shotgun: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <g transform="rotate(-22 32 32)">
+            <path d="M6 34 L22 30 L22 38 L8 42 Z" fill="#92400e" stroke="#451a03" stroke-width="2.5" stroke-linejoin="round"/>
+            <rect x="20" y="26" width="38" height="6" rx="1.5" fill="#334155" stroke="#0f172a" stroke-width="2"/>
+            <rect x="20" y="32" width="34" height="5" rx="1.5" fill="#64748b" stroke="#0f172a" stroke-width="2"/>
+            <rect x="32" y="33" width="13" height="6" rx="2" fill="#b45309" stroke="#451a03" stroke-width="1.5"/>
+        </g>
+    </svg>`,
+
+    // 7. 苦無の雨（3連苦無・青鋼の刃と輪）
+    kunai_rain: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <g transform="translate(-12, -4) rotate(25 32 32)">
+            <polygon points="32,8 38,30 32,36 26,30" fill="#bae6fd" stroke="#0369a1" stroke-width="2"/>
+            <rect x="30" y="36" width="4" height="12" fill="#334155"/>
+            <circle cx="32" cy="51" r="4" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+        </g>
+        <g transform="translate(12, -2) rotate(25 32 32)">
+            <polygon points="32,8 38,30 32,36 26,30" fill="#bae6fd" stroke="#0369a1" stroke-width="2"/>
+            <rect x="30" y="36" width="4" height="12" fill="#334155"/>
+            <circle cx="32" cy="51" r="4" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+        </g>
+        <g transform="translate(0, 6) rotate(25 32 32)">
+            <polygon points="32,6 39,30 32,37 25,30" fill="#e0f2fe" stroke="#0284c7" stroke-width="2.5"/>
+            <rect x="30" y="37" width="4" height="13" fill="#1e293b"/>
+            <circle cx="32" cy="53" r="4.5" fill="none" stroke="#7dd3fc" stroke-width="2.5"/>
+        </g>
+    </svg>`,
+
+    // 8. スナイパーライフル（大型スコープ＆ロングバレル）
+    sniper: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <g transform="rotate(-25 32 32)">
+            <path d="M4 34 L18 30 L18 38 L5 41 Z" fill="#065f46" stroke="#022c22" stroke-width="2"/>
+            <rect x="16" y="29" width="44" height="5" rx="1.5" fill="#1e293b" stroke="#090d16" stroke-width="2"/>
+            <rect x="56" y="27.5" width="6" height="8" rx="1" fill="#10b981"/>
+            <rect x="22" y="21" width="20" height="5" rx="2" fill="#334155" stroke="#10b981" stroke-width="1.5"/>
+            <line x1="26" y1="26" x2="26" y2="29" stroke="#94a3b8" stroke-width="2"/>
+            <line x1="38" y1="26" x2="38" y2="29" stroke="#94a3b8" stroke-width="2"/>
+        </g>
+    </svg>`,
+
+    // 9. 毒の壺（既存ハイクオリティ維持）
+    poison_pot: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <ellipse cx="32" cy="40" rx="19" ry="18" fill="#581c87" stroke="#3b0764" stroke-width="2.5"/>
+        <rect x="23" y="18" width="18" height="7" rx="3" fill="#6b21a8" stroke="#3b0764" stroke-width="2"/>
+        <path d="M24 23 L40 23" stroke="#a3e635" stroke-width="3"/>
+        <circle cx="32" cy="38" r="6" fill="#d9f99d"/>
+        <circle cx="29.5" cy="37" r="1.5" fill="#3b0764"/>
+        <circle cx="34.5" cy="37" r="1.5" fill="#3b0764"/>
+        <rect x="29" y="43" width="6" height="4" rx="1" fill="#d9f99d"/>
+        <circle cx="26" cy="11" r="3" fill="#a3e635" opacity="0.85"/>
+        <circle cx="37" cy="8" r="4" fill="#84cc16" opacity="0.8"/>
+    </svg>`,
+
+    // 10. 弓矢・五月雨（和弓と黄金の矢）
+    arrow_rain: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <path d="M18 8 Q46 32 18 56" fill="none" stroke="#b45309" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="18" y1="8" x2="18" y2="56" stroke="#fef3c7" stroke-width="1.5"/>
+        <line x1="10" y1="32" x2="54" y2="32" stroke="#eab308" stroke-width="3"/>
+        <polygon points="58,32 48,26 50,32 48,38" fill="#facc15" stroke="#854d0e" stroke-width="1.5"/>
+        <path d="M10 32 L5 27 M10 32 L5 37 M15 32 L10 27 M15 32 L10 37" stroke="#f8fafc" stroke-width="2" stroke-linecap="round"/>
+    </svg>`,
+
+    // 11. ロケットランチャー（既存ハイクオリティ維持）
+    rocket: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <g transform="rotate(-35 32 32)">
+            <rect x="10" y="24" width="38" height="16" rx="3" fill="#4d7c0f" stroke="#1a2e05" stroke-width="2.5"/>
+            <rect x="6" y="22" width="6" height="20" rx="2" fill="#365314" stroke="#1a2e05" stroke-width="2"/>
+            <rect x="46" y="22" width="6" height="20" rx="2" fill="#365314" stroke="#1a2e05" stroke-width="2"/>
+            <path d="M52 26 L61 32 L52 38 Z" fill="#ef4444" stroke="#7f1d1d" stroke-width="2"/>
+            <rect x="22" y="40" width="6" height="9" rx="1.5" fill="#78350f"/>
+            <rect x="34" y="40" width="5" height="7" rx="1.5" fill="#78350f"/>
+            <rect x="18" y="19" width="14" height="5" rx="1" fill="#334155"/>
+        </g>
+    </svg>`,
+
+    // 12. 電磁パルス（既存ハイクオリティ維持）
+    emp: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <circle cx="32" cy="32" r="22" fill="#0f172a" stroke="#06b6d4" stroke-width="2.5"/>
+        <circle cx="32" cy="32" r="15" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="6 4"/>
+        <circle cx="32" cy="32" r="8" fill="#22d3ee"/>
+        <circle cx="32" cy="32" r="4" fill="#ffffff"/>
+        <path d="M32 6 L35 16 L29 16 Z M32 58 L35 48 L29 48 Z M6 32 L16 29 L16 35 Z M58 32 L48 29 L48 35 Z" fill="#38bdf8"/>
+    </svg>`,
+
+    // 13. 忠犬（既存ハイクオリティ維持）
+    ninken: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <polygon points="15,24 19,8 28,19" fill="#d97706" stroke="#78350f" stroke-width="2"/>
+        <polygon points="49,24 45,8 36,19" fill="#d97706" stroke="#78350f" stroke-width="2"/>
+        <ellipse cx="32" cy="35" rx="19" ry="17" fill="#f59e0b" stroke="#78350f" stroke-width="2.5"/>
+        <path d="M16 38 Q32 46 48 38 Q46 51 32 51 Q18 51 16 38 Z" fill="#fef3c7"/>
+        <path d="M14 25 L50 25 L48 30 L16 30 Z" fill="#dc2626"/>
+        <rect x="25" y="24" width="14" height="7" rx="1.5" fill="#cbd5e1" stroke="#334155" stroke-width="1.5"/>
+        <circle cx="24" cy="35" r="2.5" fill="#1e293b"/>
+        <circle cx="40" cy="35" r="2.5" fill="#1e293b"/>
+        <ellipse cx="32" cy="41" rx="3.5" ry="2.5" fill="#1e293b"/>
+    </svg>`,
+
+    // 14. 鷹（既存ハイクオリティ維持）
+    hawk: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <path d="M4 24 Q20 12 32 28 Q44 12 60 24 Q48 38 36 36 L32 54 L28 36 Q16 38 4 24 Z" fill="#92400e" stroke="#451a03" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M10 25 Q22 18 32 30 Q42 18 54 25" fill="none" stroke="#d97706" stroke-width="2"/>
+        <circle cx="32" cy="24" r="7" fill="#fef3c7" stroke="#78350f" stroke-width="2"/>
+        <path d="M29 25 L32 32 L35 25 Z" fill="#facc15" stroke="#b45309" stroke-width="1.5"/>
+        <circle cx="29.5" cy="23" r="1.3" fill="#0f172a"/>
+        <circle cx="34.5" cy="23" r="1.3" fill="#0f172a"/>
+    </svg>`,
+
+    // 15. ガトリングガン（多銃身回転バレル＆弾帯）
+    gatling: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <g transform="rotate(-18 32 32)">
+            <rect x="8" y="22" width="18" height="18" rx="4" fill="#334155" stroke="#0f172a" stroke-width="2.5"/>
+            <rect x="26" y="24" width="30" height="3.5" rx="1" fill="#94a3b8" stroke="#1e293b" stroke-width="1.5"/>
+            <rect x="26" y="29.5" width="30" height="3.5" rx="1" fill="#cbd5e1" stroke="#1e293b" stroke-width="1.5"/>
+            <rect x="26" y="35" width="30" height="3.5" rx="1" fill="#64748b" stroke="#1e293b" stroke-width="1.5"/>
+            <rect x="46" y="23" width="5" height="16" rx="1" fill="#f59e0b" stroke="#78350f" stroke-width="1.5"/>
+            <path d="M14 40 L18 50 L24 48 L20 40" fill="#facc15" stroke="#b45309" stroke-width="1.5"/>
+        </g>
+    </svg>`,
+
+    // 16. 氷爆弾（既存ハイクオリティ維持）
+    ice_grenade: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <polygon points="32,12 48,22 50,42 32,54 14,42 16,22" fill="#0284c7" stroke="#bae6fd" stroke-width="2.5"/>
+        <polygon points="32,12 40,32 32,54 24,32" fill="#38bdf8" opacity="0.7"/>
+        <path d="M32 18 L32 48 M18 33 L46 33 M22 23 L42 43 M42 23 L22 43" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+        <rect x="27" y="7" width="10" height="5" rx="1.5" fill="#e0f2fe"/>
+    </svg>`,
+
+    // 17. 小判（既存ハイクオリティ維持）
+    koban: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <ellipse cx="32" cy="32" rx="18" ry="25" fill="#facc15" stroke="#b45309" stroke-width="2.5"/>
+        <ellipse cx="32" cy="32" rx="14" ry="21" fill="none" stroke="#fef08a" stroke-width="1.5"/>
+        <rect x="27" y="27" width="10" height="10" fill="#eab308" stroke="#92400e" stroke-width="1.5"/>
+        <path d="M25 17 L39 17 M25 22 L39 22 M25 42 L39 42 M25 47 L39 47" stroke="#92400e" stroke-width="2" stroke-linecap="round"/>
+    </svg>`,
+
+    // 18. レーザービーム（SFプラズマ照射砲＆ピンクエネルギーコア）
+    laser: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <g transform="rotate(-25 32 32)">
+            <rect x="8" y="21" width="38" height="22" rx="6" fill="#1e1b4b" stroke="#ec4899" stroke-width="2.5"/>
+            <circle cx="24" cy="32" r="7" fill="#f472b6" stroke="#fdf2f8" stroke-width="2"/>
+            <rect x="44" y="25" width="10" height="14" rx="2" fill="#831843" stroke="#f472b6" stroke-width="2"/>
+            <line x1="54" y1="32" x2="63" y2="32" stroke="#fdf2f8" stroke-width="5" stroke-linecap="round"/>
+            <line x1="54" y1="32" x2="63" y2="32" stroke="#ec4899" stroke-width="9" opacity="0.5" stroke-linecap="round"/>
+        </g>
+    </svg>`,
+
+    // 19. 隕石（既存ハイクオリティ維持）
+    meteor: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <path d="M16 14 L52 44 L44 52 L10 22 Z" fill="#f97316" opacity="0.65"/>
+        <path d="M24 8 L56 36 L48 44 L18 14 Z" fill="#facc15" opacity="0.75"/>
+        <polygon points="38,24 52,28 56,42 46,54 30,52 24,38" fill="#7c2d12" stroke="#ea580c" stroke-width="2.5"/>
+        <path d="M32 34 L42 38 L38 46 M44 30 L49 39" stroke="#facc15" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>`,
+
+    // 20. 奥義・秘伝の巻物（金糸刺繍の緋色巻物＆封印）
+    secret_scroll: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <g transform="rotate(-25 32 32)">
+            <rect x="14" y="18" width="36" height="28" rx="3" fill="#be123c" stroke="#881337" stroke-width="2.5"/>
+            <rect x="8" y="15" width="7" height="34" rx="3" fill="#facc15" stroke="#92400e" stroke-width="2"/>
+            <rect x="49" y="15" width="7" height="34" rx="3" fill="#facc15" stroke="#92400e" stroke-width="2"/>
+            <rect x="27" y="18" width="10" height="28" fill="#fef08a"/>
+            <circle cx="32" cy="32" r="6" fill="#e11d48" stroke="#facc15" stroke-width="2"/>
+        </g>
+    </svg>`
+};
+
+// Canvas高速描画用：全20種のSVGテクスチャをオフスクリーンImageへ事前キャッシュ
+const SUBWEAPON_IMG_CACHE = {};
+function preloadSubweaponTextures() {
+    Object.keys(SUBWEAPON_RAW_SVGS).forEach(id => {
+        const svgStr = SUBWEAPON_RAW_SVGS[id];
+        const img = new Image();
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+        SUBWEAPON_IMG_CACHE[id] = img;
+    });
+}
+preloadSubweaponTextures();
+
+function getSubweaponSvg(id, sizeClass = "w-7 h-7") {
+    const raw = SUBWEAPON_RAW_SVGS[id];
+    if (raw) {
+        return raw.replace('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">', `<svg viewBox="0 0 64 64" class="${sizeClass} drop-shadow">`);
+    }
+    const def = SUBWEAPONS_DATA.find(s => s.id === id);
+    return `<div class="${sizeClass} flex items-center justify-center"><i class="fa-solid ${def.icon} text-lg sm:text-xl" style="color: ${def.color}"></i></div>`;
+}
+
+/**
+ * ============================================================================
+ * ゲームデータ定義（刀9種・サブウェポン20種）
+ * ============================================================================
+ */
+const SWORDS_DATA = [
+    {
+        id: 'normal',
+        name: 'ノーマル刀',
+        rarity: 'R',
+        price: 0,
+        baseAtk: 1,
+        atkGrowth: 3,
+        hasSkillUpgrade: false,
+        desc: '初期装備のシンプルな打刀。特殊能力はないが、強化で基礎火力が大きく伸びる。',
+        skillDesc: '強化で基礎火力のみ上昇'
+    },
+    {
+        id: 'fire',
+        name: 'ファイアー刀',
+        rarity: 'R',
+        price: 150,
+        baseAtk: 3,
+        atkGrowth: 4,
+        hasSkillUpgrade: true,
+        desc: '斬りつけたカカシを3秒間「炎上」させ、毎秒（1 × スキル倍率）の炎ダメージを与える。',
+        skillDesc: '基礎火力＆炎上ダメージ上昇'
+    },
+    {
+        id: 'ice',
+        name: 'アイス刀',
+        rarity: 'R',
+        price: 400,
+        baseAtk: 5,
+        atkGrowth: 6,
+        hasSkillUpgrade: true,
+        desc: '連打で氷結ゲージが溜まり、満タン（15回）でカカシを2秒間「凍結（被ダメ2倍）」にする。',
+        skillDesc: '基礎火力＆凍結ダメージ倍率上昇'
+    },
+    {
+        id: 'wind',
+        name: 'ウィンド刀',
+        rarity: 'SR',
+        price: 1200,
+        baseAtk: 10,
+        atkGrowth: 10,
+        hasSkillUpgrade: true,
+        desc: '攻撃後に真空の風の刃が発生し、（1 × スキル倍率）の追加攻撃を与える。',
+        skillDesc: '基礎火力＆風刃追撃ダメージ上昇'
+    },
+    {
+        id: 'thunder',
+        name: 'サンダー刀',
+        rarity: 'SR',
+        price: 3000,
+        baseAtk: 16,
+        atkGrowth: 15,
+        hasSkillUpgrade: true,
+        desc: '5タップごとに激しい落雷を落とし、（20 × スキル倍率）の特大ダメージを与える。',
+        skillDesc: '基礎火力＆落雷ダメージ上昇'
+    },
+    {
+        id: 'charge',
+        name: 'チャージ刀',
+        rarity: 'HR',
+        price: 8500,
+        baseAtk: 28,
+        atkGrowth: 28,
+        hasSkillUpgrade: false,
+        desc: '5秒間タップダメージを記録し、5秒経過時に蓄積ダメージの1.5倍を一気に大開放する。',
+        skillDesc: '強化で基礎火力のみ上昇（蓄積倍率1.5倍固定）'
+    },
+    {
+        id: 'gold',
+        name: 'ゴールド刀',
+        rarity: 'HR',
+        price: 22000,
+        baseAtk: 45,
+        atkGrowth: 42,
+        hasSkillUpgrade: false,
+        desc: '一定確率（6%）でカカシを5秒間「黄金」にし、ポイントとコインを5倍にする。',
+        skillDesc: '強化で基礎火力のみ上昇（黄金倍率5倍固定）'
+    },
+    {
+        id: 'dice',
+        name: 'ダイス刀',
+        rarity: 'UR',
+        price: 65000,
+        baseAtk: 70,
+        atkGrowth: 60,
+        hasSkillUpgrade: true,
+        desc: 'ダイス5個を振り同じ目が揃った最大個数分をダメージに乗算（例:1,2,2,1,2なら8×3）！ゾロ目は500×スキル倍率！',
+        skillDesc: '基礎火力＆ダイス・ゾロ目ダメージ上昇'
+    },
+    {
+        id: 'combo',
+        name: 'コンボ刀',
+        rarity: 'UR',
+        price: 150000,
+        baseAtk: 100,
+        atkGrowth: 85,
+        hasSkillUpgrade: true,
+        desc: '5秒間攻撃するごとに追加火力が加算され見た目も禍々しく進化！5秒経過で衝撃波とともにリセット＆再カウント！',
+        skillDesc: '基礎火力＆連撃加算ボーナス上昇'
+    }
+];
+
+const SUBWEAPONS_DATA = [
+    { id: 'shuriken', name: '手裏剣', icon: 'fa-fan', color: '#94a3b8', price: 100, cd: 4, baseDmg: 15, coinBonus: 10, desc: '素早い3連手裏剣を投げつける。回転率が非常に高い。', fx: 'shuriken' },
+    { id: 'handgun', name: '拳銃', icon: 'fa-gun', color: '#cbd5e1', price: 250, cd: 6, baseDmg: 35, coinBonus: 20, desc: '鋭い銃弾を撃ち込み、単発高ダメージを与える。', fx: 'bullet' },
+    { id: 'bomb', name: '爆弾', icon: 'fa-bomb', color: '#f97316', price: 500, cd: 8, baseDmg: 65, coinBonus: 45, desc: '導火線に火がついた爆弾で衝撃波と黒煙の大爆発を起こす。', fx: 'explosion' },
+    { id: 'kusarigama', name: '鎖鎌', icon: 'fa-link', color: '#a855f7', price: 900, cd: 7, baseDmg: 80, coinBonus: 50, desc: '鎖を巻き付けて連続斬撃を浴びせる忍びの武器。', fx: 'slash_multi' },
+    { id: 'molotov', name: '火炎瓶', icon: 'fa-bottle-droplet', color: '#ef4444', price: 1500, cd: 10, baseDmg: 50, coinBonus: 60, desc: '瓶が割れて激しい炎の海が広がり、4秒間炎上状態にする。', fx: 'fire_bottle' },
+    { id: 'shotgun', name: '散弾銃', icon: 'fa-burst', color: '#f59e0b', price: 2400, cd: 9, baseDmg: 140, coinBonus: 90, desc: '至近距離から散弾を浴びせ、多段ヒットダメージを与える。', fx: 'shotgun' },
+    { id: 'kunai_rain', name: '苦無の雨', icon: 'fa-cloud-showers-heavy', color: '#38bdf8', price: 3800, cd: 11, baseDmg: 210, coinBonus: 140, desc: '上空から無数のクナイを降らせてカカシを貫く。', fx: 'kunai_rain' },
+    { id: 'sniper', name: 'スナイパーライフル', icon: 'fa-crosshairs', color: '#10b981', price: 6000, cd: 13, baseDmg: 360, coinBonus: 220, desc: '急所を正確に撃ち抜く超精密・超威力の狙撃。', fx: 'sniper' },
+    { id: 'poison_pot', name: '毒の壺', icon: 'fa-skull-crossbones', color: '#84cc16', price: 9000, cd: 12, baseDmg: 180, coinBonus: 260, desc: '壺が砕けて紫の毒霧と泡がカカシを包み、5秒間毒ダメージを与える。', fx: 'poison' },
+    { id: 'arrow_rain', name: '弓矢・五月雨', icon: 'fa-location-arrow', color: '#eab308', price: 13500, cd: 10, baseDmg: 420, coinBonus: 320, desc: '五月雨のように連続で矢を射掛け、ポイントとコインを稼ぐ。', fx: 'arrows' },
+    { id: 'rocket', name: 'ロケットランチャー', icon: 'fa-rocket', color: '#f43f5e', price: 20000, cd: 15, baseDmg: 850, coinBonus: 550, desc: '巨大な弾頭が炎と煙の尾を引いて飛び、着弾時に大爆風を起こす。', fx: 'rocket' },
+    { id: 'emp', name: '電磁パルス', icon: 'fa-bolt-lightning', color: '#06b6d4', price: 30000, cd: 14, baseDmg: 650, coinBonus: 500, desc: '青い電気波動と無数の稲妻スパークを放ち、他スロットCTを3秒短縮！', fx: 'emp' },
+    { id: 'ninken', name: '忠犬', icon: 'fa-dog', color: '#d97706', price: 45000, cd: 16, baseDmg: 300, coinBonus: 450, desc: '凛々しい忠犬が疾風のように飛びかかり、5秒間連続爪痕攻撃を行う。', fx: 'summon_dog' },
+    { id: 'hawk', name: '鷹', icon: 'fa-crow', color: '#fbbf24', price: 65000, cd: 15, baseDmg: 950, coinBonus: 1200, desc: '上空から急降下し、羽根を舞い散らせながら鋭い鉤爪で切り裂く。', fx: 'summon_hawk' },
+    { id: 'gatling', name: 'ガトリングガン', icon: 'fa-hurricane', color: '#64748b', price: 95000, cd: 14, baseDmg: 1500, coinBonus: 1100, desc: '圧倒的弾幕の高速連射でカカシを蜂の巣にする。', fx: 'gatling' },
+    { id: 'ice_grenade', name: '氷爆弾', icon: 'fa-snowflake', color: '#38bdf8', price: 135000, cd: 15, baseDmg: 1200, coinBonus: 1300, desc: '炸裂して鋭い氷柱と雪の結晶が舞い、カカシを3秒間「凍結」にする！', fx: 'ice_bomb' },
+    { id: 'koban', name: '小判', icon: 'fa-sack-dollar', color: '#facc15', price: 190000, cd: 16, baseDmg: 1800, coinBonus: 3500, desc: '上空から大量の輝く小判が降り注ぎ、チャリンと弾けて大金を獲得！', fx: 'koban' },
+    { id: 'laser', name: 'レーザービーム', icon: 'fa-wand-magic-sparkles', color: '#ec4899', price: 270000, cd: 18, baseDmg: 4200, coinBonus: 2800, desc: '極太の高出力エネルギービームを照射して焼き払う。', fx: 'laser' },
+    { id: 'meteor', name: '隕石', icon: 'fa-meteor', color: '#ea580c', price: 400000, cd: 20, baseDmg: 7500, coinBonus: 5000, desc: '斜め上空から燃える巨大隕石が落下し、マグマの地割れと大爆発を起こす。', fx: 'meteor' },
+    { id: 'secret_scroll', name: '奥義・秘伝の巻物', icon: 'fa-scroll', color: '#f43f5e', price: 650000, cd: 22, baseDmg: 15000, coinBonus: 12000, desc: '全画面を埋め尽くす究極の奥義斬撃！ポイントもコインも桁違い。', fx: 'ultimate' }
+];
+
+/**
+ * ============================================================================
+ * ゲーム状態管理（セーブ＆ロード対応・旧セーブ互換処理つき）
+ * ============================================================================
+ */
+const SAVE_KEY = 'kakashi_clicker_save_v1';
+
+let state = {
+    coins: 0,
+    points: 0,
+    equippedSword: 'normal',
+    swords: {
+        normal: { unlocked: true, lv: 1 }
+    },
+    subweapons: {},
+    equippedSubs: [null, null, null],
+    soundEnabled: false
+};
+
+// 一時的な戦闘状態（セーブ不要）
+let battle = {
+    tapCount: 0,
+    burnTimer: 0,
+    burnDps: 0,
+    burnTickAcc: 0,
+    burnParticleAcc: 0,
+    frozenTimer: 0,
+    freezeParticleAcc: 0,
+    goldTimer: 0,
+    goldParticleAcc: 0,
+    poisonTimer: 0,
+    poisonDps: 0,
+    poisonTickAcc: 0,
+    poisonParticleAcc: 0,
+    iceGauge: 0,
+    chargeTimer: 0,
+    chargeStored: 0,
+    chargeParticleAcc: 0,
+    // リワーク後コンボ刀用ステート（5秒サイクル・加算強化）
+    comboTimer: 0,
+    comboHits: 0,
+    comboBonusAtk: 0,
+    comboOmenAcc: 0,
+    subCooldowns: [0, 0, 0],
+    dogTimer: 0,
+    dogAtkAcc: 0,
+    dogDmg: 0
+};
+
+let currentModal = null;
+let currentTab = 'swords';
+let resetConfirmStep = false;
+
+function loadGame() {
+    try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            state = { ...state, ...parsed };
+            Object.keys(state.swords).forEach(k => {
+                const s = state.swords[k];
+                if (s && s.lv === undefined) {
+                    s.lv = Math.max(1, Math.max(s.atkLv || 1, s.skillLv || 1));
+                }
+            });
+            if (!state.swords.normal) {
+                state.swords.normal = { unlocked: true, lv: 1 };
+            }
+        }
+    } catch (e) {
+        console.warn('セーブデータの読み込みに失敗しました', e);
+    }
+}
+
+function saveGame() {
+    try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    } catch (e) {}
+}
+
+function handleResetConfirm() {
+    const btn = document.getElementById('btn-reset-save');
+    if (!resetConfirmStep) {
+        resetConfirmStep = true;
+        btn.textContent = '本当に初期化しますか？（再クリックで実行）';
+        btn.classList.add('font-bold', 'text-rose-400');
+        setTimeout(() => {
+            resetConfirmStep = false;
+            if (btn) {
+                btn.textContent = 'セーブデータ初期化';
+                btn.classList.remove('font-bold');
+            }
+        }, 4000);
+    } else {
+        localStorage.removeItem(SAVE_KEY);
+        location.reload();
+    }
+}
+
+/**
+ * ============================================================================
+ * Web Audio API 効果音エンジン（外部ファイル不要）
+ * ============================================================================
+ */
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) audioCtx = new AudioContext();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function toggleSound() {
+    state.soundEnabled = !state.soundEnabled;
+    if (state.soundEnabled) {
+        initAudio();
+        playSfx('coin');
+        showToast('効果音: ON');
+    } else {
+        showToast('効果音: OFF');
+    }
+    updateSoundIcon();
+    saveGame();
+}
+
+function updateSoundIcon() {
+    const icon = document.getElementById('icon-sound');
+    if (state.soundEnabled) {
+        icon.className = 'fa-solid fa-volume-high text-amber-400';
+    } else {
+        icon.className = 'fa-solid fa-volume-xmark text-slate-400';
+    }
+}
+
+function playSfx(type) {
+    if (!state.soundEnabled) return;
+    initAudio();
+    if (!audioCtx) return;
+
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === 'slash') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(520 + Math.random() * 180, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.08);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+    } else if (type === 'crit') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(1480, now + 0.12);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.start(now);
+        osc.stop(now + 0.12);
+    } else if (type === 'thunder' || type === 'explosion') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(32, now + 0.28);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        osc.start(now);
+        osc.stop(now + 0.28);
+    } else if (type === 'coin') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(987, now);
+        osc.frequency.setValueAtTime(1318, now + 0.05);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+        osc.start(now);
+        osc.stop(now + 0.16);
+    } else if (type === 'sub') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(640, now + 0.14);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+        osc.start(now);
+        osc.stop(now + 0.14);
+    }
+}
+
+/**
+ * ============================================================================
+ * ステータス計算ヘルパー
+ * ============================================================================
+ */
+function formatNum(n) {
+    n = Math.floor(n);
+    if (n < 10000) return n.toLocaleString();
+    if (n < 100000000) return (n / 10000).toFixed(2).replace(/\.00$/, '') + '万';
+    if (n < 1000000000000) return (n / 100000000).toFixed(2).replace(/\.00$/, '') + '億';
+    return (n / 1000000000000).toFixed(2).replace(/\.00$/, '') + '兆';
+}
+
+function getSwordStats(swordId) {
+    const def = SWORDS_DATA.find(s => s.id === swordId);
+    const prog = state.swords[swordId] || { unlocked: false, lv: 1 };
+    const lv = prog.lv || 1;
+    const atk = def.baseAtk + (lv - 1) * def.atkGrowth;
+    const skillMult = def.hasSkillUpgrade ? (1 + (lv - 1) * 0.5) : 1.0;
+    const baseCost = Math.max(25, Math.round(def.price * 0.28) || 20);
+    const upgradeCost = Math.round(baseCost * Math.pow(1.3, lv - 1));
+    return { def, prog, lv, atk, skillMult, upgradeCost };
+}
+
+function getSubweaponStats(subId) {
+    const def = SUBWEAPONS_DATA.find(s => s.id === subId);
+    const prog = state.subweapons[subId] || { unlocked: false, lv: 1 };
+    const lvMult = 1 + (prog.lv - 1) * 0.45;
+    const dmg = Math.round(def.baseDmg * lvMult);
+    const coinGain = Math.round(def.coinBonus * lvMult);
+    const upgradeCost = Math.round(def.price * 0.45 * Math.pow(1.32, prog.lv - 1));
+    return { def, prog, dmg, coinGain, upgradeCost };
+}
+
+/**
+ * ============================================================================
+ * 高速化・軽量化済み Canvas 演出エンジン
+ * （shadowBlur排除による2重パス高速グロー・オブジェクト上限キャップ・SVGキャッシュ描画）
+ * ============================================================================
+ */
+const canvas = document.getElementById('fx-canvas');
+const ctx = canvas.getContext('2d', { alpha: true });
+
+// パフォーマンス維持のための最大同時エフェクト数上限
+const MAX_PARTICLES = 240;
+const MAX_SLASHES = 40;
+const MAX_BEAMS = 24;
+const MAX_SHOCKWAVES = 20;
+const MAX_PROJECTILES = 36;
+const MAX_LIGHTNING = 16;
+
+let particles = [];
+let slashes = [];
+let beams = [];
+let shockwaves = [];
+let projectiles = [];
+let lightningBolts = [];
+let groundFires = [];
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function triggerScreenShake() {
+    const body = document.getElementById('game-body');
+    body.classList.remove('shake-anim');
+    void body.offsetWidth;
+    body.classList.add('shake-anim');
+}
+
+function spawnSlashEffect(x, y, color = '#ffffff', width = 4, len = 130, angleOverride = null) {
+    if (slashes.length >= MAX_SLASHES) slashes.shift();
+    const angle = angleOverride !== null ? angleOverride : (Math.random() - 0.5) * Math.PI * 1.4;
+    slashes.push({ x, y, angle, color, width, len, life: 1.0, decay: 0.075 });
+}
+
+function spawnCrescentWind(x, y) {
+    if (slashes.length >= MAX_SLASHES) slashes.shift();
+    const angle = (Math.random() - 0.5) * 1.2;
+    slashes.push({ x, y, angle, color: '#10b981', width: 9, len: 190, life: 1.0, decay: 0.06, isCrescent: true });
+    spawnShockwave(x, y, 95, '#34d399', 3, 0.06);
+}
+
+function spawnParticles(x, y, count, color, speed = 6, size = 4, gravity = 0.16, shape = 'circle') {
+    const room = MAX_PARTICLES - particles.length;
+    const actualCount = room <= 0 ? Math.min(count, 4) : Math.min(count, room + 4);
+    for (let i = 0; i < actualCount; i++) {
+        if (particles.length >= MAX_PARTICLES) particles.shift();
+        const ang = Math.random() * Math.PI * 2;
+        const spd = (0.25 + Math.random() * 0.75) * speed;
+        particles.push({
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd - (gravity > 0 ? 1.5 : 0),
+            color,
+            size: size * (0.6 + Math.random() * 0.8),
+            gravity,
+            shape,
+            rot: Math.random() * Math.PI * 2,
+            vRot: (Math.random() - 0.5) * 0.25,
+            life: 1.0,
+            decay: 0.024 + Math.random() * 0.024
+        });
+    }
+}
+
+function spawnShockwave(x, y, maxR, color, width = 5, decay = 0.045) {
+    if (shockwaves.length >= MAX_SHOCKWAVES) shockwaves.shift();
+    shockwaves.push({ x, y, r: 10, maxR, color, width, life: 1.0, decay });
+}
+
+function spawnBeam(x1, y1, x2, y2, color, width = 16) {
+    if (beams.length >= MAX_BEAMS) beams.shift();
+    beams.push({ x1, y1, x2, y2, color, width, life: 1.0, decay: 0.055 });
+}
+
+function spawnJaggedLightning(x1, y1, x2, y2, color = '#facc15', width = 5, branches = 2) {
+    if (lightningBolts.length >= MAX_LIGHTNING) lightningBolts.shift();
+    const segments = 9;
+    const pts = [{ x: x1, y: y1 }];
+    for (let i = 1; i < segments; i++) {
+        const t = i / segments;
+        const bx = x1 + (x2 - x1) * t + (Math.random() - 0.5) * 48;
+        const by = y1 + (y2 - y1) * t + (Math.random() - 0.5) * 24;
+        pts.push({ x: bx, y: by });
+        if (branches > 0 && i % 3 === 0) {
+            spawnJaggedLightning(bx, by, bx + (Math.random() - 0.5) * 90, by + 50 + Math.random() * 40, color, width * 0.5, 0);
+        }
+    }
+    pts.push({ x: x2, y: y2 });
+    lightningBolts.push({ pts, color, width, life: 1.0, decay: 0.068 });
+}
+
+/**
+ * 飛翔体スプライト生成（全20種サブウェポンが専用SVGテクスチャを伴って飛来・出現）
+ */
+function spawnProjectile(opts) {
+    if (projectiles.length >= MAX_PROJECTILES) projectiles.shift();
+    projectiles.push({
+        x: opts.x1,
+        y: opts.y1,
+        x1: opts.x1,
+        y1: opts.y1,
+        x2: opts.x2,
+        y2: opts.y2,
+        t: 0,
+        speed: opts.speed || 0.08,
+        texId: opts.texId,        // キャッシュ済みSVGテクスチャID
+        size: opts.size || 46,    // 描画サイズ(px)
+        spin: opts.spin || 0,     // 回転速度（0なら進行方向を向く）
+        arc: opts.arc || 0,       // 放物線の高さ
+        trailColor: opts.trailColor || null,
+        trailShape: opts.trailShape || 'circle',
+        rot: Math.random() * Math.PI * 2,
+        onImpact: opts.onImpact || null
+    });
+}
+
+function triggerFlash(color = 'rgba(255,255,255,0.7)') {
+    const el = document.getElementById('flash-layer');
+    el.style.backgroundColor = color;
+    el.classList.remove('flash-overlay');
+    void el.offsetWidth;
+    el.classList.add('flash-overlay');
+}
+
+function updateAndDrawFx() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 0. 地面の炎上フィールド
+    for (let i = groundFires.length - 1; i >= 0; i--) {
+        const gf = groundFires[i];
+        gf.life -= 0.01;
+        if (Math.random() < 0.55) {
+            const fx = gf.x + (Math.random() - 0.5) * 145;
+            const fy = gf.y + (Math.random() - 0.5) * 20;
+            spawnParticles(fx, fy, 1, Math.random() < 0.5 ? '#ef4444' : '#f97316', 2.5, 6.5, -0.18, 'circle');
+        }
+        if (gf.life <= 0) groundFires.splice(i, 1);
+    }
+
+    // 1. 衝撃波リング描画（高速2重ストロークグロー）
+    for (let i = shockwaves.length - 1; i >= 0; i--) {
+        const sw = shockwaves[i];
+        sw.r += (sw.maxR - sw.r) * 0.18;
+        const a = Math.max(0, sw.life);
+        ctx.save();
+        ctx.strokeStyle = sw.color;
+        ctx.globalAlpha = a * 0.35;
+        ctx.lineWidth = sw.width * a * 2.2;
+        ctx.beginPath();
+        ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.globalAlpha = a;
+        ctx.lineWidth = sw.width * a;
+        ctx.stroke();
+        ctx.restore();
+
+        sw.life -= sw.decay;
+        if (sw.life <= 0) shockwaves.splice(i, 1);
+    }
+
+    // 2. 斬撃ライン・三日月風刃描画
+    for (let i = slashes.length - 1; i >= 0; i--) {
+        const s = slashes[i];
+        const a = Math.max(0, s.life);
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(s.angle);
+        ctx.strokeStyle = s.color;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        if (s.isCrescent) {
+            ctx.arc(0, 25, s.len * 0.55, Math.PI * 1.15, Math.PI * 1.85);
+        } else {
+            ctx.moveTo(-s.len * 0.5, 0);
+            ctx.quadraticCurveTo(0, -10, s.len * 0.5, 0);
+        }
+        // 外側オーラ
+        ctx.globalAlpha = a * 0.4;
+        ctx.lineWidth = s.width * a * 2.2;
+        ctx.stroke();
+        // 芯線
+        ctx.globalAlpha = a;
+        ctx.lineWidth = s.width * a;
+        ctx.stroke();
+        ctx.restore();
+
+        s.life -= s.decay;
+        if (s.life <= 0) slashes.splice(i, 1);
+    }
+
+    // 3. ジグザグ稲妻描画
+    for (let i = lightningBolts.length - 1; i >= 0; i--) {
+        const b = lightningBolts[i];
+        const a = Math.max(0, b.life);
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        for (let j = 0; j < b.pts.length; j++) {
+            const pt = b.pts[j];
+            if (j === 0) ctx.moveTo(pt.x, pt.y);
+            else ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.strokeStyle = b.color;
+        ctx.globalAlpha = a * 0.45;
+        ctx.lineWidth = b.width * a * 2.2;
+        ctx.stroke();
+
+        ctx.globalAlpha = a;
+        ctx.lineWidth = b.width * a;
+        ctx.stroke();
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = b.width * 0.4 * a;
+        ctx.stroke();
+        ctx.restore();
+
+        b.life -= b.decay;
+        if (b.life <= 0) lightningBolts.splice(i, 1);
+    }
+
+    // 4. ビーム描画
+    for (let i = beams.length - 1; i >= 0; i--) {
+        const b = beams[i];
+        const a = Math.max(0, b.life);
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(b.x1, b.y1);
+        ctx.lineTo(b.x2, b.y2);
+
+        ctx.strokeStyle = b.color;
+        ctx.globalAlpha = a * 0.4;
+        ctx.lineWidth = b.width * a * 1.8;
+        ctx.stroke();
+
+        ctx.globalAlpha = a;
+        ctx.lineWidth = b.width * a;
+        ctx.stroke();
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = (b.width * 0.4) * a;
+        ctx.stroke();
+        ctx.restore();
+
+        b.life -= b.decay;
+        if (b.life <= 0) beams.splice(i, 1);
+    }
+
+    // 5. サブウェポンSVGテクスチャ飛翔体の描画（事前キャッシュImageによる超高速描画）
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        const pr = projectiles[i];
+        pr.t += pr.speed;
+        pr.rot += pr.spin;
+
+        const progress = Math.min(1, pr.t);
+        const currX = pr.x1 + (pr.x2 - pr.x1) * progress;
+        const arcOffset = pr.arc !== 0 ? -Math.sin(progress * Math.PI) * pr.arc : 0;
+        const currY = pr.y1 + (pr.y2 - pr.y1) * progress + arcOffset;
+
+        // 軌跡パーティクル
+        if (pr.trailColor && Math.random() < 0.75) {
+            spawnParticles(currX, currY, 1, pr.trailColor, 2.5, 4.2, -0.05, pr.trailShape);
+        }
+
+        const img = SUBWEAPON_IMG_CACHE[pr.texId];
+        ctx.save();
+        ctx.translate(currX, currY);
+        if (pr.spin !== 0) {
+            ctx.rotate(pr.rot);
+        } else {
+            const ang = Math.atan2(pr.y2 - pr.y1, pr.x2 - pr.x1);
+            ctx.rotate(ang);
+        }
+
+        if (img && img.complete && img.naturalWidth > 0) {
+            const half = pr.size * 0.5;
+            ctx.drawImage(img, -half, -half, pr.size, pr.size);
+        } else {
+            // フォールバック発光球
+            ctx.fillStyle = pr.trailColor || '#facc15';
+            ctx.beginPath();
+            ctx.arc(0, 0, pr.size * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        if (pr.t >= 1.0) {
+            if (pr.onImpact) pr.onImpact(pr.x2, pr.y2);
+            projectiles.splice(i, 1);
+        }
+    }
+
+    // 6. パーティクル描画（高速バッチ最適化）
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        const a = Math.max(0, p.life);
+        const sz = p.size * a;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        if (p.shape !== 'circle') ctx.rotate(p.rot);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = p.color;
+
+        if (p.shape === 'diamond') {
+            ctx.beginPath();
+            ctx.moveTo(0, -sz * 1.4);
+            ctx.lineTo(sz, 0);
+            ctx.lineTo(0, sz * 1.4);
+            ctx.lineTo(-sz, 0);
+            ctx.closePath();
+            ctx.fill();
+        } else if (p.shape === 'koban') {
+            ctx.fillStyle = '#facc15';
+            ctx.strokeStyle = '#92400e';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, sz * 0.85, sz * 1.25, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        } else if (p.shape === 'snowflake') {
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-sz * 1.4, 0); ctx.lineTo(sz * 1.4, 0);
+            ctx.moveTo(0, -sz * 1.4); ctx.lineTo(0, sz * 1.4);
+            ctx.moveTo(-sz, -sz); ctx.lineTo(sz, sz);
+            ctx.moveTo(sz, -sz); ctx.lineTo(-sz, sz);
+            ctx.stroke();
+        } else {
+            ctx.beginPath();
+            ctx.arc(0, 0, sz, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.gravity;
+        p.rot += p.vRot;
+        p.life -= p.decay;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    requestAnimationFrame(updateAndDrawFx);
+}
+requestAnimationFrame(updateAndDrawFx);
+
+/**
+ * ============================================================================
+ * ダメージ処理・報酬獲得・ポップアップDOMプール最適化
+ * ============================================================================
+ */
+const MAX_POPUPS = 28;
+let activePopups = 0;
+
+function getScarecrowCenter() {
+    const el = document.getElementById('scarecrow-wrapper');
+    const rect = el.getBoundingClientRect();
+    return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+    };
+}
+
+function showDamagePopup(text, x, y, color = '#ffffff', scale = 1.0) {
+    if (activePopups >= MAX_POPUPS) return; // 超高速連打時のDOM過負荷防止
+    activePopups++;
+    const popup = document.createElement('div');
+    popup.className = 'dmg-popup';
+    popup.textContent = text;
+    popup.style.left = `${x + (Math.random() - 0.5) * 44}px`;
+    popup.style.top = `${y - 20 + (Math.random() - 0.5) * 24}px`;
+    popup.style.color = color;
+    popup.style.fontSize = `${Math.round(19 * scale)}px`;
+    document.body.appendChild(popup);
+    setTimeout(() => {
+        popup.remove();
+        activePopups = Math.max(0, activePopups - 1);
+    }, 710);
+}
+
+/**
+ * カカシにダメージを与え、ポイントとコインを獲得する共通関数
+ */
+function dealDamage(rawAmount, options = {}) {
+    const {
+        x = null,
+        y = null,
+        color = '#ffffff',
+        scale = 1.0,
+        bonusCoins = 0,
+        isSkill = false
+    } = options;
+
+    const center = getScarecrowCenter();
+    const px = x !== null ? x : center.x;
+    const py = y !== null ? y : center.y;
+
+    let finalDmg = Math.max(1, Math.round(rawAmount));
+
+    // 凍結中は被ダメージ2倍（アイス刀強化でさらに上昇）
+    if (battle.frozenTimer > 0) {
+        const iceStats = getSwordStats('ice');
+        const freezeMult = state.equippedSword === 'ice' ? (2 + (iceStats.lv - 1) * 0.15) : 2.0;
+        finalDmg = Math.round(finalDmg * freezeMult);
+    }
+
+    // 毒霧中は被ダメ1.2倍
+    if (battle.poisonTimer > 0) {
+        finalDmg = Math.round(finalDmg * 1.2);
+    }
+
+    // 黄金状態中はポイントとコイン5倍
+    const goldMult = battle.goldTimer > 0 ? 5 : 1;
+
+    const gainedPoints = finalDmg * goldMult;
+    const gainedCoins = Math.max(1, Math.round((finalDmg * 0.6 + bonusCoins) * goldMult));
+
+    state.points += gainedPoints;
+    state.coins += gainedCoins;
+
+    // チャージ刀の蓄積記録
+    if (state.equippedSword === 'charge' && !isSkill) {
+        battle.chargeStored += finalDmg;
+    }
+
+    const displayColor = battle.goldTimer > 0 ? '#fde047' : (battle.frozenTimer > 0 ? '#7dd3fc' : color);
+    showDamagePopup(`${formatNum(gainedPoints)}`, px, py, displayColor, scale);
+
+    updateTopUI();
+}
+
+function animateScarecrowHit() {
+    const svg = document.getElementById('scarecrow-svg');
+    svg.classList.remove('hit-anim');
+    void svg.offsetWidth;
+    svg.classList.add('hit-anim');
+}
+
+/**
+ * ============================================================================
+ * ダイス重複計算ヘルパー（例：1,2,2,1,2 -> 合計8 × 最大重複3 = 24）
+ * ============================================================================
+ */
+function evaluateDiceRolls(rolls) {
+    const sum = rolls.reduce((a, b) => a + b, 0);
+    const isZorome = rolls.every(v => v === rolls[0]);
+    const counts = {};
+    let maxMatch = 1;
+    for (let i = 0; i < rolls.length; i++) {
+        const v = rolls[i];
+        counts[v] = (counts[v] || 0) + 1;
+        if (counts[v] > maxMatch) maxMatch = counts[v];
+    }
+    return { sum, isZorome, matchMult: maxMatch };
+}
+
+/**
+ * ============================================================================
+ * メインタップ攻撃ロジック（全9種の刀ギミック）
+ * ============================================================================
+ */
+function handleTapAttack(clientX, clientY) {
+    const swordId = state.equippedSword;
+    const { atk, skillMult } = getSwordStats(swordId);
+    const center = getScarecrowCenter();
+    const tx = clientX || center.x;
+    const ty = clientY || center.y;
+
+    battle.tapCount++;
+    animateScarecrowHit();
+
+    if (swordId === 'normal') {
+        playSfx('slash');
+        spawnSlashEffect(tx, ty, '#e2e8f0', 4, 130);
+        spawnParticles(tx, ty, 5, '#cbd5e1', 4, 3);
+        dealDamage(atk, { x: tx, y: ty, color: '#ffffff' });
+    }
+    else if (swordId === 'fire') {
+        playSfx('slash');
+        spawnSlashEffect(tx, ty, '#f97316', 5, 145);
+        spawnParticles(tx, ty, 9, '#ef4444', 5, 4.5, -0.12);
+        spawnParticles(tx, ty, 5, '#facc15', 4, 3, -0.15);
+        dealDamage(atk, { x: tx, y: ty, color: '#fdba74' });
+        battle.burnTimer = 3.0;
+        battle.burnDps = Math.max(1, Math.round(1 * skillMult));
+    }
+    else if (swordId === 'ice') {
+        playSfx('slash');
+        spawnSlashEffect(tx, ty, '#38bdf8', 5, 145);
+        spawnParticles(tx, ty, 8, '#7dd3fc', 5, 4, 0.05, 'snowflake');
+        dealDamage(atk, { x: tx, y: ty, color: '#bae6fd' });
+        if (battle.frozenTimer <= 0) {
+            battle.iceGauge++;
+            if (battle.iceGauge >= 15) {
+                battle.iceGauge = 0;
+                battle.frozenTimer = 2.0;
+                playSfx('crit');
+                triggerFlash('rgba(56, 189, 248, 0.4)');
+                spawnShockwave(center.x, center.y, 130, '#38bdf8', 6);
+                spawnParticles(center.x, center.y, 24, '#bae6fd', 8, 5, 0.04, 'snowflake');
+            }
+        }
+    }
+    else if (swordId === 'wind') {
+        playSfx('slash');
+        spawnSlashEffect(tx, ty, '#34d399', 5, 150);
+        dealDamage(atk, { x: tx, y: ty, color: '#a7f3d0' });
+        setTimeout(() => {
+            const windDmg = Math.max(1, Math.round(1 * skillMult));
+            spawnCrescentWind(center.x + (Math.random()-0.5)*40, center.y + (Math.random()-0.5)*40);
+            spawnParticles(center.x, center.y, 9, '#10b981', 7, 3.5, -0.05);
+            dealDamage(windDmg, { x: center.x + 28, y: center.y - 18, color: '#34d399', scale: 0.95, isSkill: true });
+        }, 65);
+    }
+    else if (swordId === 'thunder') {
+        playSfx('slash');
+        spawnSlashEffect(tx, ty, '#facc15', 5, 150);
+        dealDamage(atk, { x: tx, y: ty, color: '#fef08a' });
+        if (battle.tapCount % 5 === 0) {
+            playSfx('thunder');
+            triggerFlash('rgba(254, 240, 138, 0.55)');
+            spawnJaggedLightning(center.x + (Math.random()-0.5)*40, 0, center.x, center.y + 30, '#facc15', 8, 3);
+            spawnShockwave(center.x, center.y + 20, 140, '#fef08a', 6);
+            spawnParticles(center.x, center.y, 26, '#facc15', 10, 4.5, 0.08, 'diamond');
+            const thunderDmg = Math.round(20 * skillMult);
+            dealDamage(thunderDmg, { x: center.x, y: center.y - 42, color: '#facc15', scale: 1.5, isSkill: true });
+        }
+    }
+    else if (swordId === 'charge') {
+        playSfx('slash');
+        spawnSlashEffect(tx, ty, '#c084fc', 5, 155);
+        spawnParticles(tx, ty, 7, '#d8b4fe', 5, 4, 0, 'diamond');
+        dealDamage(atk, { x: tx, y: ty, color: '#e9d5ff' });
+    }
+    else if (swordId === 'gold') {
+        playSfx('slash');
+        spawnSlashEffect(tx, ty, '#fbbf24', 6, 160);
+        spawnParticles(tx, ty, 7, '#fde047', 5, 4, 0.1, 'diamond');
+        dealDamage(atk, { x: tx, y: ty, color: '#fde68a' });
+        if (Math.random() < 0.06) {
+            battle.goldTimer = 5.0;
+            playSfx('coin');
+            triggerFlash('rgba(251, 191, 36, 0.5)');
+            spawnShockwave(center.x, center.y, 150, '#fbbf24', 7);
+            spawnParticles(center.x, center.y, 32, '#facc15', 9, 5, 0.12, 'koban');
+        }
+    }
+    else if (swordId === 'dice') {
+        const rolls = Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1);
+        const { sum, isZorome, matchMult } = evaluateDiceRolls(rolls);
+        updateDiceUI(rolls, sum, isZorome, matchMult);
+
+        if (isZorome) {
+            playSfx('thunder');
+            triggerScreenShake();
+            triggerFlash('rgba(236, 72, 153, 0.65)');
+            spawnShockwave(center.x, center.y, 180, '#ec4899', 8);
+            spawnShockwave(center.x, center.y, 120, '#facc15', 6);
+            for (let i = 0; i < 8; i++) {
+                spawnSlashEffect(center.x + (Math.random()-0.5)*90, center.y + (Math.random()-0.5)*90, i%2===0 ? '#f43f5e' : '#facc15', 8, 240);
+            }
+            spawnParticles(center.x, center.y, 42, '#ec4899', 12, 6, 0.08, 'diamond');
+            spawnParticles(center.x, center.y, 30, '#facc15', 11, 5, 0.1, 'koban');
+            const zoromeDmg = Math.round(500 * skillMult);
+            dealDamage(zoromeDmg, { x: center.x, y: center.y - 45, color: '#ff4d94', scale: 1.85 });
+        } else {
+            playSfx(matchMult >= 3 ? 'crit' : 'slash');
+            const slashColor = matchMult >= 4 ? '#facc15' : (matchMult === 3 ? '#f43f5e' : (matchMult === 2 ? '#ec4899' : '#f472b6'));
+            const slashWidth = 4 + matchMult * 1.5;
+            spawnSlashEffect(tx, ty, slashColor, slashWidth, 140 + matchMult * 18);
+            spawnParticles(tx, ty, 5 + matchMult * 4, slashColor, 5 + matchMult, 4, 0.1, 'diamond');
+            if (matchMult >= 3) {
+                spawnShockwave(tx, ty, 65 + matchMult * 15, slashColor, 4, 0.07);
+            }
+            // 出目合計 × 最大重複個数（例: 1,2,2,1,2 -> 8 × 3）を適用
+            const diceRollDmg = (sum * matchMult) * skillMult;
+            const totalDiceDmg = Math.round(atk * 0.3 + diceRollDmg);
+            dealDamage(totalDiceDmg, {
+                x: tx,
+                y: ty,
+                color: matchMult >= 3 ? '#fde047' : (matchMult === 2 ? '#f9a8d4' : '#fbcfe8'),
+                scale: 1.0 + (matchMult - 1) * 0.14
+            });
+        }
+    }
+    else if (swordId === 'combo') {
+        // 5秒間攻撃するごとに加算火力が累積（乗算ではなく加算）＆見た目がどんどん禍々しく進化
+        battle.comboHits++;
+        const addStep = Math.max(1, Math.round((atk * 0.25 + 5) * skillMult));
+        battle.comboBonusAtk += addStep;
+
+        const totalComboDmg = atk + battle.comboBonusAtk;
+        const omenStage = battle.comboHits >= 22 ? 3 : (battle.comboHits >= 12 ? 2 : (battle.comboHits >= 5 ? 1 : 0));
+
+        if (omenStage === 0) {
+            playSfx('slash');
+            spawnSlashEffect(tx, ty, '#fda4af', 5, 140);
+            spawnParticles(tx, ty, 6, '#fb7185', 5, 3.5, 0.05, 'diamond');
+            dealDamage(totalComboDmg, { x: tx, y: ty, color: '#fecdd3', scale: 1.05 });
+        } else if (omenStage === 1) {
+            playSfx('slash');
+            spawnSlashEffect(tx, ty, '#ef4444', 7, 165);
+            spawnSlashEffect(tx, ty, '#7f1d1d', 4, 150);
+            spawnParticles(tx, ty, 10, '#ef4444', 6.5, 4.5, 0.02, 'diamond');
+            dealDamage(totalComboDmg, { x: tx, y: ty, color: '#fca5a5', scale: 1.18 });
+        } else if (omenStage === 2) {
+            playSfx('crit');
+            spawnSlashEffect(tx, ty, '#dc2626', 9, 195);
+            spawnSlashEffect(tx, ty, '#a855f7', 6, 180);
+            spawnShockwave(tx, ty, 65, '#dc2626', 4, 0.08);
+            spawnParticles(tx, ty, 14, '#b91c1c', 8, 5, -0.04, 'diamond');
+            spawnParticles(tx, ty, 8, '#9333ea', 7, 4.5, -0.04, 'circle');
+            dealDamage(totalComboDmg, { x: tx, y: ty, color: '#f43f5e', scale: 1.32 });
+        } else {
+            // 極限禍々しさ（漆黒＋深紅＋紫電の呪怨斬撃）
+            playSfx('crit');
+            spawnSlashEffect(tx, ty, '#18181b', 13, 235);
+            spawnSlashEffect(tx, ty, '#e11d48', 9, 225);
+            spawnSlashEffect(tx, ty, '#c084fc', 5, 210);
+            spawnShockwave(tx, ty, 90, '#9333ea', 5, 0.07);
+            spawnParticles(tx, ty, 16, '#4c1d95', 9, 6, -0.06, 'circle');
+            spawnParticles(tx, ty, 14, '#f43f5e', 9.5, 5, -0.05, 'diamond');
+            dealDamage(totalComboDmg, { x: tx, y: ty, color: '#e879f9', scale: 1.48 });
+        }
+    }
+}
+
+const tapZone = document.getElementById('tap-zone');
+tapZone.addEventListener('pointerdown', (e) => {
+    handleTapAttack(e.clientX, e.clientY);
+});
+
+/**
+ * ============================================================================
+ * 全20種サブウェポン発動＆専用SVGテクスチャ＋派手な着弾パーティクル演出
+ * ============================================================================
+ */
+function activateSubweapon(slotIndex) {
+    const subId = state.equippedSubs[slotIndex];
+    if (!subId) return;
+    if (battle.subCooldowns[slotIndex] > 0) return;
+
+    const { def, dmg, coinGain } = getSubweaponStats(subId);
+    battle.subCooldowns[slotIndex] = def.cd;
+
+    const center = getScarecrowCenter();
+    playSfx('sub');
+
+    switch (def.fx) {
+        case 'shuriken': // 3連手裏剣テクスチャが回転飛来して斬撃パーティクル炸裂
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    spawnProjectile({
+                        x1: 20,
+                        y1: center.y - 50 + i * 50,
+                        x2: center.x + (i - 1) * 18,
+                        y2: center.y + (i - 1) * 18,
+                        speed: 0.13,
+                        texId: 'shuriken',
+                        size: 38,
+                        spin: 0.55,
+                        trailColor: '#94a3b8',
+                        trailShape: 'diamond',
+                        onImpact: (ix, iy) => {
+                            animateScarecrowHit();
+                            spawnSlashEffect(ix, iy, '#e2e8f0', 5, 130);
+                            spawnParticles(ix, iy, 12, '#cbd5e1', 7, 4, 0.08, 'diamond');
+                        }
+                    });
+                }, i * 75);
+            }
+            setTimeout(() => {
+                dealDamage(dmg, { color: '#e2e8f0', bonusCoins: coinGain, scale: 1.25 });
+            }, 140);
+            break;
+
+        case 'bullet': // 拳銃テクスチャ出現＆マズル閃光弾＋火花パーティクル
+            spawnProjectile({
+                x1: 55,
+                y1: center.y + 35,
+                x2: 110,
+                y2: center.y + 25,
+                speed: 0.16,
+                texId: 'handgun',
+                size: 54,
+                spin: 0,
+                trailColor: '#fde047',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    spawnBeam(ix + 15, iy - 5, center.x, center.y, '#fde047', 8);
+                    spawnShockwave(center.x, center.y, 90, '#facc15', 5, 0.07);
+                    spawnParticles(center.x, center.y, 22, '#facc15', 9, 4.5, 0.1, 'diamond');
+                    dealDamage(dmg, { color: '#fef08a', bonusCoins: coinGain, scale: 1.3 });
+                }
+            });
+            break;
+
+        case 'explosion': // 爆弾テクスチャが導火線火花を散らして飛来し大爆発
+            spawnProjectile({
+                x1: 30,
+                y1: center.y + 55,
+                x2: center.x,
+                y2: center.y + 15,
+                speed: 0.085,
+                texId: 'bomb',
+                size: 50,
+                spin: 0.25,
+                arc: 85,
+                trailColor: '#facc15',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('explosion');
+                    triggerScreenShake();
+                    triggerFlash('rgba(249, 115, 22, 0.5)');
+                    spawnShockwave(ix, iy, 175, '#f97316', 10);
+                    spawnShockwave(ix, iy, 110, '#facc15', 6);
+                    spawnParticles(ix, iy, 32, '#1e293b', 9, 9, -0.05);
+                    spawnParticles(ix, iy, 32, '#f97316', 12, 6);
+                    spawnParticles(ix, iy, 22, '#fef08a', 10, 4);
+                    dealDamage(dmg, { color: '#fdba74', bonusCoins: coinGain, scale: 1.45 });
+                }
+            });
+            break;
+
+        case 'slash_multi': // 鎖鎌テクスチャが回転飛来して紫閃光の乱れ斬り
+            spawnProjectile({
+                x1: window.innerWidth - 30,
+                y1: center.y - 30,
+                x2: center.x,
+                y2: center.y,
+                speed: 0.11,
+                texId: 'kusarigama',
+                size: 54,
+                spin: 0.45,
+                trailColor: '#c084fc',
+                trailShape: 'diamond',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    for (let i = 0; i < 5; i++) {
+                        setTimeout(() => {
+                            spawnSlashEffect(ix + (Math.random()-0.5)*70, iy + (Math.random()-0.5)*70, '#c084fc', 6, 175);
+                            spawnParticles(ix, iy, 6, '#e879f9', 7, 4, 0.05, 'diamond');
+                        }, i * 45);
+                    }
+                    dealDamage(dmg, { color: '#e9d5ff', bonusCoins: coinGain, scale: 1.35 });
+                }
+            });
+            break;
+
+        case 'fire_bottle': // 火炎瓶テクスチャが回転飛来して割れ、炎の海が広がる
+            spawnProjectile({
+                x1: 30,
+                y1: center.y + 60,
+                x2: center.x,
+                y2: center.y + 40,
+                speed: 0.08,
+                texId: 'molotov',
+                size: 46,
+                spin: 0.25,
+                arc: 90,
+                trailColor: '#f97316',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('explosion');
+                    triggerFlash('rgba(239, 68, 68, 0.45)');
+                    spawnParticles(ix, iy, 18, '#a7f3d0', 7, 3.5, 0.2, 'diamond');
+                    spawnParticles(ix, iy, 35, '#ef4444', 10, 6, -0.15);
+                    groundFires.push({ x: ix, y: iy + 35, life: 1.6 });
+                    battle.burnTimer = 4.0;
+                    battle.burnDps = Math.max(battle.burnDps, Math.round(dmg * 0.35));
+                    dealDamage(dmg, { color: '#fca5a5', bonusCoins: coinGain, scale: 1.35 });
+                }
+            });
+            break;
+
+        case 'shotgun': // 散弾銃テクスチャ出現＆扇状散弾ビーム＋爆炎パーティクル
+            spawnProjectile({
+                x1: 45,
+                y1: center.y + 45,
+                x2: 115,
+                y2: center.y + 25,
+                speed: 0.14,
+                texId: 'shotgun',
+                size: 62,
+                spin: 0,
+                trailColor: '#f59e0b',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('explosion');
+                    for (let i = -2; i <= 2; i++) {
+                        spawnBeam(ix + 20, iy, center.x + 20, center.y + i * 24, '#fbbf24', 5);
+                    }
+                    spawnShockwave(center.x, center.y, 115, '#f59e0b', 6, 0.06);
+                    spawnParticles(center.x, center.y, 28, '#f59e0b', 10, 4.5);
+                    dealDamage(dmg, { color: '#fde68a', bonusCoins: coinGain, scale: 1.38 });
+                }
+            });
+            break;
+
+        case 'kunai_rain': // 無数の苦無テクスチャが上空から降り注ぎ突き刺さる
+            for (let i = 0; i < 8; i++) {
+                const rx = center.x + (Math.random() - 0.5) * 145;
+                setTimeout(() => {
+                    spawnProjectile({
+                        x1: rx - 20,
+                        y1: 10,
+                        x2: rx,
+                        y2: center.y + 25,
+                        speed: 0.14,
+                        texId: 'kunai_rain',
+                        size: 42,
+                        spin: 0,
+                        trailColor: '#38bdf8',
+                        trailShape: 'diamond',
+                        onImpact: (ix, iy) => {
+                            spawnSlashEffect(ix, iy, '#38bdf8', 4, 85, Math.PI * 0.45);
+                            spawnParticles(ix, iy, 6, '#7dd3fc', 6, 3.5, 0.05, 'diamond');
+                        }
+                    });
+                }, i * 45);
+            }
+            setTimeout(() => {
+                animateScarecrowHit();
+                dealDamage(dmg, { color: '#bae6fd', bonusCoins: coinGain, scale: 1.38 });
+            }, 180);
+            break;
+
+        case 'sniper': // スナイパーライフルテクスチャ出現＆超高速狙撃レーザー＋衝撃波
+            spawnProjectile({
+                x1: window.innerWidth - 45,
+                y1: center.y - 35,
+                x2: window.innerWidth - 115,
+                y2: center.y - 25,
+                speed: 0.15,
+                texId: 'sniper',
+                size: 66,
+                spin: 0,
+                trailColor: '#10b981',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('crit');
+                    triggerFlash('rgba(16, 185, 129, 0.35)');
+                    spawnBeam(ix - 20, iy, 0, center.y + 10, '#10b981', 9);
+                    spawnShockwave(center.x, center.y, 135, '#10b981', 7, 0.055);
+                    spawnParticles(center.x, center.y, 28, '#34d399', 11, 5, 0.05, 'diamond');
+                    dealDamage(dmg, { color: '#6ee7b7', bonusCoins: coinGain, scale: 1.52 });
+                }
+            });
+            break;
+
+        case 'poison': // 毒の壺テクスチャが飛来して砕け、紫の毒霧・泡がカカシを包む
+            spawnProjectile({
+                x1: window.innerWidth - 30,
+                y1: center.y + 50,
+                x2: center.x,
+                y2: center.y + 20,
+                speed: 0.08,
+                texId: 'poison_pot',
+                size: 48,
+                spin: 0.25,
+                arc: 90,
+                trailColor: '#a855f7',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    spawnShockwave(ix, iy, 130, '#a855f7', 6);
+                    spawnParticles(ix, iy, 32, '#9333ea', 6, 9, -0.06);
+                    spawnParticles(ix, iy, 22, '#a3e635', 7, 5, -0.1);
+                    battle.poisonTimer = 5.0;
+                    battle.poisonDps = Math.max(battle.poisonDps, Math.round(dmg * 0.3));
+                    dealDamage(dmg, { color: '#bef264', bonusCoins: coinGain, scale: 1.35 });
+                }
+            });
+            break;
+
+        case 'arrows': // 弓矢テクスチャから黄金の矢の五月雨と閃光パーティクル
+            spawnProjectile({
+                x1: 35,
+                y1: center.y - 25,
+                x2: 95,
+                y2: center.y - 15,
+                speed: 0.13,
+                texId: 'arrow_rain',
+                size: 56,
+                spin: 0,
+                trailColor: '#eab308',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    for (let i = 0; i < 7; i++) {
+                        setTimeout(() => {
+                            spawnBeam(ix, iy - 40 + i * 14, center.x + 30, center.y + (Math.random()-0.5)*45, '#eab308', 3.5);
+                            spawnParticles(center.x, center.y, 4, '#facc15', 7, 3.5, 0.08, 'diamond');
+                        }, i * 35);
+                    }
+                    dealDamage(dmg, { color: '#fef08a', bonusCoins: coinGain, scale: 1.38 });
+                }
+            });
+            break;
+
+        case 'rocket': // ロケットランチャー弾頭テクスチャが炎と煙の尾を引いて飛び大爆風
+            spawnProjectile({
+                x1: 20,
+                y1: center.y + 20,
+                x2: center.x,
+                y2: center.y,
+                speed: 0.085,
+                texId: 'rocket',
+                size: 54,
+                spin: 0,
+                trailColor: '#f97316',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('explosion');
+                    triggerScreenShake();
+                    triggerFlash('rgba(244, 63, 94, 0.55)');
+                    spawnShockwave(ix, iy, 190, '#f43f5e', 11);
+                    spawnShockwave(ix, iy, 130, '#facc15', 7);
+                    spawnParticles(ix, iy, 40, '#f97316', 14, 7);
+                    spawnParticles(ix, iy, 28, '#334155', 10, 8, -0.05);
+                    dealDamage(dmg, { color: '#fda4af', bonusCoins: coinGain, scale: 1.6 });
+                }
+            });
+            break;
+
+        case 'emp': // 電磁パルスコアテクスチャが飛び込み電気波動＋稲妻スパーク
+            spawnProjectile({
+                x1: center.x,
+                y1: 30,
+                x2: center.x,
+                y2: center.y,
+                speed: 0.11,
+                texId: 'emp',
+                size: 54,
+                spin: 0.35,
+                trailColor: '#22d3ee',
+                trailShape: 'diamond',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('thunder');
+                    triggerFlash('rgba(6, 182, 212, 0.5)');
+                    spawnShockwave(ix, iy, 195, '#06b6d4', 9);
+                    spawnShockwave(ix, iy, 130, '#38bdf8', 5);
+                    for (let i = 0; i < 6; i++) {
+                        const ang = (Math.PI * 2 / 6) * i;
+                        spawnJaggedLightning(ix, iy, ix + Math.cos(ang)*140, iy + Math.sin(ang)*140, '#22d3ee', 5, 1);
+                    }
+                    spawnParticles(ix, iy, 32, '#67e8f9', 11, 4.5, 0, 'diamond');
+                    for (let i = 0; i < 3; i++) {
+                        if (i !== slotIndex && battle.subCooldowns[i] > 0) {
+                            battle.subCooldowns[i] = Math.max(0, battle.subCooldowns[i] - 3);
+                        }
+                    }
+                    dealDamage(dmg, { color: '#67e8f9', bonusCoins: coinGain, scale: 1.5 });
+                }
+            });
+            break;
+
+        case 'summon_dog': // 忠犬テクスチャが疾風飛びかかり＋連続爪痕エフェクト
+            spawnProjectile({
+                x1: 20,
+                y1: center.y + 40,
+                x2: center.x - 20,
+                y2: center.y + 15,
+                speed: 0.11,
+                texId: 'ninken',
+                size: 56,
+                spin: 0,
+                arc: 45,
+                trailColor: '#fbbf24',
+                trailShape: 'diamond',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    battle.dogTimer = 5.0;
+                    battle.dogDmg = Math.max(10, Math.round(dmg * 0.4));
+                    for (let i = -1; i <= 1; i++) {
+                        spawnSlashEffect(center.x + i * 16, center.y + i * 12, '#f59e0b', 6, 150, -0.65);
+                    }
+                    spawnParticles(center.x, center.y, 24, '#fbbf24', 8, 4.5, 0.05, 'diamond');
+                    dealDamage(dmg, { color: '#fcd34d', bonusCoins: coinGain, scale: 1.4 });
+                }
+            });
+            break;
+
+        case 'summon_hawk': // 鷹テクスチャが急降下し羽根と鉤爪の閃光パーティクル
+            spawnProjectile({
+                x1: window.innerWidth * 0.85,
+                y1: 20,
+                x2: center.x,
+                y2: center.y,
+                speed: 0.095,
+                texId: 'hawk',
+                size: 62,
+                spin: 0,
+                trailColor: '#fef3c7',
+                trailShape: 'diamond',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('crit');
+                    for (let i = -1; i <= 1; i++) {
+                        spawnSlashEffect(ix + i * 18, iy, '#fbbf24', 7, 200, 0.75);
+                    }
+                    spawnParticles(ix, iy, 28, '#fef3c7', 8, 5, 0.04, 'diamond');
+                    spawnParticles(ix, iy, 18, '#facc15', 10, 4.5, 0.1, 'koban');
+                    dealDamage(dmg, { color: '#fde047', bonusCoins: coinGain, scale: 1.55 });
+                }
+            });
+            break;
+
+        case 'gatling': // ガトリングガンテクスチャ出現＆超高速弾幕連射＋薬莢火花
+            spawnProjectile({
+                x1: 45,
+                y1: center.y + 30,
+                x2: 115,
+                y2: center.y + 20,
+                speed: 0.14,
+                texId: 'gatling',
+                size: 64,
+                spin: 0,
+                trailColor: '#facc15',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    for (let i = 0; i < 12; i++) {
+                        setTimeout(() => {
+                            spawnBeam(ix + 22, iy + (Math.random()-0.5)*16, center.x, center.y + (Math.random()-0.5)*55, '#94a3b8', 3.5);
+                            spawnParticles(center.x, center.y, 3, '#facc15', 7, 3.5, 0.08, 'diamond');
+                        }, i * 32);
+                    }
+                    dealDamage(dmg, { color: '#e2e8f0', bonusCoins: coinGain, scale: 1.52 });
+                }
+            });
+            break;
+
+        case 'ice_bomb': // 氷爆弾テクスチャが飛来炸裂し氷柱と雪結晶パーティクル
+            spawnProjectile({
+                x1: window.innerWidth - 35,
+                y1: center.y + 40,
+                x2: center.x,
+                y2: center.y,
+                speed: 0.09,
+                texId: 'ice_grenade',
+                size: 50,
+                spin: 0.3,
+                arc: 80,
+                trailColor: '#7dd3fc',
+                trailShape: 'snowflake',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('crit');
+                    triggerFlash('rgba(56, 189, 248, 0.55)');
+                    spawnShockwave(ix, iy, 175, '#38bdf8', 9);
+                    spawnParticles(ix, iy, 36, '#bae6fd', 11, 6, 0.04, 'snowflake');
+                    spawnParticles(ix, iy, 22, '#0284c7', 9, 5, 0.1, 'diamond');
+                    battle.frozenTimer = 3.0;
+                    dealDamage(dmg, { color: '#7dd3fc', bonusCoins: coinGain, scale: 1.55 });
+                }
+            });
+            break;
+
+        case 'koban': // 小判テクスチャが上空から大量降下しチャリンと弾ける
+            animateScarecrowHit();
+            playSfx('coin');
+            triggerFlash('rgba(250, 204, 21, 0.45)');
+            for (let i = 0; i < 12; i++) {
+                const startX = center.x + (Math.random() - 0.5) * 180;
+                setTimeout(() => {
+                    spawnProjectile({
+                        x1: startX,
+                        y1: 20,
+                        x2: startX + (Math.random() - 0.5) * 40,
+                        y2: center.y + 40,
+                        speed: 0.085,
+                        texId: 'koban',
+                        size: 38,
+                        spin: 0.25,
+                        trailColor: '#fef08a',
+                        trailShape: 'diamond',
+                        onImpact: (ix, iy) => {
+                            spawnParticles(ix, iy, 5, '#facc15', 6, 4.5, 0.15, 'koban');
+                        }
+                    });
+                }, i * 35);
+            }
+            dealDamage(dmg, { color: '#fde047', bonusCoins: coinGain, scale: 1.6 });
+            break;
+
+        case 'laser': // レーザー照射砲テクスチャ出現＆極太ピンクプラズマビーム
+            spawnProjectile({
+                x1: 45,
+                y1: center.y - 25,
+                x2: 115,
+                y2: center.y - 15,
+                speed: 0.14,
+                texId: 'laser',
+                size: 64,
+                spin: 0,
+                trailColor: '#f472b6',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('thunder');
+                    triggerFlash('rgba(236, 72, 153, 0.55)');
+                    spawnBeam(ix + 20, iy, window.innerWidth, center.y + 10, '#ec4899', 36);
+                    spawnShockwave(center.x, center.y, 175, '#ec4899', 9, 0.05);
+                    spawnParticles(center.x, center.y, 42, '#f472b6', 12, 5, 0, 'diamond');
+                    dealDamage(dmg, { color: '#f9a8d4', bonusCoins: coinGain, scale: 1.65 });
+                }
+            });
+            break;
+
+        case 'meteor': // 巨大隕石テクスチャ落下＆マグマ地割れ大爆発
+            spawnProjectile({
+                x1: window.innerWidth * 0.9,
+                y1: -30,
+                x2: center.x,
+                y2: center.y + 15,
+                speed: 0.065,
+                texId: 'meteor',
+                size: 76,
+                spin: 0.15,
+                trailColor: '#f97316',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('explosion');
+                    triggerScreenShake();
+                    triggerFlash('rgba(234, 88, 12, 0.7)');
+                    spawnShockwave(ix, iy, 230, '#ea580c', 14);
+                    spawnShockwave(ix, iy, 160, '#facc15', 9);
+                    for (let i = 0; i < 6; i++) {
+                        const ang = (Math.PI * 2 / 6) * i;
+                        spawnJaggedLightning(ix, iy, ix + Math.cos(ang)*160, iy + Math.sin(ang)*90, '#f97316', 6, 0);
+                    }
+                    spawnParticles(ix, iy, 55, '#f97316', 15, 7);
+                    spawnParticles(ix, iy, 35, '#facc15', 13, 5);
+                    dealDamage(dmg, { color: '#fdba74', bonusCoins: coinGain, scale: 1.85 });
+                }
+            });
+            break;
+
+        case 'ultimate': // 奥義・秘伝の巻物テクスチャ展開＆全画面究極奥義斬撃
+            spawnProjectile({
+                x1: center.x,
+                y1: center.y - 140,
+                x2: center.x,
+                y2: center.y - 30,
+                speed: 0.11,
+                texId: 'secret_scroll',
+                size: 68,
+                spin: 0.25,
+                trailColor: '#facc15',
+                trailShape: 'diamond',
+                onImpact: (ix, iy) => {
+                    animateScarecrowHit();
+                    playSfx('thunder');
+                    triggerScreenShake();
+                    triggerFlash('rgba(255, 255, 255, 0.8)');
+                    spawnShockwave(center.x, center.y, 260, '#f43f5e', 14);
+                    spawnShockwave(center.x, center.y, 190, '#facc15', 10);
+                    for (let i = 0; i < 12; i++) {
+                        spawnSlashEffect(
+                            center.x + (Math.random() - 0.5) * 220,
+                            center.y + (Math.random() - 0.5) * 220,
+                            i % 2 === 0 ? '#f43f5e' : '#facc15',
+                            9,
+                            320
+                        );
+                    }
+                    spawnParticles(center.x, center.y, 60, '#f43f5e', 16, 6, 0.04, 'diamond');
+                    spawnParticles(center.x, center.y, 45, '#fde047', 14, 6, 0.08, 'koban');
+                    dealDamage(dmg, { color: '#ffe4e6', bonusCoins: coinGain, scale: 1.95 });
+                }
+            });
+            break;
+    }
+
+    updateSubweaponSlotsUI();
+}
+
+/**
+ * ============================================================================
+ * メインゲームループ（ダーティチェックによるDOM書き換え最適化済み）
+ * ============================================================================
+ */
+let lastTime = performance.now();
+let autoSaveAcc = 0;
+
+// DOM更新ダーティチェック用キャッシュ
+let uiCache = {
+    badgesHtml: '',
+    gaugeMode: '',
+    gaugeLabel: '',
+    gaugeVal: '',
+    gaugePct: -1,
+    diceVisible: false,
+    svgClassStr: '',
+    iceHidden: true
+};
+
+function gameLoop(now) {
+    const dt = Math.min(0.1, (now - lastTime) / 1000);
+    lastTime = now;
+
+    const center = getScarecrowCenter();
+
+    // 1. 炎上ダメージ＆炎パーティクル
+    if (battle.burnTimer > 0) {
+        battle.burnTimer = Math.max(0, battle.burnTimer - dt);
+        battle.burnTickAcc += dt;
+        battle.burnParticleAcc += dt;
+        if (battle.burnParticleAcc >= 0.06) {
+            battle.burnParticleAcc = 0;
+            const fx = center.x + (Math.random() - 0.5) * 90;
+            const fy = center.y + (Math.random() - 0.3) * 110;
+            spawnParticles(fx, fy, 1, Math.random() < 0.5 ? '#ef4444' : '#f97316', 2.2, 5.5, -0.18);
+        }
+        if (battle.burnTickAcc >= 1.0) {
+            battle.burnTickAcc -= 1.0;
+            dealDamage(battle.burnDps, { color: '#f97316', scale: 0.95, isSkill: true });
+        }
+    }
+
+    // 2. 毒ダメージ＆毒の泡パーティクル
+    if (battle.poisonTimer > 0) {
+        battle.poisonTimer = Math.max(0, battle.poisonTimer - dt);
+        battle.poisonTickAcc += dt;
+        battle.poisonParticleAcc += dt;
+        if (battle.poisonParticleAcc >= 0.08) {
+            battle.poisonParticleAcc = 0;
+            const px = center.x + (Math.random() - 0.5) * 100;
+            const py = center.y + (Math.random() - 0.4) * 110;
+            spawnParticles(px, py, 1, Math.random() < 0.5 ? '#a855f7' : '#84cc16', 1.8, 5, -0.14);
+        }
+        if (battle.poisonTickAcc >= 1.0) {
+            battle.poisonTickAcc -= 1.0;
+            dealDamage(battle.poisonDps, { color: '#a3e635', scale: 0.95, isSkill: true });
+        }
+    }
+
+    // 3. 凍結タイマー＆氷晶パーティクル
+    if (battle.frozenTimer > 0) {
+        battle.frozenTimer = Math.max(0, battle.frozenTimer - dt);
+        battle.freezeParticleAcc += dt;
+        if (battle.freezeParticleAcc >= 0.1) {
+            battle.freezeParticleAcc = 0;
+            const ix = center.x + (Math.random() - 0.5) * 110;
+            const iy = center.y + (Math.random() - 0.5) * 130;
+            spawnParticles(ix, iy, 1, '#bae6fd', 1.5, 4, 0.04, 'snowflake');
+        }
+    }
+
+    // 4. 黄金タイマー＆金粉パーティクル
+    if (battle.goldTimer > 0) {
+        battle.goldTimer = Math.max(0, battle.goldTimer - dt);
+        battle.goldParticleAcc += dt;
+        if (battle.goldParticleAcc >= 0.07) {
+            battle.goldParticleAcc = 0;
+            const gx = center.x + (Math.random() - 0.5) * 110;
+            const gy = center.y + (Math.random() - 0.5) * 130;
+            spawnParticles(gx, gy, 1, '#fde047', 2.2, 4, -0.08, 'diamond');
+        }
+    }
+
+    // 5. 忠犬の自動攻撃
+    const summonLayer = document.getElementById('summon-layer');
+    if (battle.dogTimer > 0) {
+        battle.dogTimer = Math.max(0, battle.dogTimer - dt);
+        battle.dogAtkAcc += dt;
+        if (summonLayer.childElementCount === 0) {
+            summonLayer.innerHTML = `<div class="translate-x-[-95px] translate-y-[55px] animate-bounce drop-shadow-lg">${getSubweaponSvg('ninken', 'w-14 h-14')}</div>`;
+        }
+        if (battle.dogAtkAcc >= 0.7) {
+            battle.dogAtkAcc -= 0.7;
+            spawnSlashEffect(center.x - 10, center.y + 15, '#f59e0b', 4, 85, -0.6);
+            dealDamage(battle.dogDmg, { color: '#fcd34d', scale: 0.9, isSkill: true });
+        }
+    } else if (summonLayer.childElementCount > 0) {
+        summonLayer.innerHTML = '';
+    }
+
+    // 6. チャージ刀の5秒サイクル
+    const chargeRing = document.getElementById('charge-aura-ring');
+    if (state.equippedSword === 'charge') {
+        battle.chargeTimer += dt;
+        battle.chargeParticleAcc += dt;
+        const progress = Math.min(1, battle.chargeTimer / 5.0);
+
+        chargeRing.classList.remove('hidden');
+        chargeRing.style.transform = `scale(${0.75 + progress * 0.45})`;
+        chargeRing.style.opacity = `${0.3 + progress * 0.7}`;
+
+        if (battle.chargeParticleAcc >= 0.09) {
+            battle.chargeParticleAcc = 0;
+            const ang = Math.random() * Math.PI * 2;
+            const dist = 120;
+            const sx = center.x + Math.cos(ang) * dist;
+            const sy = center.y + Math.sin(ang) * dist;
+            particles.push({
+                x: sx, y: sy,
+                vx: -Math.cos(ang) * 4.5,
+                vy: -Math.sin(ang) * 4.5,
+                color: '#c084fc',
+                size: 4 + progress * 3,
+                gravity: 0,
+                shape: 'diamond',
+                rot: ang,
+                vRot: 0.1,
+                life: 0.85,
+                decay: 0.035
+            });
+        }
+
+        if (battle.chargeTimer >= 5.0) {
+            battle.chargeTimer = 0;
+            if (battle.chargeStored > 0) {
+                const releaseDmg = Math.round(battle.chargeStored * 1.5);
+                battle.chargeStored = 0;
+                playSfx('thunder');
+                triggerScreenShake();
+                triggerFlash('rgba(168, 85, 247, 0.55)');
+                spawnShockwave(center.x, center.y, 210, '#a855f7', 12);
+                spawnShockwave(center.x, center.y, 140, '#e9d5ff', 7);
+                for (let i = 0; i < 6; i++) {
+                    spawnSlashEffect(center.x, center.y, '#d8b4fe', 9, 250, (Math.PI / 3) * i);
+                }
+                spawnParticles(center.x, center.y, 40, '#c084fc', 13, 6, 0, 'diamond');
+                dealDamage(releaseDmg, { x: center.x, y: center.y - 45, color: '#d8b4fe', scale: 1.65, isSkill: true });
+            }
+        }
+    } else {
+        battle.chargeTimer = 0;
+        battle.chargeStored = 0;
+        if (!chargeRing.classList.contains('hidden')) chargeRing.classList.add('hidden');
+    }
+
+    // 7. リワーク後コンボ刀の5秒間加算サイクル＆禍々しさ進化＆リセット時パーティクル演出
+    const omenRing = document.getElementById('omen-aura-ring');
+    if (state.equippedSword === 'combo') {
+        battle.comboTimer += dt;
+        battle.comboOmenAcc += dt;
+
+        const omenLevel = battle.comboHits >= 22 ? 3 : (battle.comboHits >= 12 ? 2 : (battle.comboHits >= 5 ? 1 : 0));
+        if (omenLevel > 0) {
+            omenRing.classList.remove('hidden');
+            const scaleVal = 0.88 + Math.min(0.32, battle.comboHits * 0.012);
+            omenRing.style.transform = `scale(${scaleVal})`;
+            omenRing.style.borderColor = omenLevel === 3 ? 'rgba(168, 85, 247, 0.9)' : (omenLevel === 2 ? 'rgba(225, 29, 72, 0.85)' : 'rgba(239, 68, 68, 0.65)');
+
+            // 禍々しい呪怨パーティクルが立ち昇る
+            const spawnInterval = omenLevel === 3 ? 0.045 : (omenLevel === 2 ? 0.07 : 0.11);
+            if (battle.comboOmenAcc >= spawnInterval) {
+                battle.comboOmenAcc = 0;
+                const ox = center.x + (Math.random() - 0.5) * 115;
+                const oy = center.y + (Math.random() - 0.2) * 120;
+                const pCol = omenLevel === 3 ? (Math.random() < 0.5 ? '#7e22ce' : '#e11d48') : (omenLevel === 2 ? '#dc2626' : '#f43f5e');
+                spawnParticles(ox, oy, 1, pCol, 2.4, 4.5 + omenLevel, -0.16, Math.random() < 0.5 ? 'diamond' : 'circle');
+            }
+        } else {
+            if (!omenRing.classList.contains('hidden')) omenRing.classList.add('hidden');
+        }
+
+        // 5秒経過でリセット＆再カウント（かっこいい専用パーティクル演出）
+        if (battle.comboTimer >= 5.0) {
+            battle.comboTimer = 0;
+            const hadCombo = battle.comboHits > 0;
+            battle.comboHits = 0;
+            battle.comboBonusAtk = 0;
+            omenRing.classList.add('hidden');
+
+            if (hadCombo) {
+                playSfx('sub');
+                triggerFlash('rgba(168, 85, 247, 0.35)');
+                spawnShockwave(center.x, center.y, 185, '#e11d48', 8, 0.055);
+                spawnShockwave(center.x, center.y, 125, '#a855f7', 5, 0.065);
+                for (let i = 0; i < 6; i++) {
+                    const ang = (Math.PI * 2 / 6) * i + 0.25;
+                    spawnSlashEffect(
+                        center.x + Math.cos(ang) * 35,
+                        center.y + Math.sin(ang) * 35,
+                        i % 2 === 0 ? '#f43f5e' : '#c084fc',
+                        5,
+                        140,
+                        ang
+                    );
+                }
+                spawnParticles(center.x, center.y, 32, '#f43f5e', 11, 5, 0, 'diamond');
+                spawnParticles(center.x, center.y, 24, '#a855f7', 9, 4.5, -0.05, 'circle');
+            }
+        }
+    } else {
+        battle.comboTimer = 0;
+        battle.comboHits = 0;
+        battle.comboBonusAtk = 0;
+        if (!omenRing.classList.contains('hidden')) omenRing.classList.add('hidden');
+    }
+
+    // 8. サブウェポンクールタイム減少
+    let needSubUpdate = false;
+    for (let i = 0; i < 3; i++) {
+        if (battle.subCooldowns[i] > 0) {
+            battle.subCooldowns[i] = Math.max(0, battle.subCooldowns[i] - dt);
+            needSubUpdate = true;
+        }
+    }
+    if (needSubUpdate) {
+        updateSubweaponCooldownVisuals();
+    }
+
+    // 9. 画面ステータス＆カカシ見た目同期（ダーティチェック最適化）
+    updateStatusVisuals();
+
+    // 10. オートセーブ（5秒ごと）
+    autoSaveAcc += dt;
+    if (autoSaveAcc >= 5.0) {
+        autoSaveAcc = 0;
+        saveGame();
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+/**
+ * ============================================================================
+ * UI 更新処理（ダーティチェックで無駄なDOM再描画をゼロに削減）
+ * ============================================================================
+ */
+function updateTopUI() {
+    document.getElementById('ui-coins').textContent = formatNum(state.coins);
+    document.getElementById('ui-points').textContent = formatNum(state.points);
+
+    const { def, lv, atk, skillMult } = getSwordStats(state.equippedSword);
+    
+    document.getElementById('ui-sword-name').textContent = def.name;
+    document.getElementById('ui-sword-lv').textContent = `Lv.${lv}`;
+    const badge = document.getElementById('ui-sword-rarity');
+    badge.textContent = def.rarity;
+    badge.className = `text-[10px] font-bold px-1.5 py-0.5 rounded rarity-${def.rarity}`;
+    document.getElementById('ui-base-atk').textContent = formatNum(atk);
+    document.getElementById('ui-skill-mult').textContent = `x${skillMult.toFixed(1)}`;
+
+    document.getElementById('ui-sword-name-m').textContent = def.name;
+    document.getElementById('ui-sword-lv-m').textContent = `Lv.${lv}`;
+    const badgeM = document.getElementById('ui-sword-rarity-m');
+    badgeM.textContent = def.rarity;
+    badgeM.className = `text-[9px] font-bold px-1.5 py-0.2 rounded rarity-${def.rarity}`;
+    document.getElementById('ui-base-atk-m').textContent = formatNum(atk);
+    document.getElementById('ui-skill-mult-m').textContent = `x${skillMult.toFixed(1)}`;
+
+    if (currentModal) {
+        document.getElementById('modal-coins').textContent = formatNum(state.coins);
+    }
+}
+
+function updateDiceUI(rolls, sum, isZorome, matchMult = 1) {
+    const box = document.getElementById('dice-display-box');
+    if (state.equippedSword !== 'dice') {
+        box.classList.add('hidden');
+        return;
+    }
+    box.classList.remove('hidden');
+    const diceFaces = ['one', 'two', 'three', 'four', 'five', 'six'];
+
+    // 各出目の出現回数を数えて揃ったダイスをハイライト
+    const counts = {};
+    rolls.forEach(r => counts[r] = (counts[r] || 0) + 1);
+
+    const iconsHtml = rolls.map(r => {
+        const isMatched = counts[r] >= 2;
+        const color = isZorome
+            ? 'text-amber-300 animate-bounce'
+            : (isMatched ? 'text-yellow-300 drop-shadow-[0_0_6px_rgba(253,224,71,0.8)]' : 'text-pink-300/80');
+        return `<i class="fa-solid fa-dice-${diceFaces[r - 1]} ${color}"></i>`;
+    }).join('');
+
+    document.getElementById('dice-icons').innerHTML = iconsHtml;
+
+    if (isZorome) {
+        document.getElementById('dice-total-text').textContent = `ゾロ目!! (500倍)`;
+    } else if (matchMult >= 2) {
+        document.getElementById('dice-total-text').textContent = `合計: ${sum} × ${matchMult}倍!`;
+    } else {
+        document.getElementById('dice-total-text').textContent = `合計: ${sum}`;
+    }
+}
+
+function updateStatusVisuals() {
+    const svg = document.getElementById('scarecrow-svg');
+    const iceOverlay = document.getElementById('ice-crystal-overlay');
+
+    // カカシSVGのクラス文字列構築（変更時のみ適用）
+    const activeClasses = [];
+    if (battle.goldTimer > 0) activeClasses.push('status-gold');
+    if (battle.frozenTimer > 0) activeClasses.push('status-frozen');
+    else if (battle.burnTimer > 0) activeClasses.push('status-burn');
+
+    if (state.equippedSword === 'combo') {
+        if (battle.comboHits >= 22) activeClasses.push('status-omen-3');
+        else if (battle.comboHits >= 12) activeClasses.push('status-omen-2');
+        else if (battle.comboHits >= 5) activeClasses.push('status-omen-1');
+    }
+
+    const nextSvgClassStr = activeClasses.join(' ');
+    if (uiCache.svgClassStr !== nextSvgClassStr) {
+        svg.classList.remove('status-gold', 'status-frozen', 'status-burn', 'status-omen-1', 'status-omen-2', 'status-omen-3');
+        if (activeClasses.length > 0) svg.classList.add(...activeClasses);
+        uiCache.svgClassStr = nextSvgClassStr;
+    }
+
+    const nextIceHidden = battle.frozenTimer <= 0;
+    if (uiCache.iceHidden !== nextIceHidden) {
+        iceOverlay.classList.toggle('hidden', nextIceHidden);
+        uiCache.iceHidden = nextIceHidden;
+    }
+
+    // 状態異常バッジ（文字列が変わった時だけDOM更新）
+    let badgesHtml = '';
+    if (battle.goldTimer > 0) {
+        badgesHtml += `<span class="bg-amber-500/90 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow">✨黄金 5倍 (${battle.goldTimer.toFixed(1)}s)</span>`;
+    }
+    if (battle.frozenTimer > 0) {
+        badgesHtml += `<span class="bg-sky-500/90 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow">❄凍結 被ダメ2倍 (${battle.frozenTimer.toFixed(1)}s)</span>`;
+    }
+    if (battle.burnTimer > 0) {
+        badgesHtml += `<span class="bg-orange-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">🔥炎上 (${battle.burnTimer.toFixed(1)}s)</span>`;
+    }
+    if (battle.poisonTimer > 0) {
+        badgesHtml += `<span class="bg-lime-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">☠毒 (${battle.poisonTimer.toFixed(1)}s)</span>`;
+    }
+    if (uiCache.badgesHtml !== badgesHtml) {
+        document.getElementById('status-badges').innerHTML = badgesHtml;
+        uiCache.badgesHtml = badgesHtml;
+    }
+
+    // 刀固有ゲージ表示（ダーティチェック）
+    const gaugeBox = document.getElementById('special-gauge-box');
+    const gaugeLabel = document.getElementById('special-gauge-label');
+    const gaugeVal = document.getElementById('special-gauge-val');
+    const gaugeBar = document.getElementById('special-gauge-bar');
+
+    const mode = state.equippedSword;
+    if (mode === 'ice' || mode === 'charge' || mode === 'combo') {
+        if (uiCache.gaugeMode !== mode) {
+            gaugeBox.classList.remove('hidden');
+            if (mode === 'ice') {
+                gaugeLabel.className = 'text-sky-300';
+                gaugeBar.className = 'h-full bg-sky-400 transition-all duration-75';
+            } else if (mode === 'charge') {
+                gaugeLabel.className = 'text-purple-300';
+                gaugeBar.className = 'h-full bg-purple-400 transition-all duration-75';
+            } else if (mode === 'combo') {
+                gaugeLabel.className = 'text-rose-300';
+                gaugeBar.className = 'h-full bg-gradient-to-r from-rose-600 via-red-500 to-purple-600 transition-all duration-75';
+            }
+            uiCache.gaugeMode = mode;
+        }
+
+        let nextLabel = '';
+        let nextVal = '';
+        let nextPct = 0;
+
+        if (mode === 'ice') {
+            nextLabel = '❄ 氷結ゲージ';
+            nextVal = `${battle.iceGauge}/15`;
+            nextPct = Math.min(100, Math.round((battle.iceGauge / 15) * 100));
+        } else if (mode === 'charge') {
+            nextLabel = `⚡ チャージ蓄積 (${formatNum(battle.chargeStored)})`;
+            nextVal = `${(5.0 - battle.chargeTimer).toFixed(1)}s`;
+            nextPct = Math.min(100, Math.round((battle.chargeTimer / 5.0) * 100));
+        } else if (mode === 'combo') {
+            nextLabel = `🔥 連撃加算 +${formatNum(battle.comboBonusAtk)}`;
+            nextVal = `${(5.0 - battle.comboTimer).toFixed(1)}s`;
+            nextPct = Math.max(0, Math.min(100, Math.round(((5.0 - battle.comboTimer) / 5.0) * 100)));
+        }
+
+        if (uiCache.gaugeLabel !== nextLabel) {
+            gaugeLabel.textContent = nextLabel;
+            uiCache.gaugeLabel = nextLabel;
+        }
+        if (uiCache.gaugeVal !== nextVal) {
+            gaugeVal.textContent = nextVal;
+            uiCache.gaugeVal = nextVal;
+        }
+        if (uiCache.gaugePct !== nextPct) {
+            gaugeBar.style.width = `${nextPct}%`;
+            uiCache.gaugePct = nextPct;
+        }
+    } else if (uiCache.gaugeMode !== 'none') {
+        gaugeBox.classList.add('hidden');
+        uiCache.gaugeMode = 'none';
+    }
+
+    const nextDiceVisible = state.equippedSword === 'dice';
+    if (uiCache.diceVisible !== nextDiceVisible) {
+        document.getElementById('dice-display-box').classList.toggle('hidden', !nextDiceVisible);
+        uiCache.diceVisible = nextDiceVisible;
+    }
+}
+
+/**
+ * ============================================================================
+ * サブウェポンスロット描画＆マルチタッチ完全分離イベント設定
+ * ============================================================================
+ */
+function updateSubweaponSlotsUI() {
+    const container = document.getElementById('subweapon-slots');
+    let html = '';
+
+    for (let i = 0; i < 3; i++) {
+        const subId = state.equippedSubs[i];
+        if (!subId) {
+            html += `
+                <button type="button" data-slot="${i}" data-action="equip" class="sub-slot-trigger h-16 sm:h-20 rounded-2xl bg-slate-800/60 hover:bg-slate-800 border border-dashed border-slate-600 flex flex-col items-center justify-center text-slate-400 transition active:scale-95">
+                    <i class="fa-solid fa-plus text-sm mb-1 pointer-events-none"></i>
+                    <span class="text-[11px] font-bold pointer-events-none">スロット ${i + 1}</span>
+                    <span class="text-[9px] text-slate-500 pointer-events-none">未装備</span>
+                </button>
+            `;
+        } else {
+            const { def, prog } = getSubweaponStats(subId);
+            const cdRem = battle.subCooldowns[i];
+            const isReady = cdRem <= 0;
+            const pct = isReady ? 0 : Math.min(100, (cdRem / def.cd) * 100);
+
+            html += `
+                <button type="button" id="sub-slot-btn-${i}" data-slot="${i}" data-action="activate" class="sub-slot-trigger relative overflow-hidden h-16 sm:h-20 rounded-2xl bg-slate-800 border ${isReady ? 'border-amber-400/80 shadow-lg shadow-amber-950/40' : 'border-slate-700'} flex flex-col items-center justify-center px-2 transition transform active:scale-95">
+                    <!-- クールタイムオーバーレイ -->
+                    <div id="sub-slot-cd-bar-${i}" class="absolute inset-0 bg-slate-950/80 pointer-events-none transition-all duration-75" style="height: ${pct}%; top: auto; bottom: 0;"></div>
+                    
+                    <div class="relative z-10 flex items-center gap-1.5 pointer-events-none">
+                        ${getSubweaponSvg(subId, 'w-6 h-6 sm:w-7 sm:h-7')}
+                        <span class="text-[10px] font-black bg-slate-950/80 text-amber-300 px-1.5 py-0.2 rounded">Lv.${prog.lv}</span>
+                    </div>
+                    <div class="relative z-10 text-[11px] sm:text-xs font-bold text-slate-100 truncate max-w-full mt-0.5 pointer-events-none">${def.name}</div>
+                    <div id="sub-slot-status-${i}" class="relative z-10 text-[10px] font-black pointer-events-none ${isReady ? 'text-emerald-400' : 'text-slate-400'}">
+                        ${isReady ? 'READY!' : `${cdRem.toFixed(1)}s`}
+                    </div>
+                </button>
+            `;
+        }
+    }
+    container.innerHTML = html;
+}
+
+const subweaponFooter = document.getElementById('subweapon-footer');
+subweaponFooter.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    const btn = e.target.closest('.sub-slot-trigger');
+    if (!btn) return;
+    e.preventDefault();
+    const slotIdx = parseInt(btn.dataset.slot, 10);
+    const action = btn.dataset.action;
+    if (action === 'equip') {
+        openModal('equip', 'subs');
+    } else if (action === 'activate') {
+        activateSubweapon(slotIdx);
+    }
+});
+
+function updateSubweaponCooldownVisuals() {
+    for (let i = 0; i < 3; i++) {
+        const subId = state.equippedSubs[i];
+        if (!subId) continue;
+        const { def } = getSubweaponStats(subId);
+        const cdRem = battle.subCooldowns[i];
+        const isReady = cdRem <= 0;
+        const pct = isReady ? 0 : Math.min(100, (cdRem / def.cd) * 100);
+
+        const bar = document.getElementById(`sub-slot-cd-bar-${i}`);
+        const status = document.getElementById(`sub-slot-status-${i}`);
+        const btn = document.getElementById(`sub-slot-btn-${i}`);
+        if (bar && status && btn) {
+            bar.style.height = `${pct}%`;
+            status.textContent = isReady ? 'READY!' : `${cdRem.toFixed(1)}s`;
+            status.className = `relative z-10 text-[10px] font-black pointer-events-none ${isReady ? 'text-emerald-400' : 'text-slate-400'}`;
+            if (isReady) {
+                btn.classList.remove('border-slate-700');
+                btn.classList.add('border-amber-400/80', 'shadow-lg');
+            }
+        }
+    }
+}
+
+/**
+ * ============================================================================
+ * ショップ＆装備モーダルロジック
+ * ============================================================================
+ */
+function openModal(mode, tab = null) {
+    currentModal = mode;
+    if (tab) currentTab = tab;
+
+    const backdrop = document.getElementById('modal-backdrop');
+    const title = document.getElementById('modal-title');
+    const icon = document.getElementById('modal-icon');
+    const coinBadge = document.getElementById('modal-coin-badge');
+
+    if (mode === 'shop') {
+        title.textContent = '武器屋（購入・強化）';
+        icon.className = 'fa-solid fa-store text-amber-400 text-xl';
+        coinBadge.classList.remove('hidden');
+    } else {
+        title.textContent = '装備変更（所持アイテム）';
+        icon.className = 'fa-solid fa-khanda text-sky-400 text-xl';
+        coinBadge.classList.add('hidden');
+    }
+
+    document.getElementById('modal-coins').textContent = formatNum(state.coins);
+    backdrop.classList.remove('hidden');
+    renderModalContent();
+}
+
+function closeModal() {
+    currentModal = null;
+    document.getElementById('modal-backdrop').classList.add('hidden');
+}
+
+function switchTab(tab) {
+    currentTab = tab;
+    const tabSwords = document.getElementById('tab-swords');
+    const tabSubs = document.getElementById('tab-subs');
+
+    if (tab === 'swords') {
+        tabSwords.className = 'px-4 py-2 text-xs sm:text-sm font-bold rounded-t-xl border-b-2 border-amber-400 text-amber-300 bg-slate-800/80 transition';
+        tabSubs.className = 'px-4 py-2 text-xs sm:text-sm font-bold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition';
+    } else {
+        tabSubs.className = 'px-4 py-2 text-xs sm:text-sm font-bold rounded-t-xl border-b-2 border-amber-400 text-amber-300 bg-slate-800/80 transition';
+        tabSwords.className = 'px-4 py-2 text-xs sm:text-sm font-bold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition';
+    }
+    renderModalContent();
+}
+
+function renderModalContent() {
+    const container = document.getElementById('modal-content');
+    let html = '';
+
+    if (currentTab === 'swords') {
+        const list = currentModal === 'equip'
+            ? SWORDS_DATA.filter(s => state.swords[s.id]?.unlocked)
+            : SWORDS_DATA;
+
+        list.forEach(sword => {
+            const { prog, lv, atk, skillMult, upgradeCost } = getSwordStats(sword.id);
+            const isEquipped = state.equippedSword === sword.id;
+
+            html += `
+                <div class="bg-slate-800/80 border ${isEquipped ? 'border-amber-400/80' : 'border-slate-700'} rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-[10px] font-black px-2 py-0.5 rounded rarity-${sword.rarity}">${sword.rarity}</span>
+                            <h3 class="text-sm sm:text-base font-black text-white">${sword.name}</h3>
+                            ${isEquipped ? '<span class="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40 px-2 py-0.5 rounded-full">装備中</span>' : ''}
+                            ${prog.unlocked ? `<span class="text-[11px] text-amber-300 font-black">Lv.${lv}</span>` : ''}
+                        </div>
+                        <p class="text-xs text-slate-300 mt-1 leading-relaxed">${sword.desc}</p>
+                        ${prog.unlocked ? `
+                            <div class="flex flex-wrap gap-3 mt-1.5 text-[11px]">
+                                <span class="text-emerald-400 font-bold">基礎火力: ${formatNum(atk)}</span>
+                                <span class="text-sky-400 font-bold">スキル倍率: x${skillMult.toFixed(1)}</span>
+                                <span class="text-slate-400">(${sword.skillDesc})</span>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="flex flex-wrap sm:flex-col items-stretch sm:items-end justify-end gap-2 shrink-0">
+                        ${currentModal === 'shop' ? (
+                            !prog.unlocked ? `
+                                <button onclick="buySword('${sword.id}')" class="px-4 py-2 rounded-xl font-black text-xs sm:text-sm ${state.coins >= sword.price ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : 'bg-slate-700 text-slate-400'} transition flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-coins"></i> 購入 (${formatNum(sword.price)})
+                                </button>
+                            ` : `
+                                <button onclick="upgradeSword('${sword.id}')" class="px-4 py-2 rounded-xl font-black text-xs sm:text-sm ${state.coins >= upgradeCost ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md' : 'bg-slate-700 text-slate-400'} transition flex items-center justify-center gap-2">
+                                    <span>強化 (Lv.${lv + 1})</span>
+                                    <span class="text-[11px] bg-black/25 px-2 py-0.5 rounded-lg"><i class="fa-solid fa-coins text-amber-300 mr-1"></i>${formatNum(upgradeCost)}</span>
+                                </button>
+                            `
+                        ) : `
+                            <button onclick="equipSword('${sword.id}')" ${isEquipped ? 'disabled' : ''} class="px-4 py-2 rounded-xl font-black text-xs sm:text-sm ${isEquipped ? 'bg-slate-700 text-slate-400 cursor-default' : 'bg-sky-500 hover:bg-sky-400 text-slate-950'} transition">
+                                ${isEquipped ? '装備中' : 'この刀を装備'}
+                            </button>
+                        `}
+                    </div>
+                </div>
+            `;
+        });
+    } else {
+        const list = currentModal === 'equip'
+            ? SUBWEAPONS_DATA.filter(s => state.subweapons[s.id]?.unlocked)
+            : SUBWEAPONS_DATA;
+
+        if (list.length === 0 && currentModal === 'equip') {
+            html = `
+                <div class="text-center py-12 text-slate-400">
+                    <i class="fa-solid fa-box-open text-3xl mb-2 text-slate-600"></i>
+                    <p class="text-sm font-bold">まだサブウェポンを所持していません</p>
+                    <p class="text-xs text-slate-500 mt-1">右上の「ショップ」からコインで購入できます</p>
+                </div>
+            `;
+        } else {
+            list.forEach(sub => {
+                const { prog, dmg, coinGain, upgradeCost } = getSubweaponStats(sub.id);
+                const equippedSlot = state.equippedSubs.indexOf(sub.id);
+
+                html += `
+                    <div class="bg-slate-800/80 border ${equippedSlot !== -1 ? 'border-sky-400/80' : 'border-slate-700'} rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex items-start gap-3 flex-1">
+                            <div class="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0 mt-0.5">
+                                ${getSubweaponSvg(sub.id, 'w-8 h-8')}
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <h3 class="text-sm sm:text-base font-black text-white">${sub.name}</h3>
+                                    <span class="text-[10px] font-bold bg-slate-700 text-slate-300 px-2 py-0.5 rounded">CT: ${sub.cd}秒</span>
+                                    ${prog.unlocked ? `<span class="text-[11px] font-black text-amber-300">Lv.${prog.lv}</span>` : ''}
+                                    ${equippedSlot !== -1 ? `<span class="text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/40 px-2 py-0.5 rounded-full">スロット${equippedSlot + 1}装備中</span>` : ''}
+                                </div>
+                                <p class="text-xs text-slate-300 mt-1">${sub.desc}</p>
+                                <div class="flex flex-wrap gap-3 mt-1 text-[11px]">
+                                    <span class="text-rose-400 font-bold">威力: ${formatNum(dmg)}</span>
+                                    <span class="text-amber-300 font-bold">獲得コイン+: ${formatNum(coinGain)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 shrink-0">
+                            ${currentModal === 'shop' ? (
+                                !prog.unlocked ? `
+                                    <button onclick="buySubweapon('${sub.id}')" class="px-4 py-2 rounded-xl font-black text-xs sm:text-sm ${state.coins >= sub.price ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : 'bg-slate-700 text-slate-400'} transition flex items-center gap-1.5">
+                                        <i class="fa-solid fa-coins"></i> 購入 (${formatNum(sub.price)})
+                                    </button>
+                                ` : `
+                                    <button onclick="upgradeSubweapon('${sub.id}')" class="px-3.5 py-2 rounded-xl font-bold text-xs ${state.coins >= upgradeCost ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-slate-700 text-slate-400'} transition text-left">
+                                        <div>強化 (Lv.${prog.lv + 1})</div>
+                                        <div class="text-[10px] opacity-90"><i class="fa-solid fa-coins text-amber-300"></i> ${formatNum(upgradeCost)}</div>
+                                    </button>
+                                `
+                            ) : `
+                                <div class="flex gap-1.5">
+                                    ${[0, 1, 2].map(slotIdx => {
+                                        const isThisSlot = state.equippedSubs[slotIdx] === sub.id;
+                                        return `
+                                            <button onclick="toggleEquipSub('${sub.id}', ${slotIdx})" class="px-2.5 py-2 rounded-xl text-xs font-black transition ${isThisSlot ? 'bg-rose-600 text-white' : 'bg-slate-700 hover:bg-sky-500 hover:text-slate-950 text-slate-200'}">
+                                                ${isThisSlot ? `枠${slotIdx + 1}解除` : `枠${slotIdx + 1}へ`}
+                                            </button>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+    }
+
+    container.innerHTML = html;
+}
+
+/**
+ * ============================================================================
+ * 購入・強化・装備アクション
+ * ============================================================================
+ */
+function buySword(swordId) {
+    const def = SWORDS_DATA.find(s => s.id === swordId);
+    if (state.coins < def.price) {
+        showToast('コインが足りません！');
+        return;
+    }
+    state.coins -= def.price;
+    state.swords[swordId] = { unlocked: true, lv: 1 };
+    state.equippedSword = swordId;
+    playSfx('coin');
+    showToast(`「${def.name}」を購入し装備しました！`);
+    updateTopUI();
+    renderModalContent();
+    saveGame();
+}
+
+function upgradeSword(swordId) {
+    const { def, prog, upgradeCost } = getSwordStats(swordId);
+    if (state.coins < upgradeCost) {
+        showToast('コインが足りません！');
+        return;
+    }
+    state.coins -= upgradeCost;
+    prog.lv = (prog.lv || 1) + 1;
+
+    playSfx('coin');
+    showToast(`${def.name}が Lv.${prog.lv} に強化されました！`);
+    updateTopUI();
+    renderModalContent();
+    saveGame();
+}
+
+function equipSword(swordId) {
+    state.equippedSword = swordId;
+    const def = SWORDS_DATA.find(s => s.id === swordId);
+    playSfx('slash');
+    showToast(`「${def.name}」を装備しました！`);
+    updateTopUI();
+    renderModalContent();
+    saveGame();
+}
+
+function buySubweapon(subId) {
+    const def = SUBWEAPONS_DATA.find(s => s.id === subId);
+    if (state.coins < def.price) {
+        showToast('コインが足りません！');
+        return;
+    }
+    state.coins -= def.price;
+    state.subweapons[subId] = { unlocked: true, lv: 1 };
+
+    const emptyIdx = state.equippedSubs.indexOf(null);
+    if (emptyIdx !== -1) {
+        state.equippedSubs[emptyIdx] = subId;
+        battle.subCooldowns[emptyIdx] = 0;
+    }
+
+    playSfx('coin');
+    showToast(`「${def.name}」を購入しました！`);
+    updateTopUI();
+    updateSubweaponSlotsUI();
+    renderModalContent();
+    saveGame();
+}
+
+function upgradeSubweapon(subId) {
+    const { def, prog, upgradeCost } = getSubweaponStats(subId);
+    if (state.coins < upgradeCost) {
+        showToast('コインが足りません！');
+        return;
+    }
+    state.coins -= upgradeCost;
+    prog.lv++;
+    playSfx('coin');
+    showToast(`${def.name}が Lv.${prog.lv} にアップ！`);
+    updateTopUI();
+    updateSubweaponSlotsUI();
+    renderModalContent();
+    saveGame();
+}
+
+function toggleEquipSub(subId, slotIdx) {
+    if (state.equippedSubs[slotIdx] === subId) {
+        state.equippedSubs[slotIdx] = null;
+        battle.subCooldowns[slotIdx] = 0;
+        showToast(`スロット${slotIdx + 1}から外しました`);
+    } else {
+        const existingIdx = state.equippedSubs.indexOf(subId);
+        if (existingIdx !== -1) {
+            state.equippedSubs[existingIdx] = null;
+            battle.subCooldowns[existingIdx] = 0;
+        }
+        state.equippedSubs[slotIdx] = subId;
+        battle.subCooldowns[slotIdx] = 0;
+        const def = SUBWEAPONS_DATA.find(s => s.id === subId);
+        playSfx('sub');
+        showToast(`スロット${slotIdx + 1}に「${def.name}」をセット！`);
+    }
+    updateSubweaponSlotsUI();
+    renderModalContent();
+    saveGame();
+}
+
+let toastTimer = null;
+function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.remove('opacity-0');
+    el.classList.add('opacity-100');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        el.classList.remove('opacity-100');
+        el.classList.add('opacity-0');
+    }, 2000);
+}
+
+document.getElementById('modal-backdrop').addEventListener('pointerdown', (e) => {
+    if (e.target.id === 'modal-backdrop') closeModal();
+});
+
+/**
+ * ============================================================================
+ * 初期化起動
+ * ============================================================================
+ */
+window.onload = function () {
+    loadGame();
+    updateSoundIcon();
+    updateTopUI();
+    updateSubweaponSlotsUI();
+    requestAnimationFrame(gameLoop);
+};
+</script>
+</body>
+</html>
