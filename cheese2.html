@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>チーズ・エスケープ 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #1a2e1a;
+        }
+        #game-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            z-index: 1;
+        }
+        .ui-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .interactive {
+            pointer-events: auto;
+        }
+        .btn-game {
+            transition: transform 0.1s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.1s ease;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.25), 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .btn-game:active {
+            transform: translateY(4px) scale(0.97);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.25), 0 4px 10px rgba(0,0,0,0.2);
+        }
+        #joystick-zone {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            width: 136px;
+            height: 136px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.18);
+            border: 3px solid rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+        }
+        #joystick-knob {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #ffe066, #f59f00);
+            border: 3px solid #fff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            transform: translate(0px, 0px);
+            transition: transform 0.05s linear;
+        }
+        @keyframes floatTitle {
+            0%, 100% { transform: translateY(0px) rotate(-1deg); }
+            50% { transform: translateY(-8px) rotate(1deg); }
+        }
+        .title-float {
+            animation: floatTitle 3s ease-in-out infinite;
+        }
+        @keyframes gachaSpin {
+            0% { transform: scale(0.8) rotate(0deg); }
+            50% { transform: scale(1.15) rotate(180deg); }
+            100% { transform: scale(1) rotate(360deg); }
+        }
+        .gacha-anim {
+            animation: gachaSpin 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .custom-scroll {
+            touch-action: pan-y;
+            overflow-y: auto;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: rgba(245, 159, 0, 0.6);
+            border-radius: 999px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+
+    <button id="sound-toggle" class="interactive fixed top-4 left-1/2 -translate-x-1/2 z-40 bg-black/40 hover:bg-black/60 text-white px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md border border-white/20 flex items-center gap-1.5 transition">
+        <span id="sound-icon">🔊</span>
+        <span id="sound-label">BGM/SE ON</span>
+    </button>
+
+    <div id="start-screen" class="ui-layer flex flex-col justify-between p-4 sm:p-6">
+        <div class="w-full max-w-2xl mx-auto flex items-center justify-between gap-2 pt-8 sm:pt-2">
+            <button id="open-records-btn" class="interactive btn-game bg-amber-500 hover:bg-amber-400 text-white font-black px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl border-2 border-amber-200 flex items-center gap-2 text-sm sm:text-base">
+                <span class="text-xl">🏆</span>
+                <span>記録</span>
+                <span id="top-best-badge" class="bg-amber-800/60 text-amber-100 text-xs px-2 py-0.5 rounded-full">最高 0m</span>
+            </button>
+
+            <div class="bg-black/50 backdrop-blur-md border-2 border-yellow-400/60 text-white px-4 py-2 rounded-2xl flex items-center gap-2 shadow-lg">
+                <span class="text-xl">🪙</span>
+                <span id="menu-coins" class="font-black text-yellow-300 text-base sm:text-lg">0</span>
+            </div>
+        </div>
+
+        <div class="flex flex-col items-center justify-center my-auto text-center px-2">
+            <div class="title-float mb-6 sm:mb-8">
+                <div class="inline-block bg-red-600 text-white text-xs sm:text-sm font-black px-3 py-1 rounded-full tracking-wider mb-2 shadow-md border border-red-300">
+                    10人の人間から逃げ切れ！
+                </div>
+                <h1 class="text-4xl sm:text-6xl font-black text-yellow-300 drop-shadow-[0_5px_0_rgba(146,64,14,1)] tracking-tight leading-tight">
+                    チーズ・エスケープ<span class="text-white text-3xl sm:text-5xl ml-1">3D</span>
+                </h1>
+                <p class="text-white/95 font-bold text-xs sm:text-sm mt-2 drop-shadow">
+                    切り株の斜めジャンプ台を使いこなして高高度へ逃げろ！
+                </p>
+            </div>
+
+            <div class="mt-6 sm:mt-10">
+                <button id="start-game-btn" class="interactive btn-game bg-gradient-to-b from-yellow-300 via-amber-400 to-orange-500 hover:from-yellow-200 hover:to-orange-400 text-amber-950 font-black text-2xl sm:text-3xl px-12 py-4 sm:px-16 sm:py-5 rounded-full border-4 border-white flex items-center gap-3">
+                    <span>🧀</span>
+                    <span>スタート</span>
+                </button>
+                <p class="text-white/80 text-[11px] sm:text-xs font-bold mt-3 drop-shadow">
+                    操作: 左バーチャルパッド(移動) / PC: WASD・矢印キー
+                </p>
+            </div>
+        </div>
+
+        <div class="w-full max-w-md mx-auto flex justify-center pb-2 sm:pb-4">
+            <button id="open-shop-btn" class="interactive btn-game w-full bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-black py-3.5 px-6 rounded-2xl border-2 border-indigo-200 flex items-center justify-center gap-3 text-lg sm:text-xl">
+                <span class="text-2xl">🛍️</span>
+                <span>ショップ（スキンガチャ・装備）</span>
+                <span id="equipped-skin-pill" class="bg-white/20 text-xs px-2.5 py-1 rounded-full">クラシック</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="hud-screen" class="ui-layer hidden">
+        <div class="fixed top-4 left-4 flex flex-col gap-2 z-20">
+            <div class="bg-black/55 backdrop-blur-md border-2 border-amber-400/70 rounded-2xl px-4 py-2 text-white shadow-lg">
+                <div class="text-[11px] font-bold text-amber-200 leading-none">到達距離</div>
+                <div id="hud-distance" class="text-2xl sm:text-3xl font-black text-white tracking-tight">0m</div>
+            </div>
+            <div class="bg-black/55 backdrop-blur-md border border-yellow-400/60 rounded-xl px-3.5 py-1.5 text-white flex items-center gap-2 shadow-md w-fit">
+                <span class="text-base">🪙</span>
+                <span id="hud-coins" class="font-black text-yellow-300 text-base sm:text-lg">0</span>
+            </div>
+            <div id="danger-indicator" class="hidden bg-red-600/90 text-white text-xs font-black px-3 py-1 rounded-full animate-pulse border border-white/60 shadow">
+                ⚠️ 人間がすぐ後ろに！
+            </div>
+        </div>
+
+        <button id="pause-menu-btn" class="interactive btn-game fixed top-4 right-4 z-20 bg-slate-800/85 hover:bg-slate-700 text-white font-black px-4 py-2.5 rounded-2xl border-2 border-slate-400/60 backdrop-blur-md flex items-center gap-2 text-sm sm:text-base">
+            <span>⏸️</span>
+            <span>メニュー</span>
+        </button>
+
+        <div id="joystick-zone" class="interactive">
+            <div id="joystick-knob"></div>
+        </div>
+    </div>
+
+    <div id="pause-modal" class="ui-layer hidden bg-black/65 backdrop-blur-sm flex items-center justify-center p-4 z-30">
+        <div class="interactive bg-slate-900 border-4 border-amber-400 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl">
+            <h2 class="text-2xl sm:text-3xl font-black text-yellow-300 mb-2">一時停止</h2>
+            <p class="text-slate-300 text-sm font-bold mb-6">現在 <span id="pause-dist-text" class="text-white font-black">0m</span> 逃走中！</p>
+
+            <div class="flex flex-col gap-4">
+                <button id="resume-btn" class="btn-game w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-3.5 rounded-2xl border-2 border-emerald-200 text-lg">
+                    ▶️ ゲーム再開
+                </button>
+                <button id="surrender-btn" class="btn-game w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-3.5 rounded-2xl border-2 border-rose-300 text-lg">
+                    🏳️ 降参（リタイア）
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="gameover-modal" class="ui-layer hidden bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-30">
+        <div class="interactive bg-gradient-to-b from-amber-50 to-orange-100 border-4 border-amber-500 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl">
+            <div id="gameover-reason" class="inline-block bg-red-600 text-white text-xs font-black px-3 py-1 rounded-full mb-2">
+                人間に捕まってしまった！
+            </div>
+            <h2 class="text-3xl sm:text-4xl font-black text-amber-950 mb-4">ゲームオーバー</h2>
+
+            <div id="new-record-banner" class="hidden bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-400 text-amber-950 font-black text-sm py-1.5 px-4 rounded-full mb-4 shadow animate-bounce border-2 border-white">
+                🎉 最高記録更新！ NEW RECORD! 🎉
+            </div>
+
+            <div class="bg-white/90 rounded-2xl p-4 border-2 border-amber-300 space-y-3 mb-6 shadow-inner">
+                <div class="flex justify-between items-center border-b border-amber-100 pb-2">
+                    <span class="text-amber-800 font-bold text-sm">今回の記録</span>
+                    <span id="go-distance" class="text-2xl font-black text-amber-950">0m</span>
+                </div>
+                <div class="flex justify-between items-center border-b border-amber-100 pb-2">
+                    <span class="text-amber-800 font-bold text-sm">これまでの最高記録</span>
+                    <span id="go-best" class="text-xl font-black text-orange-600">0m</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-amber-800 font-bold text-sm">獲得コイン（合計）</span>
+                    <div class="text-right">
+                        <span id="go-earned-coins" class="text-xl font-black text-yellow-600">+0</span>
+                        <span class="text-xs font-bold text-slate-500 block">所持: <span id="go-total-coins">0</span> 枚</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button id="retry-btn" class="btn-game flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 font-black py-3.5 px-4 rounded-2xl border-2 border-amber-200 text-base sm:text-lg">
+                    🔄 もう一度
+                </button>
+                <button id="back-menu-btn" class="btn-game flex-1 bg-slate-700 hover:bg-slate-600 text-white font-black py-3.5 px-4 rounded-2xl border-2 border-slate-400 text-base sm:text-lg">
+                    🏠 メニューへ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="records-modal" class="ui-layer hidden bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-30">
+        <div class="interactive bg-slate-900 border-4 border-amber-400 rounded-3xl p-5 sm:p-6 max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl text-white">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-black text-yellow-300 flex items-center gap-2">
+                    <span>🏆</span> 逃走記録の履歴
+                </h2>
+                <button id="close-records-btn" class="bg-slate-700 hover:bg-slate-600 text-white w-9 h-9 rounded-full font-black flex items-center justify-center">✕</button>
+            </div>
+
+            <div class="flex items-center justify-between bg-slate-800 p-2 rounded-2xl mb-3 border border-slate-700">
+                <span class="text-xs font-bold text-slate-300 ml-2">並び替え:</span>
+                <div class="flex gap-2">
+                    <button id="sort-newest-btn" class="px-3 py-1.5 rounded-xl text-xs font-black bg-amber-500 text-slate-950 transition">
+                        新規順
+                    </button>
+                    <button id="sort-highest-btn" class="px-3 py-1.5 rounded-xl text-xs font-black bg-slate-700 text-slate-200 hover:bg-slate-600 transition">
+                        多い順（距離）
+                    </button>
+                </div>
+            </div>
+
+            <div id="records-list" class="custom-scroll flex-1 space-y-2.5 pr-1 min-h-[200px]"></div>
+        </div>
+    </div>
+
+    <div id="shop-modal" class="ui-layer hidden bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-30">
+        <div class="interactive bg-slate-900 border-4 border-indigo-400 rounded-3xl p-5 sm:p-6 max-w-xl w-full max-h-[88vh] flex flex-col shadow-2xl text-white">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-2xl font-black text-indigo-300 flex items-center gap-2">
+                    <span>🛍️</span> チーズショップ
+                </h2>
+                <div class="flex items-center gap-3">
+                    <div class="bg-black/50 border border-yellow-400/60 px-3 py-1 rounded-full flex items-center gap-1.5">
+                        <span>🪙</span>
+                        <span id="shop-coins" class="font-black text-yellow-300">0</span>
+                    </div>
+                    <button id="close-shop-btn" class="bg-slate-700 hover:bg-slate-600 text-white w-9 h-9 rounded-full font-black flex items-center justify-center">✕</button>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-r from-indigo-900/90 via-purple-900/90 to-indigo-900/90 border-2 border-purple-400/70 rounded-2xl p-4 mb-4 text-center relative overflow-hidden">
+                <div class="text-xs font-black text-purple-200 mb-1">未所持スキンが出やすい！ランダムスキン抽選</div>
+                <div id="gacha-result-box" class="min-h-[44px] flex items-center justify-center mb-2">
+                    <span class="text-sm font-bold text-white/90">コインを使って新しいチーズをアンロックしよう！</span>
+                </div>
+                <button id="gacha-pull-btn" class="btn-game bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-black px-6 py-2.5 rounded-full border-2 border-white text-sm sm:text-base inline-flex items-center gap-2">
+                    <span>🎰</span>
+                    <span>スキンガチャを引く（🪙 100）</span>
+                </button>
+            </div>
+
+            <div class="text-xs font-bold text-slate-300 mb-2">所持スキン一覧（タップして装備）</div>
+            <div id="skins-grid" class="custom-scroll flex-1 grid grid-cols-2 sm:grid-cols-3 gap-2.5 pr-1"></div>
+        </div>
+    </div>
+
+    <script>
+    class SoundEngine {
+        constructor() {
+            this.ctx = null;
+            this.enabled = true;
+        }
+        init() {
+            if (!this.ctx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) this.ctx = new AudioCtx();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+        }
+        toggle() {
+            this.enabled = !this.enabled;
+            if (this.enabled) this.init();
+            return this.enabled;
+        }
+        playTone(freq, endFreq, duration, type = 'sine', vol = 0.15) {
+            if (!this.enabled) return;
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, now);
+            if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+            gain.gain.setValueAtTime(vol, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + duration);
+        }
+        playRampBoost() {
+            this.playTone(320, 880, 0.35, 'triangle', 0.22);
+            setTimeout(() => this.playTone(520, 1040, 0.25, 'sine', 0.15), 60);
+        }
+        playBump() {
+            this.playTone(140, 55, 0.2, 'sawtooth', 0.18);
+        }
+        playDash() {
+            this.playTone(180, 420, 0.18, 'square', 0.06);
+        }
+        playGacha() {
+            const notes = [523.25, 659.25, 783.99, 1046.50];
+            notes.forEach((n, i) => {
+                setTimeout(() => this.playTone(n, n * 1.05, 0.22, 'triangle', 0.18), i * 85);
+            });
+        }
+        playGameOver() {
+            const notes = [392.00, 349.23, 311.13, 261.63];
+            notes.forEach((n, i) => {
+                setTimeout(() => this.playTone(n, n * 0.92, 0.28, 'sawtooth', 0.14), i * 140);
+            });
+        }
+    }
+    const sound = new SoundEngine();
+
+    const SKINS = [
+        { id: 'classic', name: 'クラシック', rarity: 'N', color: 0xffd43b, holeColor: 0xe67700, emissive: 0x221100, icon: '🧀', desc: '王道の穴あきエメンタールチーズ' },
+        { id: 'cheddar', name: '濃厚チェダー', rarity: 'N', color: 0xff7b00, holeColor: 0xb34700, emissive: 0x331100, icon: '🟧', desc: 'コク深いオレンジ色のチェダー' },
+        { id: 'camembert', name: 'カマンベール', rarity: 'R', color: 0xf8f9fa, holeColor: 0xffe8a3, emissive: 0x222222, icon: '⚪', desc: '白カビが美しいクリーミーチーズ' },
+        { id: 'blue', name: 'ブルーチーズ', rarity: 'R', color: 0xd0ebff, holeColor: 0x1864ab, emissive: 0x0b2545, icon: '🔵', desc: '青カビの風味がクセになる大人味' },
+        { id: 'matcha', name: '宇治抹茶チーズ', rarity: 'R', color: 0x69db7c, holeColor: 0x2b8a3e, emissive: 0x0a2e12, icon: '🍵', desc: '和の心を持つ爽やかグリーン' },
+        { id: 'strawberry', name: 'いちごレア', rarity: 'SR', color: 0xff8787, holeColor: 0xc92a2a, emissive: 0x3b0a0a, icon: '🍓', desc: '甘酸っぱいデザート系チーズ' },
+        { id: 'magma', name: '溶岩マグマ', rarity: 'SR', color: 0x2b2d42, holeColor: 0xff4d00, emissive: 0xff3300, icon: '🌋', desc: '灼熱のマグマが脈打つ危険なチーズ' },
+        { id: 'galaxy', name: 'ギャラクシー', rarity: 'SSR', color: 0x4c1d95, holeColor: 0x38bdf8, emissive: 0x3b0764, icon: '🌌', desc: '宇宙の神秘を閉じ込めた星屑チーズ' },
+        { id: 'golden', name: '黄金チーズ', rarity: 'SSR', color: 0xffd700, holeColor: 0xffffff, emissive: 0x664d00, icon: '👑', desc: 'まばゆい輝きを放つ伝説の純金チーズ' }
+    ];
+
+    const STORAGE_KEY = 'cheese_escape_3d_save_v1';
+    let saveData = {
+        coins: 150,
+        bestDistance: 0,
+        unlockedSkins: ['classic'],
+        equippedSkin: 'classic',
+        records: []
+    };
+
+    function loadSaveData() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                saveData = { ...saveData, ...parsed };
+                if (!saveData.unlockedSkins || saveData.unlockedSkins.length === 0) {
+                    saveData.unlockedSkins = ['classic'];
+                }
+            }
+        } catch (e) {}
+    }
+
+    function persistSaveData() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
+        } catch (e) {}
+    }
+
+    loadSaveData();
+
+    const canvas = document.getElementById('game-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x74c0fc);
+    scene.fog = new THREE.FogExp2(0x74c0fc, 0.0065);
+
+    const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 220);
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x3b7a57, 0.85);
+    hemiLight.position.set(0, 50, 0);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xfff9db, 1.1);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    dirLight.shadow.camera.near = 5;
+    dirLight.shadow.camera.far = 140;
+    const d = 42;
+    dirLight.shadow.camera.left = -d;
+    dirLight.shadow.camera.right = d;
+    dirLight.shadow.camera.top = d;
+    dirLight.shadow.camera.bottom = -d;
+    scene.add(dirLight);
+    scene.add(dirLight.target);
+
+    const SLOPE_TAN = 0.23;
+    const TRACK_HALF_WIDTH = 13.5;
+
+    function getTerrainHeight(x, z) {
+        const baseSlope = -z * SLOPE_TAN;
+        const gentleWave = Math.sin(z * 0.045) * 1.3 + Math.cos(x * 0.18 + z * 0.03) * 0.35;
+        const edgeDist = Math.max(0, Math.abs(x) - (TRACK_HALF_WIDTH - 1.5));
+        const bank = edgeDist * edgeDist * 0.45;
+        return baseSlope + gentleWave + bank;
+    }
+
+    function getTerrainSlopeZ(x, z) {
+        const eps = 0.2;
+        return (getTerrainHeight(x, z + eps) - getTerrainHeight(x, z - eps)) / (2 * eps);
+    }
+
+    const CHEESE_RADIUS = 1.05;
+    const CHEESE_WIDTH = 0.95;
+    const cheeseGroup = new THREE.Group();
+    scene.add(cheeseGroup);
+
+    let cheeseMesh = null;
+    let cheeseHoles = [];
+
+    function buildCheeseModel(skinId) {
+        while (cheeseGroup.children.length > 0) {
+            cheeseGroup.remove(cheeseGroup.children[0]);
+        }
+        cheeseHoles = [];
+
+        const skin = SKINS.find(s => s.id === skinId) || SKINS[0];
+        const geo = new THREE.CylinderGeometry(CHEESE_RADIUS, CHEESE_RADIUS, CHEESE_WIDTH, 28);
+        geo.rotateZ(Math.PI / 2);
+
+        const mat = new THREE.MeshStandardMaterial({
+            color: skin.color,
+            emissive: skin.emissive,
+            roughness: skin.id === 'golden' ? 0.2 : 0.45,
+            metalness: skin.id === 'golden' ? 0.8 : 0.08
+        });
+
+        cheeseMesh = new THREE.Mesh(geo, mat);
+        cheeseMesh.castShadow = true;
+        cheeseMesh.receiveShadow = true;
+        cheeseGroup.add(cheeseMesh);
+
+        const holeMat = new THREE.MeshStandardMaterial({
+            color: skin.holeColor,
+            emissive: skin.id === 'magma' ? 0xff5500 : 0x000000,
+            roughness: 0.7
+        });
+
+        const holePositions = [
+            [0.48, 0.35, 0.35, 0.22], [0.48, -0.4, 0.2, 0.18], [0.48, 0.1, -0.5, 0.25],
+            [-0.48, 0.4, -0.25, 0.22], [-0.48, -0.3, 0.4, 0.2], [-0.48, -0.2, -0.45, 0.17],
+            [0.15, 0.98, 0.25, 0.2], [-0.2, -0.96, -0.3, 0.22], [0.1, 0.3, 0.98, 0.19], [-0.15, -0.45, -0.92, 0.21]
+        ];
+
+        holePositions.forEach(([hx, hy, hz, r]) => {
+            const hGeo = new THREE.SphereGeometry(r, 12, 12);
+            const hMesh = new THREE.Mesh(hGeo, holeMat);
+            hMesh.position.set(hx, hy, hz);
+            cheeseGroup.add(hMesh);
+            cheeseHoles.push(hMesh);
+        });
+    }
+
+    buildCheeseModel(saveData.equippedSkin);
+
+    const CHUNK_LENGTH = 36;
+    const chunks = new Map();
+    const obstacles = [];
+    const particles = [];
+
+    const barkMat = new THREE.MeshStandardMaterial({ color: 0x6f4e37, roughness: 0.9 });
+    const cutWoodMat = new THREE.MeshStandardMaterial({ color: 0xf3d5b5, roughness: 0.65 });
+    const rockWallMat = new THREE.MeshStandardMaterial({ color: 0x868e96, roughness: 0.85 });
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x2b8a3e, roughness: 0.8 });
+
+    function spawnParticles(x, y, z, colorHex, count = 10, speedScale = 1) {
+        const pGeo = new THREE.BoxGeometry(0.24, 0.24, 0.24);
+        const pMat = new THREE.MeshBasicMaterial({ color: colorHex });
+        for (let i = 0; i < count; i++) {
+            const m = new THREE.Mesh(pGeo, pMat);
+            m.position.set(x, y, z);
+            scene.add(m);
+            const angle = Math.random() * Math.PI * 2;
+            const spd = (2 + Math.random() * 5) * speedScale;
+            particles.push({
+                mesh: m,
+                vx: Math.cos(angle) * spd,
+                vy: (3 + Math.random() * 5) * speedScale,
+                vz: Math.sin(angle) * spd,
+                life: 0.45 + Math.random() * 0.25,
+                maxLife: 0.7
+            });
+        }
+    }
+
+    function createChunk(chunkIndex) {
+        if (chunks.has(chunkIndex)) return;
+        const group = new THREE.Group();
+        const zStart = chunkIndex * CHUNK_LENGTH;
+
+        const segX = 18;
+        const segZ = 14;
+        const width = TRACK_HALF_WIDTH * 2 + 12;
+        const geo = new THREE.PlaneGeometry(width, CHUNK_LENGTH, segX, segZ);
+        geo.rotateX(-Math.PI / 2);
+
+        const pos = geo.attributes.position;
+        const colors = [];
+        const cGrass = new THREE.Color(chunkIndex % 2 === 0 ? 0x51cf66 : 0x46c35c);
+        const cPath = new THREE.Color(0xe9c46a);
+        const cBank = new THREE.Color(0x2f9e44);
+
+        for (let i = 0; i < pos.count; i++) {
+            const vx = pos.getX(i);
+            const vzLocal = pos.getZ(i);
+            const worldZ = zStart + vzLocal + CHUNK_LENGTH / 2;
+            const wy = getTerrainHeight(vx, worldZ);
+            pos.setY(i, wy);
+
+            const absX = Math.abs(vx);
+            if (absX > TRACK_HALF_WIDTH - 1.0) {
+                colors.push(cBank.r, cBank.g, cBank.b);
+            } else if (absX < 4.5 + Math.sin(worldZ * 0.1) * 1.5) {
+                colors.push(cPath.r, cPath.g, cPath.b);
+            } else {
+                colors.push(cGrass.r, cGrass.g, cGrass.b);
+            }
+        }
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geo.computeVertexNormals();
+
+        const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 });
+        const terrainMesh = new THREE.Mesh(geo, terrainMat);
+        terrainMesh.position.set(0, 0, zStart + CHUNK_LENGTH / 2);
+        terrainMesh.receiveShadow = true;
+        group.add(terrainMesh);
+
+        for (let side of [-1, 1]) {
+            for (let t = 0; t < 3; t++) {
+                const tz = zStart + t * 12 + Math.random() * 6;
+                const tx = side * (TRACK_HALF_WIDTH + 2.2 + Math.random() * 2.5);
+                const ty = getTerrainHeight(tx, tz);
+
+                const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.65, 3.2, 8), barkMat);
+                trunk.position.y = 1.6;
+                trunk.castShadow = true;
+                tree.add(trunk);
+
+                const crown = new THREE.Mesh(new THREE.ConeGeometry(2.2, 5.0, 8), leafMat);
+                crown.position.y = 4.6;
+                crown.castShadow = true;
+                tree.add(crown);
+
+                tree.position.set(tx, ty, tz);
+                group.add(tree);
+            }
+        }
+
+        if (chunkIndex === 0) {
+            const padGeo = new THREE.BoxGeometry(6, 0.1, 7);
+            const padMat = new THREE.MeshStandardMaterial({ color: 0x33ffe6, emissive: 0x008866, roughness: 0.3 });
+            const padMesh = new THREE.Mesh(padGeo, padMat);
+            padMesh.position.set(0, getTerrainHeight(0, 8) + 0.05, 8);
+            group.add(padMesh);
+
+            obstacles.push({
+                type: 'boostpad',
+                x: 0,
+                y: getTerrainHeight(0, 8),
+                z: 8,
+                halfW: 3,
+                halfH: 0.2,
+                halfD: 3.5,
+                chunkIndex
+            });
+        }
+
+        if (chunkIndex >= 1) {
+            const numRows = 2;
+            for (let r = 0; r < numRows; r++) {
+                const oz = zStart + 8 + r * 17 + (Math.random() - 0.5) * 4;
+                const ox = (Math.random() - 0.5) * (TRACK_HALF_WIDTH * 1.55);
+                const oy = getTerrainHeight(ox, oz);
+
+                const roll = Math.random();
+                if (roll < 0.36) {
+                    const stumpW = 3.4;
+                    const stumpH = 2.1;
+                    const stumpD = 3.6;
+
+                    const shape = new THREE.Shape();
+                    shape.moveTo(-stumpD / 2, 0);
+                    shape.lineTo(stumpD / 2, 0);
+                    shape.lineTo(stumpD / 2, stumpH);
+                    shape.lineTo(-stumpD / 2, 0.25);
+                    shape.closePath();
+
+                    const extrudeSettings = { steps: 1, depth: stumpW, bevelEnabled: false };
+                    const wedgeGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                    wedgeGeo.rotateY(-Math.PI / 2);
+                    wedgeGeo.translate(stumpW / 2, 0, 0);
+
+                    const stumpGroup = new THREE.Group();
+                    const baseMesh = new THREE.Mesh(wedgeGeo, barkMat);
+                    baseMesh.castShadow = true;
+                    baseMesh.receiveShadow = true;
+                    stumpGroup.add(baseMesh);
+
+                    const rampSurfaceGeo = new THREE.PlaneGeometry(stumpW - 0.15, Math.hypot(stumpD, stumpH - 0.25));
+                    const rampSurface = new THREE.Mesh(rampSurfaceGeo, cutWoodMat);
+                    const rampAngle = Math.atan2(stumpH - 0.25, stumpD);
+                    rampSurface.rotation.x = -Math.PI / 2 - rampAngle;
+                    rampSurface.position.set(0, (stumpH + 0.25) / 2 + 0.03, 0);
+                    stumpGroup.add(rampSurface);
+
+                    stumpGroup.position.set(ox, oy - 0.15, oz);
+                    group.add(stumpGroup);
+
+                    obstacles.push({
+                        type: 'stump',
+                        x: ox, y: oy, z: oz,
+                        halfW: stumpW / 2, halfH: stumpH, halfD: stumpD / 2,
+                        mesh: stumpGroup, chunkIndex
+                    });
+
+                } else if (roll < 0.70) {
+                    const logLen = 5.2 + Math.random() * 2.2;
+                    const logRadius = 0.95;
+                    const logGeo = new THREE.CylinderGeometry(logRadius, logRadius, logLen, 14);
+                    logGeo.rotateZ(Math.PI / 2);
+                    const logMesh = new THREE.Mesh(logGeo, barkMat);
+                    logMesh.position.set(ox, oy + logRadius * 0.85, oz);
+                    logMesh.castShadow = true;
+                    logMesh.receiveShadow = true;
+                    group.add(logMesh);
+
+                    obstacles.push({
+                        type: 'log',
+                        x: ox, y: oy, z: oz,
+                        halfW: logLen / 2, halfH: logRadius * 1.8, halfD: logRadius,
+                        mesh: logMesh, chunkIndex
+                    });
+
+                } else {
+                    const wallW = 4.2 + Math.random() * 1.5;
+                    const wallH = 2.6;
+                    const wallD = 1.8;
+                    const wallGeo = new THREE.BoxGeometry(wallW, wallH, wallD);
+                    const wallMesh = new THREE.Mesh(wallGeo, rockWallMat);
+                    wallMesh.position.set(ox, oy + wallH / 2 - 0.1, oz);
+                    wallMesh.castShadow = true;
+                    wallMesh.receiveShadow = true;
+                    group.add(wallMesh);
+
+                    obstacles.push({
+                        type: 'wall',
+                        x: ox, y: oy, z: oz,
+                        halfW: wallW / 2, halfH: wallH, halfD: wallD / 2,
+                        mesh: wallMesh, chunkIndex
+                    });
+                }
+            }
+        }
+
+        scene.add(group);
+        chunks.set(chunkIndex, group);
+    }
+
+    function cleanupOldChunks(minChunkIndex) {
+        for (const [idx, group] of chunks.entries()) {
+            if (idx < minChunkIndex) {
+                scene.remove(group);
+                chunks.delete(idx);
+            }
+        }
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            if (obstacles[i].chunkIndex < minChunkIndex) obstacles.splice(i, 1);
+        }
+    }
+
+    const NUM_HUMANS = 10;
+    const humans = [];
+    const SHIRT_COLORS = [
+        0xe03131, 0x1971c2, 0x2f9e44, 0xf08c00, 0x6741d9,
+        0xc2255c, 0x0b7285, 0x5c940d, 0xd9480f, 0x364fc7
+    ];
+
+    function createHumanMesh(index) {
+        const root = new THREE.Group();
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0xffd8a8, roughness: 0.6 });
+        const shirtMat = new THREE.MeshStandardMaterial({ color: SHIRT_COLORS[index % SHIRT_COLORS.length], roughness: 0.7 });
+        const pantsMat = new THREE.MeshStandardMaterial({ color: 0x212529, roughness: 0.8 });
+
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.05, 0.45), shirtMat);
+        torso.position.y = 1.45;
+        torso.castShadow = true;
+        root.add(torso);
+
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.62, 0.62), skinMat);
+        head.position.y = 2.35;
+        head.castShadow = true;
+        root.add(head);
+
+        const legGeo = new THREE.BoxGeometry(0.32, 0.95, 0.34);
+        const leftLeg = new THREE.Mesh(legGeo, pantsMat);
+        leftLeg.position.set(-0.24, 0.48, 0);
+        leftLeg.castShadow = true;
+        root.add(leftLeg);
+
+        const rightLeg = new THREE.Mesh(legGeo, pantsMat);
+        rightLeg.position.set(0.24, 0.48, 0);
+        rightLeg.castShadow = true;
+        root.add(rightLeg);
+
+        const armGeo = new THREE.BoxGeometry(0.26, 0.85, 0.28);
+        const leftArm = new THREE.Mesh(armGeo, skinMat);
+        leftArm.position.set(-0.62, 1.48, 0);
+        root.add(leftArm);
+
+        const rightArm = new THREE.Mesh(armGeo, skinMat);
+        rightArm.position.set(0.62, 1.48, 0);
+        root.add(rightArm);
+
+        scene.add(root);
+        return { root, leftLeg, rightLeg, leftArm, rightArm };
+    }
+
+    function initHumans() {
+        humans.forEach(h => scene.remove(h.rig.root));
+        humans.length = 0;
+
+        for (let i = 0; i < NUM_HUMANS; i++) {
+            const rig = createHumanMesh(i);
+            const spreadX = ((i / (NUM_HUMANS - 1)) - 0.5) * 18;
+            const startZ = -9 - (i % 3) * 3.5;
+            const startY = getTerrainHeight(spreadX, startZ);
+
+            humans.push({
+                id: i,
+                rig,
+                x: spreadX,
+                y: startY,
+                z: startZ,
+                vx: 0,
+                vy: 0,
+                vz: 14.5,
+                grounded: true,
+                jumpsLeft: 2,
+                dashTimer: 0,
+                dashCooldown: 1 + Math.random() * 3,
+                stumbleTimer: 0,
+                flankBias: ((i % 5) - 2) * 1.4,
+                baseTopSpeed: 21.0 + (i % 4) * 0.5,
+                animPhase: Math.random() * Math.PI * 2
+            });
+        }
+    }
+
+    let gameState = 'MENU';
+    let runDistance = 0;
+    let runCoins = 0;
+    let startZ = 0;
+    let frameTime = 0;
+
+    const player = {
+        x: 0, y: 2, z: 0,
+        vx: 0, vy: 0, vz: 15,
+        grounded: false,
+        rotX: 0, rotZ: 0,
+        rampBoostTimer: 0
+    };
+
+    const input = { steerX: 0, throttle: 0 };
+    const keys = {};
+
+    window.addEventListener('keydown', (e) => {
+        keys[e.code] = true;
+        if (e.code === 'Escape' && gameState === 'PLAYING') pauseGame();
+    });
+    window.addEventListener('keyup', (e) => {
+        keys[e.code] = false;
+    });
+
+    const joystickZone = document.getElementById('joystick-zone');
+    const joystickKnob = document.getElementById('joystick-knob');
+    let joyActive = false;
+    let joyTouchId = null;
+    const JOY_MAX_RADIUS = 44;
+
+    function updateJoystick(clientX, clientY) {
+        const rect = joystickZone.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        let dx = clientX - centerX;
+        let dy = clientY - centerY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > JOY_MAX_RADIUS) {
+            dx = (dx / dist) * JOY_MAX_RADIUS;
+            dy = (dy / dist) * JOY_MAX_RADIUS;
+        }
+        joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+        input.steerX = -(dx / JOY_MAX_RADIUS);
+        input.throttle = -(dy / JOY_MAX_RADIUS);
+    }
+
+    function resetJoystick() {
+        joyActive = false;
+        joyTouchId = null;
+        joystickKnob.style.transform = 'translate(0px, 0px)';
+        input.steerX = 0;
+        input.throttle = 0;
+    }
+
+    joystickZone.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        joyActive = true;
+        joyTouchId = t.identifier;
+        updateJoystick(t.clientX, t.clientY);
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+        if (!joyActive) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === joyTouchId) {
+                updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+            }
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchend', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === joyTouchId) resetJoystick();
+        }
+    });
+
+    joystickZone.addEventListener('mousedown', (e) => {
+        joyActive = true;
+        updateJoystick(e.clientX, e.clientY);
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (joyActive && joyTouchId === null) updateJoystick(e.clientX, e.clientY);
+    });
+    window.addEventListener('mouseup', () => {
+        if (joyActive && joyTouchId === null) resetJoystick();
+    });
+
+    function resetWorldForRun() {
+        for (const [, group] of chunks.entries()) scene.remove(group);
+        chunks.clear();
+        obstacles.length = 0;
+
+        startZ = 0;
+        runDistance = 0;
+        runCoins = 0;
+
+        player.x = 0;
+        player.z = 0;
+        player.y = getTerrainHeight(0, 0) + CHEESE_RADIUS + 0.5;
+        player.vx = 0;
+        player.vy = 0;
+        player.vz = 15.5;
+        player.grounded = true;
+        player.rotX = 0;
+        player.rotZ = 0;
+        player.rampBoostTimer = 0;
+
+        for (let c = -1; c <= 5; c++) createChunk(c);
+        initHumans();
+        updateHUD();
+    }
+
+    function updateSimulation(dt) {
+        let steer = input.steerX;
+        let throttle = input.throttle;
+        if (keys['ArrowLeft'] || keys['KeyA']) steer += 1;
+        if (keys['ArrowRight'] || keys['KeyD']) steer -= 1;
+        if (keys['ArrowUp'] || keys['KeyW']) throttle += 0.6;
+        if (keys['ArrowDown'] || keys['KeyS']) throttle -= 0.6;
+        steer = Math.max(-1, Math.min(1, steer));
+        throttle = Math.max(-1, Math.min(1, throttle));
+
+        const slopeZ = getTerrainSlopeZ(player.x, player.z);
+        const downhillAccel = Math.max(4.5, -slopeZ * 42.0);
+        const baseMaxSpeed = 20.0 + Math.min(4.0, runDistance * 0.0035);
+        const targetSpeed = baseMaxSpeed + throttle * 3.2 + (player.rampBoostTimer > 0 ? 7.5 : 0);
+
+        if (player.rampBoostTimer > 0) player.rampBoostTimer -= dt;
+
+        if (player.grounded) {
+            player.vz += (downhillAccel + (targetSpeed - player.vz) * 2.2) * dt;
+        } else {
+            player.vz += (targetSpeed - player.vz) * 0.6 * dt;
+        }
+        player.vz = Math.max(8.5, Math.min(32, player.vz));
+
+        const targetVx = steer * 14.5;
+        player.vx += (targetVx - player.vx) * 8.5 * dt;
+
+        player.x += player.vx * dt;
+        player.z += player.vz * dt;
+
+        if (player.x > TRACK_HALF_WIDTH) {
+            player.x = TRACK_HALF_WIDTH;
+            player.vx = -Math.abs(player.vx) * 0.5;
+        } else if (player.x < -TRACK_HALF_WIDTH) {
+            player.x = -TRACK_HALF_WIDTH;
+            player.vx = Math.abs(player.vx) * 0.5;
+        }
+
+        player.vy -= 32.0 * dt;
+        player.y += player.vy * dt;
+
+        const groundY = getTerrainHeight(player.x, player.z) + CHEESE_RADIUS;
+        if (player.y <= groundY) {
+            player.y = groundY;
+            player.vy = 0;
+            player.grounded = true;
+        } else {
+            player.grounded = false;
+        }
+
+        for (let i = 0; i < obstacles.length; i++) {
+            const obs = obstacles[i];
+            if (Math.abs(obs.z - player.z) > 5) continue;
+
+            const dx = Math.abs(player.x - obs.x);
+            const dz = Math.abs(player.z - obs.z);
+
+            if (dx < obs.halfW + CHEESE_RADIUS * 0.75 && dz < obs.halfD + CHEESE_RADIUS * 0.75) {
+                if (obs.type === 'boostpad') {
+                    if (player.y <= obs.y + obs.halfH + CHEESE_RADIUS + 0.5) {
+                        player.vz = Math.max(player.vz, 26.0);
+                        sound.playRampBoost();
+                        spawnParticles(player.x, player.y, player.z, 0x33ffe6, 12, 1.2);
+                    }
+                } else if (obs.type === 'stump') {
+                    const progress = (player.z - (obs.z - obs.halfD)) / (obs.halfD * 2);
+                    const clampedProg = Math.max(0, Math.min(1, progress));
+                    const rampSurfaceY = obs.y + 0.25 + clampedProg * (obs.halfH - 0.25) + CHEESE_RADIUS;
+
+                    // Prevent teleporting down when flying high above the stump
+                    if (player.y <= rampSurfaceY + 0.45 && player.y >= obs.y - 0.5) {
+                        player.y = rampSurfaceY;
+                        if (clampedProg > 0.55 && player.vy < 16.5) {
+                            player.vy = 18.5;
+                            player.grounded = false;
+                            player.rampBoostTimer = 0.85;
+                            sound.playRampBoost();
+                            spawnParticles(player.x, player.y - 0.5, player.z, 0xffd43b, 14, 1.3);
+                        } else {
+                            player.vy = Math.max(player.vy, 6.5);
+                            player.grounded = true;
+                        }
+                    }
+                } else {
+                    const topY = obs.y + obs.halfH + CHEESE_RADIUS;
+                    // Only land on top if falling onto the surface (not flying high in the air above it)
+                    if (player.y >= topY - 0.55 && player.y <= topY + 0.35 && player.vy <= 2) {
+                        player.y = topY;
+                        player.vy = 0;
+                        player.grounded = true;
+                    } else if (player.y < topY - 0.55 && player.y > obs.y - 0.5) {
+                        player.z = obs.z - obs.halfD - CHEESE_RADIUS * 0.8;
+                        player.vz *= 0.42;
+                        player.vy = 4.5;
+                        sound.playBump();
+                        spawnParticles(player.x, player.y, player.z, 0xadb5bd, 10, 0.9);
+                    }
+                }
+            }
+        }
+
+        cheeseGroup.position.set(player.x, player.y, player.z);
+        player.rotX += (player.vz / CHEESE_RADIUS) * dt;
+        player.rotZ = -player.vx * 0.025;
+        cheeseGroup.rotation.set(player.rotX, 0, player.rotZ);
+
+        let closestHumanDist = 999;
+
+        for (let i = 0; i < humans.length; i++) {
+            const h = humans[i];
+
+            if (player.z - h.z > 42) {
+                h.z = player.z - (26 + Math.random() * 10);
+                h.x = player.x + (Math.random() - 0.5) * 14;
+                h.y = getTerrainHeight(h.x, h.z);
+                h.stumbleTimer = 0;
+            }
+
+            // Human-to-Human repulsion (Pushing each other)
+            for (let j = i + 1; j < humans.length; j++) {
+                const other = humans[j];
+                const hdx = other.x - h.x;
+                const hdz = other.z - h.z;
+                const hdist = Math.hypot(hdx, hdz);
+                if (hdist < 1.2 && hdist > 0.001) {
+                    const push = (1.2 - hdist) * 3.5;
+                    h.x -= (hdx / hdist) * push * dt;
+                    h.z -= (hdz / hdist) * push * dt;
+                    other.x += (hdx / hdist) * push * dt;
+                    other.z += (hdz / hdist) * push * dt;
+                }
+            }
+
+            if (h.stumbleTimer > 0) {
+                h.stumbleTimer -= dt;
+                h.vz *= 0.92;
+                h.rig.root.rotation.x = Math.PI * 0.38;
+            } else {
+                h.rig.root.rotation.x = 0.18;
+
+                const distZ = player.z - h.z;
+                const flankFactor = Math.max(0, Math.min(1, (distZ - 4) / 14));
+                const targetX = player.x + h.flankBias * flankFactor;
+                const dx = targetX - h.x;
+
+                h.vx += (Math.max(-13, Math.min(13, dx * 3.5)) - h.vx) * 6.0 * dt;
+
+                h.dashCooldown -= dt;
+                if (h.dashCooldown <= 0 && distZ > 3 && distZ < 24 && h.grounded) {
+                    h.dashTimer = 0.65;
+                    h.dashCooldown = 3.2 + Math.random() * 3.5;
+                    sound.playDash();
+                    spawnParticles(h.x, h.y + 0.5, h.z, 0xffffff, 6, 0.7);
+                }
+
+                // Keep current speed when close (<= 7m), run faster the further away they are
+                const distFromPlayer = Math.hypot(player.x - h.x, player.z - h.z);
+                const distanceBoost = Math.max(0, distFromPlayer - 7.0) * 0.42;
+                let desiredSpeed = h.baseTopSpeed + Math.min(4.5, runDistance * 0.0035) + distanceBoost;
+                if (h.dashTimer > 0) {
+                    h.dashTimer -= dt;
+                    desiredSpeed += 7.0;
+                }
+
+                h.vz += (desiredSpeed - h.vz) * 4.5 * dt;
+
+                for (let j = 0; j < obstacles.length; j++) {
+                    const obs = obstacles[j];
+                    const aheadZ = obs.z - h.z;
+                    if (aheadZ > 0.5 && aheadZ < 5.5 && Math.abs(obs.x - h.x) < obs.halfW + 0.8) {
+                        if (h.grounded && h.jumpsLeft > 0) {
+                            h.vy = 13.5;
+                            h.grounded = false;
+                            h.jumpsLeft--;
+                        }
+                    }
+                }
+
+                const heightDiff = (player.y - CHEESE_RADIUS) - h.y;
+                if (!h.grounded && h.jumpsLeft > 0 && heightDiff > 1.6 && h.vy < 3.5 && Math.abs(player.z - h.z) < 10) {
+                    h.vy = 14.5;
+                    h.jumpsLeft--;
+                    spawnParticles(h.x, h.y, h.z, 0x74c0fc, 7, 0.8);
+                }
+            }
+
+            h.x += h.vx * dt;
+            h.z += h.vz * dt;
+            h.x = Math.max(-TRACK_HALF_WIDTH, Math.min(TRACK_HALF_WIDTH, h.x));
+
+            h.vy -= 32.0 * dt;
+            h.y += h.vy * dt;
+
+            const hGroundY = getTerrainHeight(h.x, h.z);
+            if (h.y <= hGroundY) {
+                h.y = hGroundY;
+                h.vy = 0;
+                h.grounded = true;
+                h.jumpsLeft = 2;
+            } else {
+                h.grounded = false;
+            }
+
+            for (let j = 0; j < obstacles.length; j++) {
+                const obs = obstacles[j];
+                if (Math.abs(obs.z - h.z) > 4.5) continue;
+
+                if (Math.abs(h.x - obs.x) < obs.halfW + 0.45 && Math.abs(h.z - obs.z) < obs.halfD + 0.45) {
+                    const obsTop = obs.y + obs.halfH;
+                    if (h.y >= obsTop - 0.65 && h.y <= obsTop + 0.35 && h.vy <= 2) {
+                        h.y = obsTop;
+                        h.vy = 0;
+                        h.grounded = true;
+                        h.jumpsLeft = 2;
+                    } else if (h.y < obsTop - 0.65 && h.stumbleTimer <= 0) {
+                        h.z = obs.z - obs.halfD - 0.55;
+                        h.vz *= 0.3;
+                        h.stumbleTimer = 0.85;
+                        spawnParticles(h.x, h.y + 0.8, h.z, 0xff8787, 6, 0.6);
+                    }
+                }
+            }
+
+            h.rig.root.position.set(h.x, h.y, h.z);
+            h.rig.root.rotation.y = Math.atan2(h.vx, h.vz);
+            h.animPhase += h.vz * 0.65 * dt;
+            const swing = h.grounded ? Math.sin(h.animPhase) * 0.85 : 0.5;
+            h.rig.leftLeg.rotation.x = swing;
+            h.rig.rightLeg.rotation.x = -swing;
+            h.rig.leftArm.rotation.x = -swing * 0.9;
+            h.rig.rightArm.rotation.x = swing * 0.9;
+
+            const catchDx = player.x - h.x;
+            const catchDy = player.y - (h.y + 1.25);
+            const catchDz = player.z - h.z;
+            const distToCheese = Math.hypot(catchDx, catchDy, catchDz);
+            if (distToCheese < closestHumanDist) closestHumanDist = distToCheese;
+
+            if (distToCheese < CHEESE_RADIUS + 0.82) {
+                triggerGameOver('人間に捕まってしまった！');
+                return;
+            }
+        }
+
+        const dangerEl = document.getElementById('danger-indicator');
+        if (closestHumanDist < 6.5) {
+            dangerEl.classList.remove('hidden');
+        } else {
+            dangerEl.classList.add('hidden');
+        }
+
+        const currentChunk = Math.floor(player.z / CHUNK_LENGTH);
+        for (let c = currentChunk - 1; c <= currentChunk + 5; c++) createChunk(c);
+        cleanupOldChunks(currentChunk - 2);
+
+        const newDist = Math.max(0, Math.floor(player.z - startZ));
+        if (newDist > runDistance) {
+            runDistance = newDist;
+            runCoins = Math.floor(runDistance * 0.5);
+        }
+
+        updateHUD();
+    }
+
+    function updateParticles(dt) {
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.life -= dt;
+            if (p.life <= 0) {
+                scene.remove(p.mesh);
+                particles.splice(i, 1);
+                continue;
+            }
+            p.vy -= 18 * dt;
+            p.mesh.position.x += p.vx * dt;
+            p.mesh.position.y += p.vy * dt;
+            p.mesh.position.z += p.vz * dt;
+            const scale = Math.max(0.01, p.life / p.maxLife);
+            p.mesh.scale.setScalar(scale);
+        }
+    }
+
+    function updateCameraAndLights(dt) {
+        if (gameState === 'MENU') {
+            frameTime += dt;
+            const idleZ = 6;
+            const idleY = getTerrainHeight(0, idleZ) + CHEESE_RADIUS;
+            cheeseGroup.position.set(0, idleY, idleZ);
+            cheeseGroup.rotation.set(frameTime * 1.4, Math.sin(frameTime * 0.7) * 0.4, 0);
+
+            const camX = Math.sin(frameTime * 0.45) * 6.5;
+            const camY = idleY + 3.4;
+            const camZ = idleZ - 7.5;
+            camera.position.lerp(new THREE.Vector3(camX, camY, camZ), 0.08);
+            camera.lookAt(0, idleY + 0.6, idleZ + 6);
+
+            dirLight.position.set(15, idleY + 28, idleZ - 10);
+            dirLight.target.position.set(0, idleY, idleZ + 8);
+            return;
+        }
+
+        const desiredCamX = player.x * 0.72;
+        const desiredCamY = player.y + 5.5;
+        const desiredCamZ = player.z - 12.0;
+
+        camera.position.x += (desiredCamX - camera.position.x) * Math.min(1, 10 * dt);
+        camera.position.y += (desiredCamY - camera.position.y) * Math.min(1, 8 * dt);
+        camera.position.z += (desiredCamZ - camera.position.z) * Math.min(1, 14 * dt);
+
+        const targetFov = 64 + Math.max(0, (player.vz - 16) * 0.85);
+        camera.fov += (targetFov - camera.fov) * 5 * dt;
+        camera.updateProjectionMatrix();
+
+        camera.lookAt(player.x * 0.85, player.y + 0.4, player.z + 11);
+
+        dirLight.position.set(player.x + 18, player.y + 32, player.z - 8);
+        dirLight.target.position.set(player.x, player.y, player.z + 10);
+    }
+
+    const startScreen = document.getElementById('start-screen');
+    const hudScreen = document.getElementById('hud-screen');
+    const pauseModal = document.getElementById('pause-modal');
+    const gameoverModal = document.getElementById('gameover-modal');
+    const recordsModal = document.getElementById('records-modal');
+    const shopModal = document.getElementById('shop-modal');
+
+    function refreshMenuUI() {
+        document.getElementById('menu-coins').textContent = saveData.coins.toLocaleString();
+        document.getElementById('shop-coins').textContent = saveData.coins.toLocaleString();
+        document.getElementById('top-best-badge').textContent = `最高 ${saveData.bestDistance}m`;
+        const eqSkin = SKINS.find(s => s.id === saveData.equippedSkin) || SKINS[0];
+        document.getElementById('equipped-skin-pill').textContent = `${eqSkin.icon} ${eqSkin.name}`;
+    }
+
+    function updateHUD() {
+        document.getElementById('hud-distance').textContent = `${runDistance}m`;
+        document.getElementById('hud-coins').textContent = runCoins.toLocaleString();
+    }
+
+    function startGame() {
+        sound.init();
+        resetWorldForRun();
+        gameState = 'PLAYING';
+        startScreen.classList.add('hidden');
+        gameoverModal.classList.add('hidden');
+        pauseModal.classList.add('hidden');
+        hudScreen.classList.remove('hidden');
+    }
+
+    function pauseGame() {
+        if (gameState !== 'PLAYING') return;
+        gameState = 'PAUSED';
+        resetJoystick();
+        document.getElementById('pause-dist-text').textContent = `${runDistance}m`;
+        pauseModal.classList.remove('hidden');
+    }
+
+    function resumeGame() {
+        if (gameState !== 'PAUSED') return;
+        pauseModal.classList.add('hidden');
+        gameState = 'PLAYING';
+    }
+
+    function triggerGameOver(reasonText) {
+        if (gameState === 'GAMEOVER') return;
+        gameState = 'GAMEOVER';
+        resetJoystick();
+        sound.playGameOver();
+
+        const isNewRecord = runDistance > saveData.bestDistance && runDistance > 0;
+        if (isNewRecord) {
+            saveData.bestDistance = runDistance;
+        }
+        saveData.coins += runCoins;
+
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        saveData.records.unshift({
+            id: Date.now(),
+            distance: runDistance,
+            coins: runCoins,
+            date: dateStr,
+            surrendered: reasonText.includes('降参')
+        });
+        if (saveData.records.length > 100) saveData.records.pop();
+
+        persistSaveData();
+        refreshMenuUI();
+
+        document.getElementById('gameover-reason').textContent = reasonText;
+        document.getElementById('go-distance').textContent = `${runDistance}m`;
+        document.getElementById('go-best').textContent = `${saveData.bestDistance}m`;
+        document.getElementById('go-earned-coins').textContent = `+${runCoins}`;
+        document.getElementById('go-total-coins').textContent = saveData.coins.toLocaleString();
+
+        const newRecBanner = document.getElementById('new-record-banner');
+        if (isNewRecord) newRecBanner.classList.remove('hidden');
+        else newRecBanner.classList.add('hidden');
+
+        hudScreen.classList.add('hidden');
+        pauseModal.classList.add('hidden');
+        gameoverModal.classList.remove('hidden');
+    }
+
+    function returnToMenu() {
+        gameState = 'MENU';
+        for (const [, group] of chunks.entries()) scene.remove(group);
+        chunks.clear();
+        obstacles.length = 0;
+        humans.forEach(h => scene.remove(h.rig.root));
+        humans.length = 0;
+
+        for (let c = -1; c <= 4; c++) createChunk(c);
+        buildCheeseModel(saveData.equippedSkin);
+
+        gameoverModal.classList.add('hidden');
+        pauseModal.classList.add('hidden');
+        hudScreen.classList.add('hidden');
+        startScreen.classList.remove('hidden');
+        refreshMenuUI();
+    }
+
+    let currentRecordSort = 'newest';
+
+    function renderRecordsList() {
+        const listEl = document.getElementById('records-list');
+        const btnNew = document.getElementById('sort-newest-btn');
+        const btnHigh = document.getElementById('sort-highest-btn');
+
+        if (currentRecordSort === 'newest') {
+            btnNew.className = 'px-3 py-1.5 rounded-xl text-xs font-black bg-amber-500 text-slate-950 transition';
+            btnHigh.className = 'px-3 py-1.5 rounded-xl text-xs font-black bg-slate-700 text-slate-200 hover:bg-slate-600 transition';
+        } else {
+            btnHigh.className = 'px-3 py-1.5 rounded-xl text-xs font-black bg-amber-500 text-slate-950 transition';
+            btnNew.className = 'px-3 py-1.5 rounded-xl text-xs font-black bg-slate-700 text-slate-200 hover:bg-slate-600 transition';
+        }
+
+        if (saveData.records.length === 0) {
+            listEl.innerHTML = `<div class="text-center text-slate-400 py-10 font-bold text-sm">まだ逃走記録がありません。<br>スタートして最初の記録を作ろう！</div>`;
+            return;
+        }
+
+        const sorted = [...saveData.records];
+        if (currentRecordSort === 'highest') {
+            sorted.sort((a, b) => b.distance - a.distance || b.id - a.id);
+        } else {
+            sorted.sort((a, b) => b.id - a.id);
+        }
+
+        listEl.innerHTML = sorted.map((rec, idx) => {
+            const rankMedal = currentRecordSort === 'highest'
+                ? (idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`)
+                : `#${sorted.length - idx}`;
+            const isBest = rec.distance === saveData.bestDistance && rec.distance > 0;
+            return `
+                <div class="bg-slate-800/90 border ${isBest ? 'border-yellow-400' : 'border-slate-700'} rounded-2xl px-4 py-3 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="font-black text-amber-300 text-base w-8 text-center">${rankMedal}</span>
+                        <div>
+                            <div class="font-black text-lg text-white flex items-center gap-2">
+                                <span>${rec.distance}m</span>
+                                ${isBest ? '<span class="text-[10px] bg-yellow-400 text-slate-950 px-2 py-0.5 rounded-full">BEST</span>' : ''}
+                                ${rec.surrendered ? '<span class="text-[10px] bg-rose-600/80 text-white px-2 py-0.5 rounded-full">降参</span>' : ''}
+                            </div>
+                            <div class="text-[11px] text-slate-400 font-bold">${rec.date}</div>
+                        </div>
+                    </div>
+                    <div class="text-right font-black text-yellow-300 text-sm">
+                        🪙 +${rec.coins}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    const GACHA_COST = 100;
+
+    function renderShopSkins() {
+        refreshMenuUI();
+        const grid = document.getElementById('skins-grid');
+        grid.innerHTML = SKINS.map(skin => {
+            const unlocked = saveData.unlockedSkins.includes(skin.id);
+            const equipped = saveData.equippedSkin === skin.id;
+
+            const rarityColor = skin.rarity === 'SSR' ? 'bg-gradient-to-r from-pink-500 to-yellow-400 text-slate-950'
+                : skin.rarity === 'SR' ? 'bg-purple-500 text-white'
+                : skin.rarity === 'R' ? 'bg-sky-500 text-white'
+                : 'bg-slate-600 text-slate-200';
+
+            return `
+                <div onclick="selectSkin('${skin.id}')" class="cursor-pointer rounded-2xl p-3 border-2 transition flex flex-col justify-between ${
+                    equipped ? 'bg-indigo-900/80 border-yellow-400 shadow-lg'
+                    : unlocked ? 'bg-slate-800 border-slate-600 hover:border-indigo-400'
+                    : 'bg-slate-900/70 border-slate-800 opacity-60'
+                }">
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-[10px] font-black px-2 py-0.5 rounded-full ${rarityColor}">${skin.rarity}</span>
+                            ${equipped ? '<span class="text-[10px] font-black text-yellow-300">装備中</span>' : ''}
+                        </div>
+                        <div class="text-3xl my-1 text-center">${unlocked ? skin.icon : '🔒'}</div>
+                        <div class="font-black text-xs text-center text-white">${unlocked ? skin.name : '？？？'}</div>
+                    </div>
+                    <div class="mt-2 text-center">
+                        ${equipped
+                            ? '<span class="inline-block w-full py-1 rounded-lg bg-yellow-400 text-slate-950 font-black text-[11px]">装備中</span>'
+                            : unlocked
+                            ? '<span class="inline-block w-full py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[11px]">装備する</span>'
+                            : '<span class="inline-block w-full py-1 rounded-lg bg-slate-800 text-slate-400 font-bold text-[10px]">ガチャで解放</span>'
+                        }
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    window.selectSkin = function(skinId) {
+        if (!saveData.unlockedSkins.includes(skinId)) return;
+        saveData.equippedSkin = skinId;
+        persistSaveData();
+        buildCheeseModel(skinId);
+        renderShopSkins();
+    };
+
+    function pullGacha() {
+        const resultBox = document.getElementById('gacha-result-box');
+        if (saveData.coins < GACHA_COST) {
+            sound.playBump();
+            resultBox.innerHTML = `<span class="text-rose-400 font-black text-sm">コインが足りません！（あと ${GACHA_COST - saveData.coins} 枚必要）</span>`;
+            return;
+        }
+
+        saveData.coins -= GACHA_COST;
+        sound.playGacha();
+
+        const locked = SKINS.filter(s => !saveData.unlockedSkins.includes(s.id));
+        let chosen;
+        if (locked.length > 0 && Math.random() < 0.78) {
+            chosen = locked[Math.floor(Math.random() * locked.length)];
+        } else {
+            chosen = SKINS[Math.floor(Math.random() * SKINS.length)];
+        }
+
+        const isNew = !saveData.unlockedSkins.includes(chosen.id);
+        if (isNew) {
+            saveData.unlockedSkins.push(chosen.id);
+            saveData.equippedSkin = chosen.id;
+            buildCheeseModel(chosen.id);
+        } else {
+            saveData.coins += 40;
+        }
+
+        persistSaveData();
+        renderShopSkins();
+
+        resultBox.innerHTML = `
+            <div class="gacha-anim flex items-center gap-2 bg-black/50 px-4 py-1.5 rounded-full border border-yellow-300">
+                <span class="text-2xl">${chosen.icon}</span>
+                <span class="font-black text-yellow-300 text-sm sm:text-base">${chosen.name}</span>
+                ${isNew
+                    ? '<span class="bg-pink-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">NEW! 自動装備</span>'
+                    : '<span class="bg-amber-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">所持済 (+40🪙還元)</span>'
+                }
+            </div>
+        `;
+    }
+
+    document.getElementById('sound-toggle').addEventListener('click', () => {
+        const on = sound.toggle();
+        document.getElementById('sound-icon').textContent = on ? '🔊' : '🔇';
+        document.getElementById('sound-label').textContent = on ? 'SE ON' : 'SE OFF';
+    });
+
+    document.getElementById('start-game-btn').addEventListener('click', startGame);
+    document.getElementById('pause-menu-btn').addEventListener('click', pauseGame);
+    document.getElementById('resume-btn').addEventListener('click', resumeGame);
+    document.getElementById('surrender-btn').addEventListener('click', () => {
+        triggerGameOver('降参（リタイア）を選択した');
+    });
+    document.getElementById('retry-btn').addEventListener('click', startGame);
+    document.getElementById('back-menu-btn').addEventListener('click', returnToMenu);
+
+    document.getElementById('open-records-btn').addEventListener('click', () => {
+        renderRecordsList();
+        recordsModal.classList.remove('hidden');
+    });
+    document.getElementById('close-records-btn').addEventListener('click', () => {
+        recordsModal.classList.add('hidden');
+    });
+    document.getElementById('sort-newest-btn').addEventListener('click', () => {
+        currentRecordSort = 'newest';
+        renderRecordsList();
+    });
+    document.getElementById('sort-highest-btn').addEventListener('click', () => {
+        currentRecordSort = 'highest';
+        renderRecordsList();
+    });
+
+    document.getElementById('open-shop-btn').addEventListener('click', () => {
+        renderShopSkins();
+        shopModal.classList.remove('hidden');
+    });
+    document.getElementById('close-shop-btn').addEventListener('click', () => {
+        shopModal.classList.add('hidden');
+    });
+    document.getElementById('gacha-pull-btn').addEventListener('click', pullGacha);
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    let lastTimestamp = 0;
+
+    function animate(timestamp) {
+        requestAnimationFrame(animate);
+        const dt = Math.min(0.05, (timestamp - lastTimestamp) / 1000 || 0.016);
+        lastTimestamp = timestamp;
+
+        if (gameState === 'PLAYING') {
+            updateSimulation(dt);
+        }
+        updateParticles(dt);
+        updateCameraAndLights(dt);
+
+        renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+        returnToMenu();
+        requestAnimationFrame(animate);
+    };
+    </script>
+</body>
+</html>
